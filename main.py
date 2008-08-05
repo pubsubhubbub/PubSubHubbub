@@ -25,40 +25,17 @@ from google.appengine.ext import webapp
 from google.appengine.runtime import apiproxy_errors
 
 import urlfetch_async
+import async_apiproxy
 
-
-class AsyncRunner:
-  def __init__(self):
-    self.enqueued = []
-
-  def start_call(self, service, method, pbrequest, pbresponse, callback):
-    """Callback is ->(pbresponse | None, None | Exception)"""
-    self.enqueued.append((service, method, pbrequest, pbresponse, callback))
-
-  def rpcs_outstanding(self):
-    return len(self.enqueued);
-
-  def wait(self):
-    """Wait for RPCs to finish.  Returns true if one was processed."""
-    if not self.rpcs_outstanding():
-      return False
-    (service, method, pbrequest, pbresponse, callback) = self.enqueued.pop(0);
-    try:
-      apiproxy_stub_map.MakeSyncCall(service, method, pbrequest, pbresponse)
-      callback(pbresponse, None)
-    except apiproxy_errors.ApplicationError, e:
-      callback(None, e)
-    return True
-
-async_runner = AsyncRunner()
+async_proxy = async_apiproxy.AsyncAPIProxy()
 
 class MainHandler(webapp.RequestHandler):
 
   def get(self):
     self.response.out.write('Hello world!')
     # start async fetch:
-    urlfetch_async.fetch("http://bradfitz.com/", async_runner=async_runner, callback=self.on_url)
-    async_runner.wait()
+    urlfetch_async.fetch("http://bradfitz.com/", async_proxy=async_proxy, callback=self.on_url)
+    async_proxy.wait()
 
   def on_url(self, response, exception):
     # response = urlfetch_service_pb.URLFetchResponse

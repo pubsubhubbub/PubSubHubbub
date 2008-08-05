@@ -27,7 +27,7 @@ HEAD = 3
 PUT = 4
 DELETE = 5
 
-def fetch(url, payload=None, method=GET, headers={}, allow_truncated=False, callback=None, async_runner=None):
+def fetch(url, payload=None, method=GET, headers={}, allow_truncated=False, callback=None, async_proxy=None):
   """Fetches the given HTTP URL, blocking until the result is returned.
 
   Other optional parameters are:
@@ -79,8 +79,8 @@ def fetch(url, payload=None, method=GET, headers={}, allow_truncated=False, call
     header_proto.set_key(key)
     header_proto.set_value(value)
 
-  if async_runner:
-    async_runner.start_call('urlfetch', 'Fetch', request, response, callback)
+  if async_proxy:
+    async_proxy.start_call('urlfetch', 'Fetch', request, response, callback)
     return;
 
   try:
