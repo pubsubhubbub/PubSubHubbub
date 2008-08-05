@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import datetime
 import logging
 logging.getLogger().setLevel(logging.DEBUG)
 import wsgiref.handlers
@@ -24,6 +25,8 @@ from google.appengine.api import apiproxy_stub_map
 from google.appengine.api import urlfetch_service_pb
 from google.appengine.api.urlfetch_errors import *
 from google.appengine.ext import webapp
+from google.appengine.ext.webapp import template
+from google.appengine.ext import db
 from google.appengine.runtime import apiproxy_errors
 
 import urlfetch_async
@@ -31,8 +34,48 @@ import async_apiproxy
 
 async_proxy = async_apiproxy.AsyncAPIProxy()
 
-class MainHandler(webapp.RequestHandler):
 
+EXPIRATION_DELTA = datetime.timedelta(days=90)
+
+
+class Subscription(db.Model):
+  # TODO: Handle 2000 byte URLs by indexing on a hash property and then having
+  # a TextProperty with the whole callback_url inside of it.
+  callback_url = db.StringProperty(required=True)
+  topic = db.StringProperty(required=True)
+  expiration_time = db.DateTimeProperty(required=True)
+  has_been_verified = db.BooleanProperty(required=True)
+
+
+class SubscribeHandler(webapp.RequestHandler):
+  def get(self):
+    self.response.out.write(template.render('subscribe_debug.html', {}))
+  
+  def post(self):
+    callback = self.request.get('callback')
+    topic = self.request.get('topic')
+    async = self.request.get('async')
+    # TODO: Error handling, input validation
+    if not (callback and topic and async):
+      return self.error(500)
+    
+    # TODO: Verify the callback
+
+    expiration_time = datetime.datetime.now() + EXPIRATION_DELTA
+    sub = Subscription(
+      callback_url=callback,
+      topic=topic,
+      expiration_time=expiration_time,
+      has_been_verified=True)
+    sub.put()  # TODO exception handling
+    
+    
+    
+      
+    
+
+
+class UrlFetchTestHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write('Hello world!')
     # start async fetch:
@@ -51,11 +94,13 @@ class MainHandler(webapp.RequestHandler):
       self.response.out.write("<p>Got content: " + result.content + "</p>\n")
     else:
       self.response.out.write("Got exception!")
-  
+
 
 def main():
-  application = webapp.WSGIApplication([('/', MainHandler)],
-                                       debug=True)
+  application = webapp.WSGIApplication([
+    (r'/subscribe', SubscribeHandler),
+    (r'/async_fetch', UrlFetchTestHandler),
+  ],debug=True)
   wsgiref.handlers.CGIHandler().run(application)
 
 
