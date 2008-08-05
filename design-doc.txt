@@ -128,3 +128,21 @@ S - fetch succeed --> 204 (no content; success!)
 S - fetch failed --> 5xx
 A - server supports --> 202 (accepted) best effort later
 A - server doesn't support --> 501 (not implemented)
+
+---
+
+Subscribe Protocol:
+
+htp://publisher.com/subpoint?
+   callback=http://subscriber.com/callback.php
+   topic=http://publisher.com/foo.xml
+   async={AS, SA, A, S}
+   mode=unsubscribe   (optional: default is 'subscribe')
+
+   Error cases:
+
+   * If callback is invalid: TODO
+   * If topic isn't handled by this pubsubhub: TODO
+   * Async option is bogus (400 bad request)
+
+
