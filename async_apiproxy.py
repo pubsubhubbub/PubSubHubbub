@@ -16,6 +16,7 @@
 #
 
 import collections
+import logging
 
 from google.appengine.api import apiproxy_stub_map
 from google.appengine.runtime import apiproxy
@@ -33,16 +34,21 @@ class DevAppServerRPC(apiproxy.RPC):
   def CheckSuccess(self):
     apiproxy_stub_map.MakeSyncCall(self.package, self.call,
                                    self.request, self.response)
+    self.callback()
 
 
 if hasattr(_apphosting_runtime___python__apiproxy, 'MakeCall'):
   AsyncRPC = apiproxy.RPC
-else:
+  logging.debug('Using apiproxy.RPC')
+else:  
+  logging.debug('Using DevAppServerRPC')
   AsyncRPC = DevAppServerRPC
 
 
 class AsyncAPIProxy(object):
   def __init__(self):
+    # TODO: Randomize this queue in the dev_appserver to simulate a real
+    # asynchronous queue
     self.enqueued = collections.deque()
 
   def start_call(self, package, call, pbrequest, pbresponse, user_callback):
@@ -54,6 +60,8 @@ class AsyncAPIProxy(object):
                    lambda: user_callback(pbresponse, None))
     setattr(rpc, 'user_callback', user_callback) # TODO make this pretty
     self.enqueued.append(rpc)
+    logging.debug('Making call for RPC(%r, %r, %r, %r)',
+                  rpc.package, rpc.call, rpc.request, rpc.response)
     rpc.MakeCall()
 
   def rpcs_outstanding(self):
@@ -65,10 +73,11 @@ class AsyncAPIProxy(object):
       return False
     
     rpc = self.enqueued.popleft()
+    logging.debug('Waiting for RPC(%r, %r, %r, %r)',
+                  rpc.package, rpc.call, rpc.request, rpc.response)
     rpc.Wait()
     try:
       rpc.CheckSuccess()
-      rpc.user_callback(rpc.response, None)
     except (apiproxy_errors.Error, apiproxy_errors.ApplicationError), e:
       rpc.user_callback(None, e)
     return True
