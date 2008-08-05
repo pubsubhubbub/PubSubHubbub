@@ -1,0 +1,23 @@
+<h1>Subscribe/Unsubscribe</h1>
+
+<form action="/subscribe" method="post" accept-charset="utf-8">
+  <p><label for="callback">Callback:</label><input type="text" name="callback" value="" size="50" id="callback"/></p>
+  <p><label for="topic">Topic:</label><input type="text" name="topic" value="" size="50" id="topic"/></p>
+  <p>
+    <label for="async">Async:</label>
+    <select name="async" id="async">
+      <option value="SA">Synchronous, then deferred</option>
+      <option value="AS">Deferred, then synchronous</option>
+      <option value="S" selected="selected">Synchronous only</option>
+      <option value="A">Asynchronous only</option>
+    </select>
+  </p>
+  <p>
+    <label for="mode">Mode:</label>
+    <select name="mode" id="mode">
+      <option value="subscribe" selected="selected">Subscribe</option>
+      <option value="unsubscribe">Unsubscribe</option>
+    </select>
+  </p>
+  <p><input type="submit" value="Do it"></p>
+</form>
