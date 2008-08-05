@@ -18,25 +18,25 @@
 from google.appengine.api import urlfetch
 from google.appengine.api import apiproxy_stub_map
 from google.appengine.api import urlfetch_service_pb
-from google.appengine.api.urlfetch_errors import *
 from google.appengine.runtime import apiproxy_errors
 
-GET = 1
-POST = 2
-HEAD = 3
-PUT = 4
-DELETE = 5
 
-def fetch(url, payload=None, method=GET, headers={}, allow_truncated=False, callback=None, async_proxy=None):
+def fetch(url, payload=None, method=urlfetch.GET, headers={},
+          allow_truncated=False, callback=None, async_proxy=None):
   """Fetches the given HTTP URL, blocking until the result is returned.
 
   Other optional parameters are:
-     method: GET, POST, HEAD, PUT, or DELETE
-     payload: POST or PUT payload (implies method is not GET, HEAD, or DELETE)
-     headers: dictionary of HTTP headers to send with the request
-     allow_truncated: if true, truncate large responses and return them without
-     error. otherwise, ResponseTooLargeError will be thrown when a response is
-     truncated.
+    method: GET, POST, HEAD, PUT, or DELETE
+    payload: POST or PUT payload (implies method is not GET, HEAD, or DELETE)
+    headers: dictionary of HTTP headers to send with the request
+    allow_truncated: if true, truncate large responses and return them without
+      error. otherwise, ResponseTooLargeError will be thrown when a response is
+      truncated.
+    callback: Callable that takes (_URLFetchResult, URLFetchException).
+      Exactly one of the two arguments is None. Required if async_proxy is
+      not None.
+    async_proxy: If not None, instance of AsyncAPIProxy to use for executing
+      asynchronous API calls.
 
   We use a HTTP/1.1 compliant proxy to fetch the result.
 
@@ -60,18 +60,18 @@ def fetch(url, payload=None, method=GET, headers={}, allow_truncated=False, call
   method = urlfetch._URL_STRING_MAP.get(method, method)
   if method not in urlfetch._VALID_METHODS:
     raise InvalidMethodError('Invalid method %s.' % str(method))
-  if method == GET:
+  if method == urlfetch.GET:
     request.set_method(urlfetch_service_pb.URLFetchRequest.GET)
-  elif method == POST:
+  elif method == urlfetch.POST:
     request.set_method(urlfetch_service_pb.URLFetchRequest.POST)
-  elif method == HEAD:
+  elif method == urlfetch.HEAD:
     request.set_method(urlfetch_service_pb.URLFetchRequest.HEAD)
-  elif method == PUT:
+  elif method == urlfetch.PUT:
     request.set_method(urlfetch_service_pb.URLFetchRequest.PUT)
-  elif method == DELETE:
+  elif method == urlfetch.DELETE:
     request.set_method(urlfetch_service_pb.URLFetchRequest.DELETE)
 
-  if payload and (method == POST or method == PUT):
+  if payload and (method == urlfetch.POST or method == urlfetch.PUT):
     request.set_payload(payload)
 
   for key, value in headers.iteritems():
@@ -80,29 +80,50 @@ def fetch(url, payload=None, method=GET, headers={}, allow_truncated=False, call
     header_proto.set_value(value)
 
   if async_proxy:
-    async_proxy.start_call('urlfetch', 'Fetch', request, response, callback)
-    return;
+    def completion_callback(response, urlfetch_exception):
+      result, user_exception = HandleResult(response, urlfetch_exception,
+                                            allow_truncated)
+      callback(result, user_exception)
+    async_proxy.start_call('urlfetch', 'Fetch', request, response,
+                           completion_callback)
+    return
 
+  user_exception = None
   try:
     apiproxy_stub_map.MakeSyncCall('urlfetch', 'Fetch', request, response)
   except apiproxy_errors.ApplicationError, e:
-    if (e.application_error ==
+    user_exception = e
+    
+  result, user_exception = HandleResult(response, e, allow_truncated)
+  if user_exception:
+    raise user_exception
+  else:
+    return result
+
+
+def HandleResult(response, urlfetch_exception, allow_truncated):
+  """Returns (result, user_exception) to return from a fetch() call."""
+  result = None
+  user_exception = None
+
+  if urlfetch_exception:
+    elif (urlfetch_exception.application_error ==
         urlfetch_service_pb.URLFetchServiceError.INVALID_URL):
-      raise InvalidURLError(str(e))
-    if (e.application_error ==
+      user_exception = urlfetch.InvalidURLError(str(e))
+    elif (urlfetch_exception.application_error ==
         urlfetch_service_pb.URLFetchServiceError.UNSPECIFIED_ERROR):
-      raise DownloadError(str(e))
-    if (e.application_error ==
+      user_exception = urlfetch.DownloadError(str(e))
+    elif (urlfetch_exception.application_error ==
         urlfetch_service_pb.URLFetchServiceError.FETCH_ERROR):
-      raise DownloadError(str(e))
-    if (e.application_error ==
+      user_exception = urlfetch.DownloadError(str(e))
+    elif (urlfetch_exception.application_error ==
         urlfetch_service_pb.URLFetchServiceError.RESPONSE_TOO_LARGE):
-      raise ResponseTooLargeError(None)
-    raise e
-  result = urlfetch._URLFetchResult(response)
-
-  if not allow_truncated and response.contentwastruncated():
-    raise ResponseTooLargeError(result)
-
-  return result
-
+      user_exception = urlfetch.ResponseTooLargeError(None)
+    else
+      user_exception = urlfetch_exception
+  else:
+    result = urlfetch._URLFetchResult(response)
+    if not allow_truncated and response.contentwastruncated():
+      user_exception = urlfetch.ResponseTooLargeError(result)    
+  
+  return result, user_exception

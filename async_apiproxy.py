@@ -15,30 +15,68 @@
 # limitations under the License.
 #
 
-import wsgiref.handlers
+import collections
 
 from google.appengine.api import apiproxy_stub_map
+from google.appengine.runtime import apiproxy
 from google.appengine.runtime import apiproxy_errors
 
-class AsyncAPIProxy:
-  def __init__(self):
-    self.enqueued = []
 
-  def start_call(self, service, method, pbrequest, pbresponse, callback):
-    """Callback is ->(pbresponse | None, None | Exception)"""
-    self.enqueued.append((service, method, pbrequest, pbresponse, callback))
+class DevAppServerRPC(apiproxy.RPC):
+  def MakeCall(self):
+    pass
+  
+  def Wait(self):
+    pass
+  
+  def CheckSuccess(self):
+    apiproxy_stub_map.MakeSyncCall(self.package, self.call,
+                                   self.request, self.response)
+
+
+try:
+  from google3.apphosting.runtime import _apphosting_runtime___python__apiproxy
+  AsyncRPC = DevAppServerRPC
+except ImportError:
+  AsyncRPC = apiproxy.RPC
+
+
+class AsyncAPIProxy(object):
+  def __init__(self):
+    self.enqueued = collections.deque()
+
+  def start_call(self, package, call, pbrequest, pbresponse, user_callback):
+    """user_callback is a callback that takes (response, exception)"""
+    if not callable(user_callback):
+      raise TypeError('%r not callable' % user_callback)
+
+    rpc = AsyncRPC(package, call, pbrequest, pbresponse,
+                   lambda: user_callback(pbresponse, None))
+    setattr(rpc, 'user_callback', user_callback) # TODO make this pretty
+    self.enqueued.append(rpc)
+    rpc.MakeCall()
 
   def rpcs_outstanding(self):
-    return len(self.enqueued);
+    return len(self.enqueued)
+
+  def wait_one(self):
+    """Wait for a single RPC to finish. Returns True if one was processed."""
+    if not self.enqueued:
+      return False
+    
+    rpc = self.enqueued.popleft()
+    rpc.Wait()
+    try:
+      rpc.CheckSuccess()
+      rpc.user_callback(rpc.response, None)
+    except (apiproxy.Error, apiproxy_errors.ApplicationError), e:
+      rpc.user_callback(None, e)
+    return True
 
   def wait(self):
-    """Wait for RPCs to finish.  Returns true if one was processed."""
-    if not self.rpcs_outstanding():
+    """Wait for RPCs to finish.  Returns True if any were processed."""
+    while self.enqueued:
+      self.wait_one()
+    else:
       return False
-    (service, method, pbrequest, pbresponse, callback) = self.enqueued.pop(0);
-    try:
-      apiproxy_stub_map.MakeSyncCall(service, method, pbrequest, pbresponse)
-      callback(pbresponse, None)
-    except apiproxy_errors.ApplicationError, e:
-      callback(None, e)
     return True
