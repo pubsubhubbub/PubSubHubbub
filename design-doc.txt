@@ -1,0 +1,130 @@
+Terminology
+-----------
+
+Topic: a feed URL.  The unit to which one can subscribe.
+
+Subscription:  a tuple (Topic URL, Postback URL)
+
+Event: an event that's visible to multiple topics.  For each event
+  that happens (e.g. "Brad posted to the Linux Community."), multiple
+  topics could be affected (e.g. "Brad posted." and "Linux community
+  has new post").  Server-side, events update topics, and server looks
+  up all subscriptions for all affected topics, sending out updates to
+  subscribers.
+
+Publisher: location at which interesting events are being generated.
+  Often mistakenly referred to as "server" in this document.
+
+Subscriber: location to which topic update notifications are being
+  sent.  Often mistakenly referred to as "client" in this document.
+  Mistakenly because the "client" is also a [web] server.
+
+
+Notes:
+------
+
+* Topics are Feed URLs.  Atom.
+
+* There is no relationship between topics.  In the future such an Atom
+  extension could exist, but that's entirely out of this spec, both
+  now and then.  Non-goal.
+
+* Note: when subscribing, the publisher tells the subscribe for how
+  long this subscription will be valid.  (like a DHCP lease timeout).
+  Subscriber must re-subscribe before that time to keep it valid.
+
+* Implementation should support the publisher POSTing to the
+  subscriber one HTTP POST payload with the contents of multiple
+  topics.  This is a must for subscribers to support, and optional for
+  publishers.
+
+* Publisher (via nonce or pingback or other means) must verify that
+  the subscriber is at the location they say they are to avoid letting
+  3rd parties DoS each other via large, capable Publishers.
+
+* In same way openid was bootstrappable with a simple <link> tag, should
+  be similar for publishers to delegate their pubsubhub with a simple
+  link tag.
+
+* Multi-protocol would be nice, but simple would probably win... HTTP
+  only at first.  XMPP later.
+
+* Loops!  Perhaps Atom child element (repeated) of all the Atom Entry
+  IDs that entry used to be or came from or is.  Neat to see the
+  HTTP-like TRACE.  (perhaps extension to Atom, not part of this spec)
+
+* Notification body could be:
+
+  <event>
+   * full content w/ single item URL (perhaps truncated at n bytes)
+   * URLs for last 10 events
+   * URL for entire feed
+  </event>
+
+Trade-off between including all content and thundering herd.
+Publisher makes the decision as to include full body, truncated body,
+meta data only, or URL of most recent event only.  One of:
+
+  URL
+  URL + metadata
+  URL + metadata + truncated
+  URL + metadata + full
+
+And then URLs of most recent 10 events (for recipient to know whether
+or not they'd missed any recent items... like TCP SACK).
+type="context".
+
+<entry type="metadata">
+<entry type="context">
+
+And then also include the feed URL for the entire event stream.  (or
+is this implied, being no different than the normal RSS/Atom URL?)
+
+-----
+
+Subr.com
+/notify.php
+
+Pubr
+/happycats.xml
+/subpoint
+
+   1. Subr POST to /subpoint with payload {me: /notify.php, subto:
+   happycats.xml, deferred_ok: true}
+
+   2. Pubr sends new request "oh do you want this topic?" to
+   /notify.php with x-requester-ip: 1.2.3.4 (so DoSing clients can be
+   detected).
+
+   3. Subr says, "yes, I really do want this topic"
+
+   4. Pubr responds to Subr with "okay"
+
+
+In the case of asynchronous, step 1 could go straight to step 4, where
+the publisher says "I can't do this right now, I need to do this
+asynchronously".
+
+Subscriber async preference values = {
+
+    * SYNC_THEN_DEFERRED
+    * DEFERRED_THEN_SYNC,
+    * SYNC_ONLY
+    * DEFERRED_ONLY
+
+}
+
+Publisher must provide synchronous capability at a minimum.
+
+Sub | Situation | Results
+
+SA - fetch succeed --> 204 (no content)
+SA - fetch fail or server prefers async, async logged --> 202 (accepted): best effort.  min 1 retry in the future only.
+SA - fetch fail, async not supported --> 501 (not implemented)
+AS - async supported --> 202 accepted.  best effort.
+AS - async not supported (or not preferred) + fetch success --> 204 no content.  success!
+AS - async not supported (or not preferred) + fetch failure --> 5xx
+S - fetch succeed --> 204 (no content; success!)
+S - fetch failed --> 5xx
+A - server supports --> 202 (accepted) best effort later
+A - server doesn't support --> 501 (not implemented)
