@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import logging
+logging.getLogger().setLevel(logging.DEBUG)
 import wsgiref.handlers
 
 from google.appengine.api import urlfetch
@@ -34,18 +36,21 @@ class MainHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write('Hello world!')
     # start async fetch:
-    urlfetch_async.fetch("http://bradfitz.com/test/1.txt", async_proxy=async_proxy, callback=self.on_url)
-    urlfetch_async.fetch("http://bradfitz.com/test/2.txt", async_proxy=async_proxy, callback=self.on_url)
+    self.start_async_fetch("http://bradfitz.com/test/1.txt")
+    self.start_async_fetch("http://bradfitz.com/test/2.txt")
     async_proxy.wait()
 
-  def on_url(self, result, exception):
-    # response = urlfetch_service_pb.URLFetchResponse
+  def start_async_fetch(self, url):
+    def callback(result, exception):
+      self.on_url(url, result, exception)
+    urlfetch_async.fetch(url, async_proxy=async_proxy, callback=callback)
+
+  def on_url(self, url, result, exception):
+    logging.info('Callback received for "%s": %s', url, result.status_code)
     if result:
       self.response.out.write("<p>Got content: " + result.content + "</p>\n")
     else:
       self.response.out.write("Got exception!")
-
-
   
 
 def main():
