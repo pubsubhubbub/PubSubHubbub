@@ -34,13 +34,14 @@ class MainHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write('Hello world!')
     # start async fetch:
-    urlfetch_async.fetch("http://bradfitz.com/", async_proxy=async_proxy, callback=self.on_url)
+    urlfetch_async.fetch("http://bradfitz.com/test/1.txt", async_proxy=async_proxy, callback=self.on_url)
+    urlfetch_async.fetch("http://bradfitz.com/test/2.txt", async_proxy=async_proxy, callback=self.on_url)
     async_proxy.wait()
 
   def on_url(self, response, exception):
     # response = urlfetch_service_pb.URLFetchResponse
     if response:
-      self.response.out.write("Got content: " + response.content())
+      self.response.out.write("<p>Got content: " + response.content() + "</p>\n")
     else:
       self.response.out.write("Got exception!")
 
