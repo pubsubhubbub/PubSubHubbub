@@ -107,7 +107,7 @@ def HandleResult(response, urlfetch_exception, allow_truncated):
   user_exception = None
 
   if urlfetch_exception:
-    elif (urlfetch_exception.application_error ==
+    if (urlfetch_exception.application_error ==
         urlfetch_service_pb.URLFetchServiceError.INVALID_URL):
       user_exception = urlfetch.InvalidURLError(str(e))
     elif (urlfetch_exception.application_error ==
@@ -119,7 +119,7 @@ def HandleResult(response, urlfetch_exception, allow_truncated):
     elif (urlfetch_exception.application_error ==
         urlfetch_service_pb.URLFetchServiceError.RESPONSE_TOO_LARGE):
       user_exception = urlfetch.ResponseTooLargeError(None)
-    else
+    else:
       user_exception = urlfetch_exception
   else:
     result = urlfetch._URLFetchResult(response)

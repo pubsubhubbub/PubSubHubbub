@@ -38,10 +38,10 @@ class MainHandler(webapp.RequestHandler):
     urlfetch_async.fetch("http://bradfitz.com/test/2.txt", async_proxy=async_proxy, callback=self.on_url)
     async_proxy.wait()
 
-  def on_url(self, response, exception):
+  def on_url(self, result, exception):
     # response = urlfetch_service_pb.URLFetchResponse
-    if response:
-      self.response.out.write("<p>Got content: " + response.content() + "</p>\n")
+    if result:
+      self.response.out.write("<p>Got content: " + result.content + "</p>\n")
     else:
       self.response.out.write("Got exception!")
 

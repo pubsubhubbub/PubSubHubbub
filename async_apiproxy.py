@@ -20,6 +20,7 @@ import collections
 from google.appengine.api import apiproxy_stub_map
 from google.appengine.runtime import apiproxy
 from google.appengine.runtime import apiproxy_errors
+from google3.apphosting.runtime import _apphosting_runtime___python__apiproxy
 
 
 class DevAppServerRPC(apiproxy.RPC):
@@ -34,11 +35,10 @@ class DevAppServerRPC(apiproxy.RPC):
                                    self.request, self.response)
 
 
-try:
-  from google3.apphosting.runtime import _apphosting_runtime___python__apiproxy
-  AsyncRPC = DevAppServerRPC
-except ImportError:
+if hasattr(_apphosting_runtime___python__apiproxy, 'MakeCall'):
   AsyncRPC = apiproxy.RPC
+else:
+  AsyncRPC = DevAppServerRPC
 
 
 class AsyncAPIProxy(object):
@@ -69,7 +69,7 @@ class AsyncAPIProxy(object):
     try:
       rpc.CheckSuccess()
       rpc.user_callback(rpc.response, None)
-    except (apiproxy.Error, apiproxy_errors.ApplicationError), e:
+    except (apiproxy_errors.Error, apiproxy_errors.ApplicationError), e:
       rpc.user_callback(None, e)
     return True
 
