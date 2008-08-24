@@ -3,21 +3,25 @@ Terminology
 
 Topic: a feed URL.  The unit to which one can subscribe.
 
-Subscription:  a tuple (Topic URL, Postback URL)
+Subscription: a tuple (Topic URL, Callback URL).
 
 Event: an event that's visible to multiple topics.  For each event
   that happens (e.g. "Brad posted to the Linux Community."), multiple
   topics could be affected (e.g. "Brad posted." and "Linux community
-  has new post").  Server-side, events update topics, and server looks
-  up all subscriptions for all affected topics, sending out updates to
+  has new post").  Publisher events update topics, and the hub looks
+  up all subscriptions for all affected topics, sending out notifications to
   subscribers.
 
 Publisher: location at which interesting events are being generated.
   Often mistakenly referred to as "server" in this document.
+  Topic URL belongs to the publisher.
 
 Subscriber: location to which topic update notifications are being
   sent.  Often mistakenly referred to as "client" in this document.
   Mistakenly because the "client" is also a [web] server.
+  Callback URL belongs to the subscriber.
+
+Notification:  Atom body delivered to a Callback URL.
 
 
 Notes:
@@ -35,8 +39,9 @@ Notes:
 
 * Implementation should support the publisher POSTing to the
   subscriber one HTTP POST payload with the contents of multiple
-  topics.  This is a must for subscribers to support, and optional for
-  publishers.
+  topics (mime multipart messages, each one of which is an Atom document).
+  This is a must for subscribers to support, and optional for publishers
+  (more on this optimization below).
 
 * Publisher (via nonce or pingback or other means) must verify that
   the subscriber is at the location they say they are to avoid letting
@@ -44,7 +49,8 @@ Notes:
 
 * In same way openid was bootstrappable with a simple <link> tag, should
   be similar for publishers to delegate their pubsubhub with a simple
-  link tag.
+  link tag. Example:
+    <link rel="hub.subscribe" href="http://pubsubhubbub.com/subscribe" />
 
 * Multi-protocol would be nice, but simple would probably win... HTTP
   only at first.  XMPP later.
@@ -52,35 +58,112 @@ Notes:
 * Loops!  Perhaps Atom child element (repeated) of all the Atom Entry
   IDs that entry used to be or came from or is.  Neat to see the
   HTTP-like TRACE.  (perhaps extension to Atom, not part of this spec)
+  (** Looked it up, and <atom:link rel="via"> implies this, but it only works
+  if all of the feeds in the trace correctly supply a 'via' tag. Then it's on
+  the client to iteratively follow the trace).
 
-* Notification body could be:
+-----
 
-  <event>
-   * full content w/ single item URL (perhaps truncated at n bytes)
-   * URLs for last 10 events
-   * URL for entire feed
-  </event>
+Notification and source formats will be Atom. More detail follows this example.
 
-Trade-off between including all content and thundering herd.
-Publisher makes the decision as to include full body, truncated body,
-meta data only, or URL of most recent event only.  One of:
+  <atom:feed>
+    # ... source, title, etc ...
 
-  URL
+    <link rel="hub.delegate" href="http://publisher.com/notifications.xml" />
+    <link rel="self" href="http://publisher.com/happycats.xml" />
+    <updated>2008-08-11T02:15:01Z</updated>
+
+    # Example of a full entry.
+    <entry>
+      <title>Heathcliff</title>
+      <link href="http://publisher.com/happycat25.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-08-11T02:15:01Z</updated>
+      <content>
+        What a happy cat. Full content goes here.
+      </content>
+    </entry>
+
+    # Example of an entity that isn't full/is truncated. This is implied
+    # by the lack of a <content> element and a <summary> element instead.
+    <entry >
+      <title>Heathcliff</title>
+      <link href="http://publisher.com/happycat25.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-08-11T02:15:01Z</updated>
+      <summary>
+        What a happy cat!
+      </summary>
+    </entry>
+    
+    # Meta-data only; implied by the lack of <content> and <summary> elements.
+    <entry>
+      <title>Garfield</title>
+      <link rel="alternate" href="http://publisher.com/happycat24.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-08-11T02:15:01Z</updated>
+    </entry>
+
+    # Context entry that's meta-data only and not new. Implied because the
+    # update time on this entry is before the //atom:feed/updated time.
+    <entry>
+      <title>Nermal</title>
+      <link rel="alternate" href="http://publisher.com/happycat23s.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-07-10T12:28:13Z</updated>
+    </entry>
+
+  </atom:feed>
+
+Publisher makes the decision as to include full body, truncated body, or
+meta data of most recent event(s).  One of:
+
   URL + metadata
   URL + metadata + truncated
   URL + metadata + full
 
-And then URLs of most recent 10 events (for recipient to know whether
-or not they'd missed any recent items... like TCP SACK).
-type="context".
+The trade-off between including all content in outgoing notifications or having
+the thundering herd (by clients who fetch the //atom:feed/entry/link in
+response to a notification) is up to the publisher.
 
-<entry type="metadata">
-<entry type="context">
+Entries of most recent 10 events (for recipient to know whether
+or not they'd missed any recent items... like TCP SACK) will be provided as
+context. This is implied by the difference between the //atom:feed/updated field
+and the //atom:feed/entry/updated fields. The //atom:feed/updated field will
+be set to the time of the *oldest* <entry> in the list that is new. All
+<entry> items with <updated> times before then are context; all with times
+equal to or after are new. This also lets subscribers know how long it has
+been from when the notification was first sent by the publisher to when they
+actually received it from the hub.
 
-And then also include the feed URL for the entire event stream.  (or
-is this implied, being no different than the normal RSS/Atom URL?)
+The //atom:feed/link[@rel="self"] element will indicate the original URL for
+the entire event stream with no truncation (if available).
+
+The //atom:feed/link[@rel="hub.delegate"] element indicates the URL that the hub
+should use for retrieving new notifications from a publisher. The publisher
+can make this delegate URL contain a meta-data only or truncated view of the
+feed. If a hub.delegate is not provided, then the 'self' URL is used as both
+the source of notifications and the source for the topic URL feed.
+
+Topic URLs must be unique, but multiple topics may use the same hub.delegate. In
+this situation, the delegate URL may serve a MIME multipart response, each part
+of which will contain a separate Atom document for an individual topic. The hub
+must understand this delegation. Once it has fetched the topic URL once to see
+this delegation is present, it will use the delegation url to pull the feed.
+This allows the publisher to be more efficient at publishing across many topics
+at once with a single fetch from the hub.
+
+TODO: How do you indicate to the hub that you no longer want to have a
+delegate URL?
+
+Requirement is that topic URLs and delegate URLs can never overlap!
+
+More info on atom:link tag meanings here:
+  http://intertwingly.net/wiki/pie/LinkTagMeaning
 
 -----
+
+Flow for subscription
 
 Subr.com
 /notify.php
@@ -133,16 +216,83 @@ A - server doesn't support --> 501 (not implemented)
 
 Subscribe Protocol:
 
-htp://publisher.com/subpoint?
-   callback=http://subscriber.com/callback.php
-   topic=http://publisher.com/foo.xml
-   async={AS, SA, A, S}
-   mode=unsubscribe   (optional: default is 'subscribe')
+POST
+http://publisher.com/subpoint?
+    callback=http://subscriber.com/callback.php
+    topic=http://publisher.com/foo.xml
+    async={AS, SA, A, S}
+    mode=unsubscribe   (optional: default is 'subscribe')
+    
+  Error cases:
+    * If callback is invalid: TODO
+    * If topic isn't handled by this pubsubhub: TODO
+      - Probably if it's an unknown topic, issue a 404
+    * Async option is bogus (400 bad request)
 
-   Error cases:
+TODO: What about support for multi-part data for the subscriber? For very
+simple subscribers, we probably don't even want to do multipart form-data,
+because it's more complex to parse? Or is it a minimum requirement that the
+post body will always be multipart?
 
-   * If callback is invalid: TODO
-   * If topic isn't handled by this pubsubhub: TODO
-   * Async option is bogus (400 bad request)
+---
+
+TODO: Do we need a verification system for the publish side of things, or is
+ownership of URLs good enough for our purposes? If the latter, that means there
+could be subscribers of a URL that doesn't actually exist yet.
+
+Proposal: Publishers must subscribe to themselves to create the new topic. This
+also gives the hub a chance to figure out if there are any url delegations.
 
 
+Publisher Protocol:
+
+POST
+http://pubsubhubbub.com/pubpoint
+    url=http://publisher.com/topic1.xml
+    url=http://publisher.com/topic2.xml
+    url=http://publisher.com/delegate1.xml
+    url=http://publisher.com/delegate2.xml
+    ...
+
+  The 'url' field can be repeated for any combination of topic URL or
+  delegate URLs. The hub should deal properly with duplicate URLs.
+
+  Error cases:
+    * Topic known -> 204
+    * Topic unknown -> 404
+
+This will enqueue a feed-fetch for sometime in the future, followed by pushing
+the new notifications with <atom:entry> elements to all subscribers. The system
+may decide to combine this publish notification with any earlier publish
+notification that have not yet been pushed to subscribers (this could happen if
+events are coming in faster than the hub will allow).
+
+The GET for the publisher's notification feed may include a Google Reader
+Feed-fetcher style thing where there is a statistics header on the request for
+the feed every time we pull it. Then the publisher always knows how many
+subscribers are on the hub. Example:
+
+X-Hub-Subscribers: topic=http://publisher.com/foo.xml; subscribers=120
+
+For combined notification feeds, we would push this header for each topic
+that is included in the feed (up to some practical limit). The header would
+appear in primary request headers, not in the individual MIME parts.
+
+---
+
+Receive Event Protocol:
+
+POST
+http://subscriber.com/callback.php
+
+Post body will be the Atom notification feed described above. The hub will
+keep track of the last N known <atom:id> elements for the topic, and send
+updates only for the newest <atom:entry> elements (along with N entries for
+context).
+
+The subscriber will know the topic URL by looking at the
+//atom:feed/link[@rel="self"] value? Or maybe we'll make it rel="source" for
+the notifications?
+
+The post will always be a multi-part post, each part will be an Atom feed
+for an individual topic.
