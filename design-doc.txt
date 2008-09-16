@@ -296,3 +296,120 @@ the notifications?
 
 The post will always be a multi-part post, each part will be an Atom feed
 for an individual topic.
+
+===========================================================================
+Meeting notes from 2008-09-16:
+===========================================================================
+
+Priorities:
+   - ignore for now NAT'ed token polling (requires https anyway)
+   - ignore for now XMPP (requires XMPP anyway)
+   - ignore for now huge subscribers:
+        - mixed payloads (different topicids)
+        - long-lived connections,
+        - one HTTP in-flight at a time,
+    - ignore for now huge publishers:
+        - publishing one URL at a time (e.g. Blogger)
+    - ignore for now (until v2) all authentication issues:
+        - no pushing payloads to subscribers.  send them notification to poll us instead.  perhaps with token.
+    - ignore for now private Atom URLs/topics.  public topics for now.  OAuth or something later.
+
+
+Keep atomid of all feed entries we've seen on an Atom URL in the past.  (or just the immediate past one perhaps?  or 'n' days of them?).  keep (atomid, date, digest)
+
+Lexicon:
+   topicid:  an Atom URL
+   topicdeltaid:  a diff of two Atom URLs (t1 and t2).
+
+POST /pubber/?topic_url=http://lolcats/lolcatz.xml
+     SELECT subberid FROM subbers WHERE topicid=? LIMIT 1
+       ("does anybody give a shit?")
+      If no,
+          return "Thanks bye! 200 OK!"  (and tell google crawlers)
+      If yes,
+          enqueue a poll-this-url-later record.  one insert.  bounded latency.
+          return 200 OK
+
+Cron:
+GET /do-some-work/fetch-updated-feeds-and-find-deltas
+     pull feed,
+     compute digests.  find ids, dates.  compute deltas from our copy of that thing's previous value.
+     INSERT INTO topicdeltapayloads
+           SET topicdeltaid="yyyymmhhddmss.mmss:topicid",
+                   payload=..., topicid=....
+     INSERT INTO topics_what_are_new_but_people_need_to_be_notified
+           SET topicdeltaid=?, subid-where-i-left-off=""
+
+ 
+GET /do-some-work/send-notifications
+    SELECT topiciddeltaid, subid-where-i-left-off FROM topics_what_are_new_but_people_need_to_be_notified LIMIT 500
+    RANDOMIZE LIST
+    Foreach topicid:
+       try-to-get-lock {
+           SELECT the topicdeltaid payload
+           SELECT subscribers WHERE topicid = ? AND subid > subid-where-i-left-off
+            BATCH urlfetch POST to them all,
+              scatter-gather errors.  
+
+            For those that fail from the 100-some batch, create to-do-later (notification) records.
+            increase subid if the selected count == the previous limit,
+                else DELETE FROM topics_where_people_need_to_be_notified WHERE topiciddeltaid = ?
+        }  // end lock
+
+XMPP:
+
+* in the future, when App Engine supports it.  but it's a special thingy.  HTTP is base and required.  XMPP support for pubbers and subbers is optional.
+
+Polling mode for subscribers:
+
+* a) callbacks won't always work (subscribers behind NATs, etc)
+* b) callbacks won't always fit all subscriber's model (not easy for them)
+* so must have poll mode.
+* in the future:  can be long-poll, when App Engine supports it.  maybe.
+* needs auth
+* 1MB payload on responses, so server needs ability to paginate and set "but there's more!" flag w/ continuation token.
+
+The hub notifies all subbers:  POST /callback/url/ "yo, something's new for you.  don't trust me. fetch: http://pubsubhubbub.appspost.com/poll-for-new-shit/?subid=234&token=23482903482340923849023840923i4"
+
+Large subscribers:  (may be v2)
+
+* one in-flight HTTP POST to subscribers at a time.  use memcacheg 10 second or so lock.
+* if another POST is attempted while another is already in flight, enqueue/append the payloadid to a new
+   table, contentious_or_big_subscriber.  still mark that (topicdeltaid, subid) pair as done for the purposes of
+  /do-some-work/sent-notifications
+* new do-some-work:
+      /do-some-work/sent-notifications-to-big-peeps
+* optional property on subscriptions for big subscribers to say, "Yo, it's okay to mix my subscriptions together
+   in one HTTP payload post."  in which case it's atom-stream.xml style (updates.sixapart.com) and the payloads are mixed:
+
+NAT'ed subbers:
+------------------------
+* first, have to subscribe.  but they know they're natted and can say so.
+* require HTTPS, /create-polling-token
+    -- response includes:
+          * the token
+          * ISO 8601 expiration time.  you have to poll before this to renew it.
+* require HTTPS, /subscribe?topicurl=http//&{token=subid | callback=....}
+
+
+Misc notes:
+----------------
+* can subscribe to anything, regardless of whether or not there are any publishers.
+* server's choice whether or not to actually poll proactively for changes vs. getting notified.
+
+
+Discovery:
+--------------
+in Atom.xml:
+    <link rel="hub.subscribe" href="http://pubsubhubbub.appspot.com/subscribe" />
+        (repeated.  client should pick one)
+in /index.html
+   <link rel="hub.publish" href="http://pubsubhubbub.appspot.com/publish" />
+   <link rel="hub.subscribe" href="http://pubsubhubbub.appspot.com/publish" />
+   <link rel="alternate" type="application/atom+xml" href="http://lolcats.xml" />
+
+then bookmarklet to ping the publish URL.
+
+===========================================================================
+              end meeting notes from 2009-09-16
+===========================================================================
