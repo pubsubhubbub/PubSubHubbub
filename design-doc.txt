@@ -1,66 +1,168 @@
+TODO:
+  replace hub.{subscribe,publish} w/ one link rel tag
+
+
+============================================================================
+Overview
+============================================================================
+
+An open, simple web-scale pubsub protocol, along with an open source
+reference implentation targetting Google App Engine.  Notably,
+however, nothing in the protocol is centralized, or Google- or App
+Engine-specific.  Anybody can play.
+
+As opposed to more developed (and more complex) pubsub specs like
+XEP-0060, this spec's base profile (the barrier-to-entry to speak it)
+is dead simple.  The fancy bits required for high-volume publishers
+and subscribers are optional.  The base profile is HTTP-based, as
+opposed to XMPP (see more on this below).
+
+To dramatically simplify the spec in several places where we had to
+choose between supporting A or B, we took it upon ourselves to say
+"only A", rather than making it an implementation decision.
+
+We offer this spec in hopes that it fills a need or at least advances
+the state of the discussion in the pubsub space.  Polling sucks.  We
+think a decentralized pubsub layer is a fundamental, missing layer in
+the Internet architecture today and its existence, more than just
+enabling the obvious lower latency feed readers, would enable many
+cool applications, most of which we can't even imagine.  But we're
+looking forward to decentralized social networking.
+
+============================================================================
 Terminology
------------
+============================================================================
 
-Topic: a feed URL.  The unit to which one can subscribe.
+Topic: an Atom feed URL.  The unit to which one can subscribe to
+  changes.  RSS isn't supported for simplicity.  Further, the spec
+  currently only addresses public (unauthenticated) Atom feed URLs.
 
-Subscription: a tuple (Topic URL, Callback URL).
+Pubsub Hub ("the hub"):  the server (URL) which implements this protocol.
+  We're currently implementing this and running at server at
+  http://pubsubhubbub.appspot.com/ that's at least for now open for anybody
+  to use, as either a publisher or subscriber.  Any hub is free to
+  implement its own policies on who can use it.
+
+Publisher:  an owner of a topic.  Notifies the pubsub hub when the topic
+  (Atom feed) has been updated.  Just notifies that it _has_ been updated,
+  but not how.  As in almost all pubsub systems, the publisher is unaware
+  of the subscribers, if any.
+
+Subscriber: an entity (person or program) that wants to be notified of
+  changed on a topic.  The subscriber can be directly network-accessible
+  or behind a NAT.
+
+Subscription: a tuple (Topic URL, Subscriber).  For network-accessible
+  subscribers, the subscription's unique key is actually the tuple
+  (Topic URL, Subscriber Callback URL).  For NAT'd subscribers,
+  the unique key for a subscription is (Topic URL, SubscriberToken).
+  In both cases, subscriptions may (at the hub's decision) have expiration
+  times akin to DHCP leases and then must be renewed.
 
 Event: an event that's visible to multiple topics.  For each event
   that happens (e.g. "Brad posted to the Linux Community."), multiple
   topics could be affected (e.g. "Brad posted." and "Linux community
   has new post").  Publisher events update topics, and the hub looks
-  up all subscriptions for all affected topics, sending out notifications to
-  subscribers.
+  up all subscriptions for all affected topics, sending out
+  notifications to subscribers.
 
-Publisher: location at which interesting events are being generated.
-  Often mistakenly referred to as "server" in this document.
-  Topic URL belongs to the publisher.
+Notification: a delta on a topic, computed by the hub and sent to all
+  subscribers.  (TBD: format of this delta.  likely: an Atom feed
+  itself with just the new or changed stuff, and gravestones for
+  removed items?)  The notification can be the result of a publisher
+  telling the hub of an update, or the hub proactively polling a topic
+  feed, perhaps for a subscriber subscribing to a topic that's not
+  pubsub-aware.  Note also that a notification to a subscriber can be
+  a payload consisting of updates for multiple topics.  Publishers MAY
+  choose to send multi-topic notifications as an optimization for
+  heavy subscribers, but subscribers MUST understand them.
 
-Subscriber: location to which topic update notifications are being
-  sent.  Often mistakenly referred to as "client" in this document.
-  Mistakenly because the "client" is also a [web] server.
-  Callback URL belongs to the subscriber.
-
-Notification:  Atom body delivered to a Callback URL.
-
-
+============================================================================
 Notes:
-------
+============================================================================
 
-* Topics are Feed URLs.  Atom.
+* There is no relationship or hierarchy between topics.  In the future
+  such an Atom extension could exist, but that's entirely out of this
+  spec, both now and then.  Non-goal.  If a publisher wants to offer
+  a hierarchy, they need to offer 'n' Atom feeds.
 
-* There is no relationship between topics.  In the future such an Atom
-  extension could exist, but that's entirely out of this spec, both
-  now and then.  Non-goal.
-
-* Note: when subscribing, the publisher tells the subscribe for how
-  long this subscription will be valid.  (like a DHCP lease timeout).
-  Subscriber must re-subscribe before that time to keep it valid.
-
-* Implementation should support the publisher POSTing to the
-  subscriber one HTTP POST payload with the contents of multiple
-  topics (mime multipart messages, each one of which is an Atom document).
-  This is a must for subscribers to support, and optional for publishers
-  (more on this optimization below).
-
-* Publisher (via nonce or pingback or other means) must verify that
-  the subscriber is at the location they say they are to avoid letting
-  3rd parties DoS each other via large, capable Publishers.
+* For HTTP callback subscribers, the add-subscription part of the
+  protocol requires that the hub verifies (via a pingback: "did you
+  really mean that?") before actually adding the subscription.  This
+  is to prevent people from DoS'ing each other by subscribing victims
+  to many and/or high-volume publishers.
 
 * In same way openid was bootstrappable with a simple <link> tag, should
   be similar for publishers to delegate their pubsubhub with a simple
   link tag. Example:
     <link rel="hub.subscribe" href="http://pubsubhubbub.com/subscribe" />
+    <link rel="hub.publish" href="http://pubsubhubbub.com/publish" />
 
 * Multi-protocol would be nice, but simple would probably win... HTTP
-  only at first.  XMPP later.
+  only at first.  XMPP later.  XMPP has a few advantages, but really
+  only authentication.  A good HTTP implementation can do long polling,
+  pingbacks, etc.
 
-* Loops!  Perhaps Atom child element (repeated) of all the Atom Entry
+* Loops.  Perhaps Atom child element (repeated) of all the Atom Entry
   IDs that entry used to be or came from or is.  Neat to see the
   HTTP-like TRACE.  (perhaps extension to Atom, not part of this spec)
-  (** Looked it up, and <atom:link rel="via"> implies this, but it only works
-  if all of the feeds in the trace correctly supply a 'via' tag. Then it's on
-  the client to iteratively follow the trace).
+  (** Looked it up, and <atom:link rel="via"> implies this, but it
+  only works if all of the feeds in the trace correctly supply a 'via'
+  tag. Then it's on the client to iteratively follow the trace).
+
+============================================================================
+High-level protocol flow:
+============================================================================
+
+* Publishers POST a ping to their hub(s) URLs when their topic(s)
+  change.
+
+* Subscribers POST to one or more of the advertised hubs for a topic
+  they're interested in.  Alternatively, some hubs may offer
+  auto-polling capability, to let [their] subscribers subscribe to
+  topics which don't advertise a hub.
+
+* The hub caches minimal metadata (id, data, entry digest) about each
+  topic's previous state.  When the hub refetches a topic feed (on its
+  own initiative or as a result of a publisher's ping) and finds a
+  delta, it enqueues a notification to all registered subscribers.
+  Subscribers can be notified of topic deltas in a variety of ways:
+
+    - In the base profile, subscribers must be directly network
+      accessible (not behind a NAT), running a listening webserver,
+      and can receive an HTTP callback to notify them their topic
+      changed.  To avoid authentication issues with HTTP, this
+      callback doesn't include any payload but rather just a note for
+      the subscriber to check the hub for the topic URL (which
+      presumably they trust, if they subscribed to it in the first
+      place).  In the future, this HTTP callback could include a
+      signed (OAuth?)  payload, avoiding the need for the extra HTTP
+      request in the other direction.  In any high transaction
+      scenario, though, it's hoped that all parties (hub, publisher,
+      subscriber) would make proper use of HTTP Keep-Alive
+      connections, negating the ugliest part of the multiple HTTP
+      requests (new TCP connections: 3-way handshake, slow start,
+      epheeral port exhaustion, etc).
+
+    - Also in the base profile, but slightly lower priority for us
+      implementation-wise, is support for NAT'd subscribers unable
+      to run a publicly accessible listening webserver.  Instead,
+      these subscribers need to connect to the hub to retrieve their
+      enqueued notifications.  A smart hub implementation here would
+      support HTTP long-polling (aka "comet") so the client doesn't
+      need to make HTTP requests often to get low-latency updates.
+      (TODO/FUTURE: define recommendations for this long-polling behavior
+      on both client and server:  ideally server just does it, hanging
+      after the GET, but then what's the recommendation for the client's
+      HTTP client timeout value, which might not be under their control?
+      Ignore that and document it?  Separate URL for long polling?
+      Then subscriber caches hub's long-polling abililty?  Server includes
+      X- header to signal that it did or wants to do long polling?)
+
+    - Fancier implementations may choose to use HTTP long polling
+      ("comet") or XMPP.  We're punting on this for now in the
+      interest of getting something basic working for the common case.
+
 
 -----
 
@@ -69,7 +171,7 @@ Notification and source formats will be Atom. More detail follows this example.
   <atom:feed>
     # ... source, title, etc ...
 
-    <link rel="hub.delegate" href="http://publisher.com/notifications.xml" />
+    <link rel="hub.subscribe" href="http://myhub.com/subscribe" />
     <link rel="self" href="http://publisher.com/happycats.xml" />
     <updated>2008-08-11T02:15:01Z</updated>
 
@@ -305,17 +407,20 @@ Priorities:
    - ignore for now NAT'ed token polling (requires https anyway)
    - ignore for now XMPP (requires XMPP anyway)
    - ignore for now huge subscribers:
-        - mixed payloads (different topicids)
+        - multi-topic notifications
         - long-lived connections,
         - one HTTP in-flight at a time,
     - ignore for now huge publishers:
-        - publishing one URL at a time (e.g. Blogger)
+        - publishing tons of updated URLs at a time (e.g. Blogger)
     - ignore for now (until v2) all authentication issues:
-        - no pushing payloads to subscribers.  send them notification to poll us instead.  perhaps with token.
-    - ignore for now private Atom URLs/topics.  public topics for now.  OAuth or something later.
+        - no pushing payloads to subscribers.  send them notification
+          to poll us instead.  perhaps with token.
+    - ignore for now private Atom URLs/topics.  public topics for now.
+      OAuth or something later.
 
-
-Keep atomid of all feed entries we've seen on an Atom URL in the past.  (or just the immediate past one perhaps?  or 'n' days of them?).  keep (atomid, date, digest)
+Keep atomid of all feed entries we've seen on an Atom URL in the past.
+(or just the immediate past one perhaps?  or 'n' days of them?).  keep
+(atomid, date, digest)
 
 Lexicon:
    topicid:  an Atom URL
@@ -351,14 +456,20 @@ GET /do-some-work/send-notifications
             BATCH urlfetch POST to them all,
               scatter-gather errors.  
 
-            For those that fail from the 100-some batch, create to-do-later (notification) records.
-            increase subid if the selected count == the previous limit,
-                else DELETE FROM topics_where_people_need_to_be_notified WHERE topiciddeltaid = ?
+            For those that fail from the 100-some batch, create
+            to-do-later (notification) records.  increase subid if the
+            selected count == the previous limit,
+                else DELETE FROM
+                    topics_where_people_need_to_be_notified WHERE
+                    topiciddeltaid = ?
+
         }  // end lock
 
 XMPP:
 
-* in the future, when App Engine supports it.  but it's a special thingy.  HTTP is base and required.  XMPP support for pubbers and subbers is optional.
+* in the future, if/when App Engine supports it.  but it's a special
+  thingy.  HTTP is base and required.  XMPP support for pubbers and
+  subbers is optional.
 
 Polling mode for subscribers:
 
