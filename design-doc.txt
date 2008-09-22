@@ -3,7 +3,7 @@ TODO:
 
 
 ============================================================================
-Overview
+>> Overview
 ============================================================================
 
 An open, simple web-scale pubsub protocol, along with an open source
@@ -30,7 +30,7 @@ cool applications, most of which we can't even imagine.  But we're
 looking forward to decentralized social networking.
 
 ============================================================================
-Terminology
+>> Terminology
 ============================================================================
 
 Topic: an Atom feed URL.  The unit to which one can subscribe to
@@ -78,7 +78,7 @@ Notification: a delta on a topic, computed by the hub and sent to all
   heavy subscribers, but subscribers MUST understand them.
 
 ============================================================================
-Notes:
+>> Notes:
 ============================================================================
 
 * There is no relationship or hierarchy between topics.  In the future
@@ -111,7 +111,7 @@ Notes:
   tag. Then it's on the client to iteratively follow the trace).
 
 ============================================================================
-High-level protocol flow:
+>> High-level protocol flow:
 ============================================================================
 
 * Publishers POST a ping to their hub(s) URLs when their topic(s)
@@ -119,7 +119,7 @@ High-level protocol flow:
 
 * Subscribers POST to one or more of the advertised hubs for a topic
   they're interested in.  Alternatively, some hubs may offer
-  auto-polling capability, to let [their] subscribers subscribe to
+  auto-polling capability, to let {their,any} subscribers subscribe to
   topics which don't advertise a hub.
 
 * The hub caches minimal metadata (id, data, entry digest) about each
@@ -163,8 +163,9 @@ High-level protocol flow:
       ("comet") or XMPP.  We're punting on this for now in the
       interest of getting something basic working for the common case.
 
-
------
+============================================================================
+>> Atom details
+============================================================================
 
 Notification and source formats will be Atom. More detail follows this example.
 
@@ -217,43 +218,48 @@ Notification and source formats will be Atom. More detail follows this example.
 
   </atom:feed>
 
-Publisher makes the decision as to include full body, truncated body, or
-meta data of most recent event(s).  One of:
+Publisher makes the decision as to include full body, truncated body,
+or meta data of most recent event(s).  One of:
 
   URL + metadata
   URL + metadata + truncated
   URL + metadata + full
 
-The trade-off between including all content in outgoing notifications or having
-the thundering herd (by clients who fetch the //atom:feed/entry/link in
-response to a notification) is up to the publisher.
+The trade-off between including all content in outgoing notifications
+or having the thundering herd (by clients who fetch the
+//atom:feed/entry/link in response to a notification) is up to the
+publisher.
 
-Entries of most recent 10 events (for recipient to know whether
-or not they'd missed any recent items... like TCP SACK) will be provided as
-context. This is implied by the difference between the //atom:feed/updated field
-and the //atom:feed/entry/updated fields. The //atom:feed/updated field will
-be set to the time of the *oldest* <entry> in the list that is new. All
-<entry> items with <updated> times before then are context; all with times
-equal to or after are new. This also lets subscribers know how long it has
-been from when the notification was first sent by the publisher to when they
-actually received it from the hub.
+Entries of most recent 10 events (for recipient to know whether or not
+they'd missed any recent items... like TCP SACK) will be provided as
+context. This is implied by the difference between the
+//atom:feed/updated field and the //atom:feed/entry/updated
+fields. The //atom:feed/updated field will be set to the time of the
+*oldest* <entry> in the list that is new. All <entry> items with
+<updated> times before then are context; all with times equal to or
+after are new. This also lets subscribers know how long it has been
+from when the notification was first sent by the publisher to when
+they actually received it from the hub.
 
-The //atom:feed/link[@rel="self"] element will indicate the original URL for
-the entire event stream with no truncation (if available).
+The //atom:feed/link[@rel="self"] element will indicate the original
+URL for the entire event stream with no truncation (if available).
 
-The //atom:feed/link[@rel="hub.delegate"] element indicates the URL that the hub
-should use for retrieving new notifications from a publisher. The publisher
-can make this delegate URL contain a meta-data only or truncated view of the
-feed. If a hub.delegate is not provided, then the 'self' URL is used as both
-the source of notifications and the source for the topic URL feed.
+The //atom:feed/link[@rel="hub.delegate"] element indicates the URL
+that the hub should use for retrieving new notifications from a
+publisher. The publisher can make this delegate URL contain a
+meta-data only or truncated view of the feed. If a hub.delegate is not
+provided, then the 'self' URL is used as both the source of
+notifications and the source for the topic URL feed.
 
-Topic URLs must be unique, but multiple topics may use the same hub.delegate. In
-this situation, the delegate URL may serve a MIME multipart response, each part
-of which will contain a separate Atom document for an individual topic. The hub
-must understand this delegation. Once it has fetched the topic URL once to see
-this delegation is present, it will use the delegation url to pull the feed.
-This allows the publisher to be more efficient at publishing across many topics
-at once with a single fetch from the hub.
+Topic URLs must be unique, but multiple topics may use the same
+hub.delegate. In this situation, the delegate URL may serve a
+<OLD_INFO>MIME multipart response, each part of which will contain a
+separate Atom document for an individual topic</OLD_INFO>. The hub
+must understand this delegation. Once it has fetched the topic URL
+once to see this delegation is present, it will use the delegation url
+to pull the feed.  This allows the publisher to be more efficient at
+publishing across many topics at once with a single fetch from the
+hub.
 
 TODO: How do you indicate to the hub that you no longer want to have a
 delegate URL?
@@ -263,41 +269,74 @@ Requirement is that topic URLs and delegate URLs can never overlap!
 More info on atom:link tag meanings here:
   http://intertwingly.net/wiki/pie/LinkTagMeaning
 
------
+============================================================================
+>> Subscribing
+============================================================================
 
-Flow for subscription
+There are multiple ways to subscribe, depending on the type and
+needs of the subscriber.  Roughly, the types are as follows:
 
-Subr.com
-/notify.php
+    1. Internet-accessible subscriber using HTTP callback
+       (new subscriptions need to be verified to prevent using
+        the hub to DoS others)
+       1.1. verification synchronously
+       1.2. verification asynchronously ("deferred")
+    2. NAT'd subscribers or those without an HTTP server
+       (no verification necessary)
 
-Pubr
-/happycats.xml
-/subpoint
+Flow for subscription, using the following example URLs:
 
-   1. Subr POST to /subpoint with payload {me: /notify.php, subto:
-   happycats.xml, deferred_ok: true}
+http://subr.com/notify-callback.php
+http://pubr.com/happycats.xml
+http://hub.com/hubpoint
 
-   2. Pubr sends new request "oh do you want this topic?" to
-   /notify.php with x-requester-ip: 1.2.3.4 (so DoSing clients can be
-   detected).
+   1. Subr does POST to /huboint with payload:
 
-   3. Subr says, "yes, I really do want this topic"
+        & hub.mode=subscribe
+        & hub.callback = http://subr.com/notify-callback.php
+        & hub.topic = http://pubr.com/happycats.xml
+              (may be repeated for large subscriptions)
+        & hub.verify = async,sync
+        & hub.verify_token = [opaque]
 
-   4. Pubr responds to Subr with "okay"
+      The hub.verify is an optional comma-separated list of the
+      subscribers ordered preferences and capabiliies,
+      verification-wise.  One of:
 
+          sync  -- Subr only supports synchronous verification.
+          async -- Subr only supports async verification.
+                   WARNING: it's not required that servers support
+                   async, so this type of subscription may fail.
+          sync,async -- Subr prefers sync to async.
+          async,sync -- Subr prefers async to sync.
 
-In the case of asynchronous, step 1 could go straight to step 4, where
-the publisher says "I can't do this right now, I need to do this
-asynchronously".
+      The optional hub.verify_token is opaque to the hub and is simply
+      echoed back to the subscriber in the verification request.
+      Subscribers can put whatever they want in it: database primary
+      keys, encrypted data, etc... anything that makes processing the
+      hub.mode=subverify request easier.
 
-Subscriber async preference values = {
+   2. Hub sends new request "oh do you want this topic?" to
+   /notify-callback.php with x-requester-ip: 1.2.3.4 (so DoSing
+   clients can be detected).
 
-    * SYNC_THEN_DEFERRED
-    * DEFERRED_THEN_SYNC,
-    * SYNC_ONLY
-    * DEFERRED_ONLY
+        POST /notify-callback.php
+        Host: subr.com
 
-}
+        hub.mode=subverify &
+        hub.topic=whatever
+
+   3. Subr says, "yes, I really do want this topic":
+
+        HTTP/1.1 204 No Content
+
+   4. Hub responds to Subr with "okay".  Either 204 if the
+      subscription(s) were verified and created, or 202 if the
+      subscriptions were enqueued to be verified later.
+
+If verification is being done asynchronously, steps 2 and 3 above are
+skipped and Hub's 2xx response in step 4 is really just saying,
+"Potential subscription enqueued for later verification."
 
 Publisher must provide synchronous capability at a minimum.
 
@@ -314,9 +353,9 @@ S - fetch failed --> 5xx
 A - server supports --> 202 (accepted) best effort later
 A - server doesn't support --> 501 (not implemented)
 
----
-
-Subscribe Protocol:
+============================================================================-
+>> Subscribe Protocol
+============================================================================
 
 POST
 http://publisher.com/subpoint?
@@ -331,54 +370,54 @@ http://publisher.com/subpoint?
       - Probably if it's an unknown topic, issue a 404
     * Async option is bogus (400 bad request)
 
-TODO: What about support for multi-part data for the subscriber? For very
-simple subscribers, we probably don't even want to do multipart form-data,
-because it's more complex to parse? Or is it a minimum requirement that the
-post body will always be multipart?
+TODO: What about support for multi-part data for the subscriber? For
+very simple subscribers, we probably don't even want to do multipart
+form-data, because it's more complex to parse? Or is it a minimum
+requirement that the post body will always be multipart?
 
----
+============================================================================
+>> Publishing
+============================================================================
 
-TODO: Do we need a verification system for the publish side of things, or is
-ownership of URLs good enough for our purposes? If the latter, that means there
-could be subscribers of a URL that doesn't actually exist yet.
+Overview:
 
-Proposal: Publishers must subscribe to themselves to create the new topic. This
-also gives the hub a chance to figure out if there are any url delegations.
+  A publisher pings the hub with the URL(s) which have been updated
+  and the hub schedules them to be fetched & diffed.  Because it's
+  just a ping to wake up the hub, no authentication from the publisher
+  is required.
 
-
-Publisher Protocol:
+Protocol:
 
 POST
-http://pubsubhubbub.com/pubpoint
-    url=http://publisher.com/topic1.xml
-    url=http://publisher.com/topic2.xml
-    url=http://publisher.com/delegate1.xml
-    url=http://publisher.com/delegate2.xml
+http://pubsubhubbub.com/hubpoint?
+    hub.mode=publish &
+    hub.url=http://publisher.com/topic1.xml &
+    hub.url=http://publisher.com/topic2.xml &
     ...
 
   The 'url' field can be repeated for any combination of topic URL or
   delegate URLs. The hub should deal properly with duplicate URLs.
 
   Error cases:
-    * Topic known -> 204
-    * Topic unknown -> 404
+    * Topic(s) known/accepted. -> 204 No content.
+    * Topic(s) unknown/unaccepted -> 4xx Bad Request / Forbidden.
 
-This will enqueue a feed-fetch for sometime in the future, followed by pushing
-the new notifications with <atom:entry> elements to all subscribers. The system
-may decide to combine this publish notification with any earlier publish
-notification that have not yet been pushed to subscribers (this could happen if
-events are coming in faster than the hub will allow).
+This will enqueue a feed-fetch for sometime in the future, followed by
+pushing the new notifications of potential deltas to all subscribers.
+The hub may decide to combine this publish notification with any
+earlier publish notification that have not yet been pushed to
+subscribers (this could happen if events are coming in faster than the
+hub will allow).
 
-The GET for the publisher's notification feed may include a Google Reader
-Feed-fetcher style thing where there is a statistics header on the request for
-the feed every time we pull it. Then the publisher always knows how many
-subscribers are on the hub. Example:
+The hub's GET request of the Atom topic URL may include a Google
+Reader Feed-fetcher style thing where there is a statistics header on
+the request for the feed every time we pull it. Then the publisher
+always knows how many subscribers are on the hub. Example:
 
-X-Hub-Subscribers: topic=http://publisher.com/foo.xml; subscribers=120
+   GET /foo.xml HTTP/1.1
+   Host: publisher.com
+   X-Hub-Subscribers: 120
 
-For combined notification feeds, we would push this header for each topic
-that is included in the feed (up to some practical limit). The header would
-appear in primary request headers, not in the individual MIME parts.
 
 ---
 
@@ -400,7 +439,7 @@ The post will always be a multi-part post, each part will be an Atom feed
 for an individual topic.
 
 ===========================================================================
-Meeting notes from 2008-09-16:
+>> Meeting notes from 2008-09-16:
 ===========================================================================
 
 Priorities:
@@ -430,10 +469,12 @@ POST /pubber/?topic_url=http://lolcats/lolcatz.xml
      SELECT subberid FROM subbers WHERE topicid=? LIMIT 1
        ("does anybody give a shit?")
       If no,
-          return "Thanks bye! 200 OK!"  (and tell google crawlers)
+          return "Thanks bye! 200 OK!"  (optionally tell google
+          crawlers, based on publisher's preference.  TODO: put this
+          in spec somehow. perhaps reuse the term "noindex"?)
       If yes,
-          enqueue a poll-this-url-later record.  one insert.  bounded latency.
-          return 200 OK
+          enqueue a poll-this-url-later record.  one insert.  bounded
+          latency.  return 200 OK
 
 Cron:
 GET /do-some-work/fetch-updated-feeds-and-find-deltas
