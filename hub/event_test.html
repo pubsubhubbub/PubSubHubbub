@@ -1,0 +1,28 @@
+<html>
+<head>
+  <title>Event test</title>
+</head>
+<body>
+
+<h1>Event test</h1>
+
+<form action="/event_test" method="post">
+  <p>
+    <div><label for="topic_url">Topic URL:</label></div>
+    <input type="text" name="topic_url" id="topic_url" value="{{topic_url}}" size="50"/>
+  </p>
+  <p>
+    <div><label for="callback_urls">Callback URLs (one per line):</topic></div>
+    <textarea name="callback_urls" id="callback_urls" rows="8" cols="50">{{callback_urls}}</textarea>
+  </p>
+  <p><input type="submit" value="Simulate"></p>
+</form>
+
+{% if info %}
+<pre>
+{{info}}
+</pre>
+{% endif %}
+
+</body>
+</html>

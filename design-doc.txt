@@ -142,7 +142,7 @@ Notification: a delta on a topic, computed by the hub and sent to all
       subscriber) would make proper use of HTTP Keep-Alive
       connections, negating the ugliest part of the multiple HTTP
       requests (new TCP connections: 3-way handshake, slow start,
-      epheeral port exhaustion, etc).
+      ephemeral port exhaustion, etc).
 
     - Also in the base profile, but slightly lower priority for us
       implementation-wise, is support for NAT'd subscribers unable
@@ -156,7 +156,7 @@ Notification: a delta on a topic, computed by the hub and sent to all
       after the GET, but then what's the recommendation for the client's
       HTTP client timeout value, which might not be under their control?
       Ignore that and document it?  Separate URL for long polling?
-      Then subscriber caches hub's long-polling abililty?  Server includes
+      Then subscriber caches hub's long-polling ability?  Server includes
       X- header to signal that it did or wants to do long polling?)
 
     - Fancier implementations may choose to use HTTP long polling
@@ -290,7 +290,7 @@ http://subr.com/notify-callback.php
 http://pubr.com/happycats.xml
 http://hub.com/hubpoint
 
-   1. Subr does POST to /huboint with payload:
+   1. Subr does POST to /hubpoint with payload:
 
         & hub.mode=subscribe
         & hub.callback = http://subr.com/notify-callback.php

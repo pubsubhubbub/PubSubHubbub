@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="http://feeds.feedburner.com/~d/styles/atom10full.xsl" type="text/xsl" media="screen"?><?xml-stylesheet href="http://feeds.feedburner.com/~d/styles/itemcontent.css" type="text/css" media="screen"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0" xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0" xml:lang="en">
+<title type="text">dive into mark</title>
+<subtitle type="text">everything old is new again</subtitle>
+<id>tag:diveintomark.org,2001-07-29:/</id>
+<updated>2008-08-23T04:49:22Z</updated>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/" />
+
+<link rel="self" href="http://feeds.feedburner.com/diveintomark/all" type="application/atom+xml" /><feedburner:feedFlare href="http://add.my.yahoo.com/rss?url=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://us.i1.yimg.com/us.yimg.com/i/us/my/addtomyyahoo4.gif">Subscribe with My Yahoo!</feedburner:feedFlare><feedburner:feedFlare href="http://www.newsgator.com/ngs/subscriber/subext.aspx?url=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://www.newsgator.com/images/ngsub1.gif">Subscribe with NewsGator</feedburner:feedFlare><feedburner:feedFlare href="http://feeds.my.aol.com/add.jsp?url=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://o.aolcdn.com/favorites.my.aol.com/webmaster/ffclient/webroot/locale/en-US/images/myAOLButtonSmall.gif">Subscribe with My AOL</feedburner:feedFlare><feedburner:feedFlare href="http://www.rojo.com/add-subscription?resource=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://blog.rojo.com/RojoWideRed.gif">Subscribe with Rojo</feedburner:feedFlare><feedburner:feedFlare href="http://www.bloglines.com/sub/http://feeds.feedburner.com/diveintomark/all" src="http://www.bloglines.com/images/sub_modern11.gif">Subscribe with Bloglines</feedburner:feedFlare><feedburner:feedFlare href="http://www.netvibes.com/subscribe.php?url=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://www.netvibes.com/img/add2netvibes.gif">Subscribe with Netvibes</feedburner:feedFlare><feedburner:feedFlare href="http://fusion.google.com/add?feedurl=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://buttons.googlesyndication.com/fusion/add.gif">Subscribe with Google</feedburner:feedFlare><feedburner:feedFlare href="http://www.pageflakes.com/subscribe.aspx?url=http%3A%2F%2Ffeeds.feedburner.com%2Fdiveintomark%2Fall" src="http://www.pageflakes.com/ImageFile.ashx?instanceId=Static_4&amp;fileName=ATP_blu_91x17.gif">Subscribe with Pageflakes</feedburner:feedFlare><feedburner:browserFriendly>Mu. &lt;h1&gt;Mu.&lt;/h1&gt; Mu.</feedburner:browserFriendly><entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[The ampersands of Linux]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/14/the-ampersands-of-linux" />
+<id>tag:diveintomark.org,2008-08-14:/archives/20080814215936</id>
+<updated>2008-08-14T23:08:54Z</updated>
+<published>2008-08-14T21:59:36Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="css" /><category scheme="http://diveintomark.org" term="fonts" /><category scheme="http://diveintomark.org" term="linux" /><category scheme="http://diveintomark.org" term="typography" /><summary type="html">Please try to contain your excitement.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/14/the-ampersands-of-linux">&lt;p&gt;Taking an idea from &lt;a href="http://www.simplebits.com/notebook/2008/08/14/ampersands.html"&gt;Use the Best Available Ampersand&lt;/a&gt; and a list of pre-installed fonts from the &lt;a href="http://www.apaddedcell.com/web-fonts"&gt;Complete Guide to Pre-Installed Fonts in Linux, Mac, and Windows&lt;/a&gt;, I present &amp;#8220;The Ampersands of Linux&amp;#8221;:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="http://wearehugh.com/public/2008/08/ampersands-of-linux3.png" alt="[ampersands in 28 fonts]" height="900" width="600"&gt;&lt;/p&gt;
+
+&lt;p&gt;(&lt;a href="http://wearehugh.com/public/2008/08/ampersands-of-linux.html"&gt;&lt;abbr&gt;HTML&lt;/abbr&gt;&lt;/a&gt;)&lt;/p&gt;
+
+&lt;p&gt;Please try to contain your excitement.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Hello darkness my old friend]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/12/year-of-what-now" />
+<id>tag:diveintomark.org,2008-08-12:/archives/20080812160843</id>
+<updated>2008-08-12T16:08:43Z</updated>
+<published>2008-08-12T16:08:43Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="apple" /><category scheme="http://diveintomark.org" term="freedom0" /><category scheme="http://diveintomark.org" term="iphone" /><summary type="html">Nobody still gives a shit about freedom 0.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/12/year-of-what-now">&lt;div class="punch" style="width:300px"&gt;
+&lt;img src="http://wearehugh.com/public/2008/08/crow.jpg" alt="[crow and moon]" title="" width="300" height="300"&gt;
+&lt;p&gt;&lt;a href="http://flickr.com/photos/luchilu/2414457426/"&gt;The bird and the moon II&lt;/a&gt; &amp;copy;&amp;nbsp;&lt;a href="http://flickr.com/people/luchilu/"&gt;Luz A. Villa&lt;/a&gt; / &lt;a title="used under Creative Commons Attribution 2.0 License" href="http://creativecommons.org/licenses/by/2.0/"&gt;CC&lt;/a&gt;&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;p&gt;My parents &lt;a href="http://diveintomark.org/archives/2008/01/04/my-parents-desktop"&gt;gave up on Linux&lt;/a&gt; and bought a Mac Mini.  We bought an AppleTV for the kids and &lt;a href="http://handbrake.fr/"&gt;filled it with their favorite DVDs&lt;/a&gt;.  I stood in line for three hours to buy my wife an iPhone 3G for her birthday.  And &lt;a href="http://diveintomark.org/archives/2008/01/17/of-canaries-and-coal-mines"&gt;nobody gives a shit&lt;/a&gt; about freedom 0.&lt;/p&gt;
+
+&lt;p&gt;Discuss.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[A very serious question]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/07/a-very-serious-question" />
+<id>tag:diveintomark.org,2008-08-07:/archives/20080807233337</id>
+<updated>2008-08-12T01:23:03Z</updated>
+<published>2008-08-07T23:33:37Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="apple" /><category scheme="http://diveintomark.org" term="drm" /><category scheme="http://diveintomark.org" term="iphone" /><category scheme="http://diveintomark.org" term="rant" /><summary type="html">So, hypothetically speaking, let&amp;#8217;s say you want to design a system where you had absolute control over which applications your customers were allowed to install on your device.  Certainly you would want to ensure that you were the only source for applications.  But for extraordinary cases, you might also need to create a [...]</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/07/a-very-serious-question">&lt;p&gt;So, hypothetically speaking, let&amp;#8217;s say you want to design a system where you had &lt;a href="http://www.mikeash.com/?page=pyblog/welcome-to-iphone-your-crappy-mac-of-tomorrow-today.html"&gt;absolute control&lt;/a&gt; over which applications your customers were allowed to install on &lt;a href="http://www.russellbeattie.com/blog/iphone-reconciliation"&gt;your device&lt;/a&gt;.  Certainly you would want to &lt;a href="http://blogs.oreilly.com/iphone/2008/07/one-little-article.html"&gt;ensure that you were the only source for applications&lt;/a&gt;.  But for extraordinary cases, you might also need to create &lt;a href="http://arstechnica.com/journals/apple.ars/2008/08/07/the-goings-on-behind-the-iphone-application-blacklist"&gt;a blacklist of applications&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Each entry in the blacklist would also need a human-readable &lt;b&gt;title&lt;/b&gt; &amp;#8212; presumably the name of the app &amp;#8212; and perhaps even a human-readable &lt;b&gt;description&lt;/b&gt; to explain why the app was blacklisted.  But each entry would also need a &lt;b&gt;unique identifier&lt;/b&gt;, of course, so you don&amp;#8217;t accidentally get confused between six apps named &amp;#8220;TODO.&amp;#8221;  Finally, you would probably want to include the &lt;b&gt;date&lt;/b&gt; that the entry was added to the list.&lt;/p&gt;
+
+&lt;p&gt;Furthermore, since you anticipate &lt;a href="http://www.wsu.edu/~brians/errors/continual.html"&gt;continually&lt;/a&gt; &lt;a href="http://www.macrumors.com/2008/08/01/netshare-tethering-app-reappears-on-app-store/"&gt;adding&lt;/a&gt; &lt;a href="http://forums.macrumors.com/showpost.php?p=5953784&amp;amp;postcount=24"&gt;new&lt;/a&gt; &lt;a href="http://www.alleyinsider.com/2008/8/worthless-1000-i-am-rich-iphone-app-disappears"&gt;applications&lt;/a&gt; to this blacklist to &lt;a href="http://diveintomark.org/archives/2007/10/16/oh-good-grief#comment-10497"&gt;protect your and your partners&amp;#8217; business model&lt;/a&gt;, you would need your proprietary &lt;a href="http://earthlingsoft.net/ssp/blog/2006/10/itunes_store_sucks"&gt;non-browser-based&lt;/a&gt; client to &lt;a href="http://www.appleinsider.com/articles/08/08/06/researcher_discovers_long_publicized_iphone_app_kill_switch.html"&gt;periodically poll the list for changes&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;All of which raises a very serious question: &lt;b&gt;&lt;i&gt;what data format should you use for the list?&lt;/i&gt;&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;If you answered &lt;abbr&gt;&amp;#8220;JSON&amp;#8221;&lt;/abbr&gt; then congratulations, you &lt;del&gt;win the &lt;a href="https://iphone-services.apple.com/clbl/unauthorizedApps"&gt;Trendy Tech of the Month Award&lt;/a&gt;&lt;/del&gt; &lt;a href="http://diveintomark.org/archives/2008/08/07/a-very-serious-question#comment-12525"&gt;lose&lt;/a&gt;!  To collect your prize, please proceed through the door marked &amp;#8220;&lt;a href="http://en.wikipedia.org/wiki/Barnum%27s_American_Museum"&gt;This way to the egress&lt;/a&gt;.&amp;#8221;  Some restrictions apply.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;Update&lt;/b&gt;: OK, OK, &lt;a href="http://daringfireball.net/2008/08/core_location_blacklist"&gt;it&amp;#8217;s a &amp;#8220;Core Location&amp;#8221; blacklist&lt;/a&gt;.  Big deal.  I&amp;#8217;ll see your tree and &lt;a href="http://online.wsj.com/article/SB121842341491928977.html?mod=googlenews_wsj"&gt;raise you a forest&lt;/a&gt;:&lt;/p&gt;
+
+&lt;blockquote cite="http://online.wsj.com/article/SB121842341491928977.html?mod=googlenews_wsj"&gt;
+&lt;p&gt;&amp;#8230; an independent engineer discovered code inside the iPhone that suggested iPhones routinely check an Apple Web site that could, in theory trigger the removal of the undesirable software from the devices.&lt;/p&gt;
+
+&lt;p&gt;Mr. Jobs confirmed such a capability exists, but argued that Apple needs it in case it inadvertently allows a malicious program &amp;#8212; one that stole users&amp;#8217; personal data, for example &amp;#8212; to be distributed to iPhones through the App Store.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;As &lt;a href="http://diveintomark.org/archives/2007/10/16/oh-good-grief#comment-10497"&gt;I&amp;#8217;ve said before&lt;/a&gt;, &amp;#8220;protecting users from malicious programs&amp;#8221; is code for &amp;#8220;cryptographically enforcing restrictions on applications to protect our and our partners’ business model.&amp;#8221;  The bullshit about &amp;#8220;stealing personal data&amp;#8221; is just a rhetorical sleight of hand, like the &lt;abbr&gt;RIAA&lt;/abbr&gt; claiming that piracy hurts &amp;#8220;artists and other rights holders&amp;#8221; when 99% of artists don&amp;#8217;t own the rights to their own songs.  How many apps has Apple de-listed over privacy concerns?  &lt;a href="http://gizmodo.com/5028459/aurora-feint-iphone-app-delisted-for-lousy-security-practices"&gt;Only one that I know of&lt;/a&gt;, and it was quickly reinstated after a quick update.  How many apps has Apple de-listed (or prevented being written in the first place) to protect their business?  &lt;a href="http://gizmodo.com/5027790/why-we-still-need-the-iphone-app-black-market"&gt;Lots&lt;/a&gt; and &lt;a href="http://lifehacker.com/400148/iphone-20-jailbreak-apps-you-cant-find-in-the-itunes-store"&gt;lots&lt;/a&gt;.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[The 4 &#8220;B&#8221;s]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/06/b" />
+<id>tag:diveintomark.org,2008-08-07:/archives/20080807025755</id>
+<updated>2008-08-07T02:57:55Z</updated>
+<published>2008-08-07T02:57:55Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="family" /><summary type="html">Little boys are so easy.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/06/b">&lt;div class="punch" style="width:240px"&gt;
+&lt;img src="http://wearehugh.com/public/2008/08/blocks.jpg" alt="[colored blocks]" title="" width="240" height="159"&gt;
+&lt;p&gt;&lt;a href="http://flickr.com/photos/jamoker/1258248356/"&gt;prehistoric toys&lt;/a&gt; &amp;copy;&amp;nbsp;&lt;a href="http://flickr.com/people/jamoker/"&gt;The Jamoker&lt;/a&gt; / &lt;a title="used under Creative Commons Attribution 2.0 License" href="http://creativecommons.org/licenses/by/2.0/"&gt;CC&lt;/a&gt;&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;p&gt;Little boys are so easy.  It&amp;#8217;s amazing how many games you can play with nothing but the 4 &amp;#8220;B&amp;#8221;s: blocks, balls, boxes, and bears.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Little drummer boy]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/06/little-drummer-boy" />
+<id>tag:diveintomark.org,2008-08-06:/archives/20080806144009</id>
+<updated>2008-08-06T14:40:09Z</updated>
+<published>2008-08-06T14:40:09Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="security" /><summary type="html">I never really understood how people found bugs like this...</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/06/little-drummer-boy">&lt;div class="punch" style="width:240px"&gt;
+&lt;img src="http://wearehugh.com/public/2008/08/snare-drums.jpg" alt="[snare drums]" title="" width="240" height="292"&gt;
+&lt;p&gt;&lt;a href="http://flickr.com/photos/fayjo/338585382/"&gt;Pearl Masters&lt;/a&gt; &amp;copy;&amp;nbsp;&lt;a href="http://flickr.com/people/fayjo/"&gt;Jeremy Pharo&lt;/a&gt; / &lt;a title="used under Creative Commons Attribution 2.0 License" href="http://creativecommons.org/licenses/by/2.0/"&gt;CC&lt;/a&gt;&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;p&gt;For reasons that are not particularly interesting, I found myself reading &lt;a href="http://www.jwz.org/xscreensaver/faq.html"&gt;the XScreensaver &lt;abbr&gt;FAQ&lt;/abbr&gt;&lt;/a&gt; last night, which answers the question, &amp;#8220;&lt;a href="http://www.jwz.org/xscreensaver/faq.html#toolkits"&gt;The unlock dialog is funny looking, why not use GTK?&lt;/a&gt;&amp;#8221;  That led me to JWZ&amp;#8217;s mini-rant &lt;a href="http://www.jwz.org/xscreensaver/toolkits.html"&gt;On Toolkits&lt;/a&gt;, which reminded me of &lt;a href="http://secunia.com/advisories/9184/"&gt;this ancient vulnerability in the OS X screensaver&lt;/a&gt; where you could unlock the screen by typing 1280 characters in the password dialog.  I remember reading about it at the time, but I never really understood how people found bugs like this until I had kids.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Placating people with options]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/05/placating" />
+<id>tag:diveintomark.org,2008-08-05:/archives/20080805155619</id>
+<updated>2008-08-05T19:09:22Z</updated>
+<published>2008-08-05T15:56:19Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="google" /><category scheme="http://diveintomark.org" term="licensing" /><summary type="html">Google Code is -- and has always been -- a tool to fight license proliferation.  It is only incidentally useful.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/05/placating">&lt;p&gt;&lt;cite&gt;Matthew Paul Thomas&lt;/cite&gt;: &lt;a href="http://mpt.net.nz/archive/2008/08/01/free-software-usability"&gt;Why Free Software has poor usability, and how to improve it&lt;/a&gt;.  Many of the problems he lists apply to all software.  Here&amp;#8217;s one that&amp;#8217;s been on my mind recently:&lt;/p&gt;
+
+&lt;blockquote cite="http://mpt.net.nz/archive/2008/08/01/free-software-usability"&gt;
+&lt;p&gt;10. Placating people with options.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;In other news, &lt;a href="http://www.linuxtoday.com/news_story.php3?ltsn=2008-08-01-012-35-NW"&gt;Google Code blacklists Mozilla Public License&lt;/a&gt;.  Some &lt;a href="http://redmonk.com/sogrady/2008/08/04/links-for-2008-08-04-deliciouscom/"&gt;smart&lt;/a&gt; &lt;a href="http://blogs.sun.com/webmink/entry/links_for_2008_08_04"&gt;people&lt;/a&gt; don&amp;#8217;t seem to understand why Google would &amp;#8220;reduce&amp;#8221; users&amp;#8217; &amp;#8220;choices.&amp;#8221;  This is like complaining that the &lt;abbr&gt;GPL&lt;/abbr&gt; is too &amp;#8220;political&amp;#8221; to be a software license because it &amp;#8220;restricts&amp;#8221; users&amp;#8217; &amp;#8220;freedom&amp;#8221; to take without giving back.  You&amp;#8217;re missing the point; the &lt;abbr&gt;GPL&lt;/abbr&gt; is &lt;em&gt;designed&lt;/em&gt; to be a political manifesto (cleverly disguised as a software license).&lt;/p&gt;
+
+&lt;p&gt;Another example: my &lt;a href="http://feedparser.org/"&gt;Universal Feed Parser&lt;/a&gt; was &lt;a href="http://diveintomark.org/archives/2002/08/13/ultraliberal_rss_parser"&gt;conceived as a weapon&lt;/a&gt; against what I considered the gravest error of XML: &lt;a href="http://diveintomark.org/archives/2004/01/16/draconianism"&gt;draconian error handling&lt;/a&gt;.  Recently, someone asked me to implement a switch that makes it not fall back on lax parsing in the case of an XML wellformedness error.  I said no, not because it would be difficult to implement, but because &lt;em&gt;that defeats its entire reason for being&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;Google Project Hosting is &amp;#8212; and has always been &amp;#8212; &lt;a href="http://google-opensource.blogspot.com/2008/05/standing-against-license-proliferation.html"&gt;a tool to fight license proliferation&lt;/a&gt;.  It is only incidentally useful.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Weblogs: content w/o context, collaboration, capital, or coruscation]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/04/abysmal-failure" />
+<id>tag:diveintomark.org,2008-08-05:/archives/20080805020410</id>
+<updated>2008-08-05T02:04:10Z</updated>
+<published>2008-08-05T02:04:10Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="blogging" /><summary type="html">A response to danah boyd.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/04/abysmal-failure">&lt;p&gt;On her weblog, danah boyd writes:&lt;/p&gt;
+
+&lt;blockquote cite="http://www.zephoria.org/thoughts/archives/2008/08/01/knol_content_wo.html"&gt;
+&lt;p&gt;[Compared to Wikipedia,] weblogs take an entirely opposite approach to knowledge production. A weblog&amp;#8217;s entire structure is built around single authors, control and individualism. There aren&amp;#8217;t even mechanisms for multiple authors and the tools available for collaboration are extremely limited. &amp;#8220;Collaboration&amp;#8221; still assumes a primary author.&lt;/p&gt;
+
+&lt;p&gt;&amp;#8230; Weblogs are quickly becoming a &amp;#8220;unit of spam&amp;#8221; instead of a unit of knowledge. Y&amp;#8217;see - a system that is driven by individualism quickly becomes a tool for self-promoters.&lt;/p&gt;
+
+&lt;p&gt;&amp;#8230; Frankly, from my POV, weblogs look like an abysmal failure. There&amp;#8217;s no life to the content. Already articles are being forgotten and left to rot, along with a lot of other web content. There&amp;#8217;s no common format or standards and there&amp;#8217;s a lot more crap than gems.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Oops, no, I&amp;#8217;m sorry.  She was &lt;a href="http://www.zephoria.org/thoughts/archives/2008/08/01/knol_content_wo.html"&gt;talking about Google Knol&lt;/a&gt;.  My bad.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[HOWTO feed medication to your dog]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/28/howto-feed-medication-to-your-dog" />
+<id>tag:diveintomark.org,2008-07-29:/archives/20080729021401</id>
+<updated>2008-08-01T00:05:25Z</updated>
+<published>2008-07-29T02:14:01Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="dogs" /><category scheme="http://diveintomark.org" term="howto" /><summary type="html">I'm told that peanut butter also works.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/28/howto-feed-medication-to-your-dog">&lt;ol style="list-style:none;margin-left:0;padding-left:0"&gt;
+&lt;li&gt;&lt;p&gt;Take a quarter slice of American cheese.&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://wearehugh.com/public/2008/07/01-cheese.jpg" alt="[cheese slice in hand]" width="640" height="188"&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Roll the cheese into a ball and insert the pills.&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://wearehugh.com/public/2008/07/02-pills.jpg" alt="[cheese ball with pills inside]" width="640" height="188"&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Feed the cheese ball to your dog.&lt;/p&gt;
+&lt;p&gt;&lt;img src="http://wearehugh.com/public/2008/07/03-feed.jpg" alt="[feeding the cheese to the dog]" width="640" height="188"&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;I&amp;#8217;m told that peanut butter also works, but it&amp;#8217;s messier.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[A helluva thing]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/22/a-helluva-thing" />
+<id>tag:diveintomark.org,2008-07-23:/archives/20080723030709</id>
+<updated>2008-07-23T16:55:41Z</updated>
+<published>2008-07-23T03:07:09Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="law" /><category scheme="http://diveintomark.org" term="lighthouse" /><category scheme="http://diveintomark.org" term="personal" /><summary type="html">Timothy McVeigh blew up a building and killed 168 people.  What did we give him?  A trial.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/22/a-helluva-thing">&lt;p&gt;It&amp;#8217;s a helluva thing, a trial by jury.  It was a radical notion 200 years ago, and it&amp;#8217;s still a radical notion today.&lt;/p&gt;
+
+&lt;p&gt;I served on a jury once.  Getting called for jury duty sucks, because most of the time you just sit in the jury lounge all day and then go home.  But actually serving on a jury is a totally different thing.  I think everyone should experience it at least once.  In one sense, it&amp;#8217;s just like you see on TV, except everything takes longer and you can&amp;#8217;t go to the bathroom every 12 minutes.  But it&amp;#8217;s weird, if you&amp;#8217;ve seen it on TV, because you realize that you already know the script.  &amp;#8220;Burden of proof,&amp;#8221; &amp;#8220;innocent until proven guilty,&amp;#8221; &amp;#8220;proof beyond a reasonable doubt.&amp;#8221;  The judge lays it all out for you, from scratch, even though most people have seen the scene and heard the speech and read the words a hundred times.&lt;/p&gt;
+
+&lt;p&gt;Everything is slanted towards the defense.  Big stuff, little stuff, process stuff, everything.  We learned later (during sentencing) that the defendant in our case had several prior convictions, but the &lt;abbr&gt;DA&lt;/abbr&gt; wasn&amp;#8217;t allowed to bring them up during the trial.  Witnesses were always being cut off in mid-sentence, but the defendant was given a wide berth to tell his version of events.  We didn&amp;#8217;t even know exactly what the charge meant until the defense lawyer made his closing argument.  That, in particular, was incredibly frustrating.  I made all sorts of notes like &amp;#8220;is this important? don&amp;#8217;t know, check later.&amp;#8221;  The judge said it was to force us to listen to everyone and everything as fairly as possible.  It was frustrating on purpose, but it worked.&lt;/p&gt;
+
+&lt;p&gt;And I remember thinking at the time, &amp;#8220;This thing.  Right here, this thing.  This is what we say America is about.&amp;#8221;  Everyone is innocent until proven guilty, and everybody gets their day in court.  We suspected that &lt;a href="http://en.wikipedia.org/wiki/Hans_Reiser"&gt;Hans Reiser killed his wife&lt;/a&gt;.  What did we give him?  A trial.  We suspected that &lt;a href="http://en.wikipedia.org/wiki/Oklahoma_City_bombing"&gt;Timothy McVeigh blew up a building and killed 168 people&lt;/a&gt;.  What did we give him?  A trial.  (&lt;abbr&gt;BTW&lt;/abbr&gt;, this is why &lt;a href="http://www.aclu.org/safefree/detention/commissions.html"&gt;people get so upset over our mishandling of terror suspects&lt;/a&gt;.  What could possibly be more un-American than saying that some people don&amp;#8217;t deserve a fair trial?)&lt;/p&gt;
+
+&lt;p&gt;The case I served on wasn&amp;#8217;t anything you&amp;#8217;ll ever hear about, or read about, or see on TV.  Just some neighbors who had ongoing petty feuds for years and years, until one day one of them went too far and made a real death threat.  You&amp;#8217;d say he &amp;#8220;crossed the line.&amp;#8221;  I think the actual charge was called &amp;#8220;commencement of threats,&amp;#8221; which basically means he crossed one of the invisible lines that holds society together.&lt;/p&gt;
+
+&lt;p&gt;Some people spend their whole life right on the edge of being able to function in a civilized society.  I knew a guy like that, growing up outside Philadelphia.  His name was Eric.  He always seemed to be in trouble with the law.  Never anything serious, and not your standard crimes like robbery or drugs or weapons.  Just&amp;#8230; not quite understanding the boundaries between himself and everyone else.  He could make friends quickly, but then he lost them just as quickly.  He never had a steady girlfriend.  He couldn&amp;#8217;t maintain any sort of long-term relationship.  I think an ex-girlfriend got a restraining order against him one time.  And he&amp;#8217;d get arrested for stuff like &amp;#8220;criminal trespass&amp;#8221; and &amp;#8220;commencement of threats.&amp;#8221;&lt;/p&gt;
+
+&lt;p&gt;Society is about drawing lines that everyone acknowledges and respects.  Some people see the lines and cross them anyway and hope they don&amp;#8217;t get caught.  Eric didn&amp;#8217;t even see the lines.  They didn&amp;#8217;t make any sense to him, so when he crossed them, he didn&amp;#8217;t understand why he got in trouble.  And you just wanted to smack him and say, &amp;#8220;Just stay out of trouble, Eric!  Just leave people alone.&amp;#8221;  And he did, most of the time.  But &amp;#8220;most of the time&amp;#8221; is not &amp;#8220;all of the time.&amp;#8221;  And it&amp;#8217;s a crude word, but I think he was a little bit crazy.  Not really crazy, like Hannibal Lecter crazy.  He just&amp;#8230; couldn&amp;#8217;t see the lines.  You don&amp;#8217;t have to be crazy all the time, to be crazy.&lt;/p&gt;
+
+&lt;p&gt;Anyway, our case came and went.  The wheels of justice grind slowly, but there&amp;#8217;s only so much you can say about neighbors yelling at each other.  I think the whole trial only lasted a day and a half, from jury selection to sentencing.  In the end, we deliberated and found the defendant guilty beyond a reasonable doubt.  The victim asked, and the judge agreed, and we the jurors were pleased to hear, that he should get a suspended sentence and a mental health assessment, with mandatory followup counseling.  I&amp;#8217;d guess he was offered deals and plea bargains, and I&amp;#8217;d guess that everyone in his life begged him to take it.  But he wanted his day in court, and he wanted a trial by a jury of his peers, and so that&amp;#8217;s what we did.  And he mounted a vigorous defense, and he was innocent right up until the moment we decided he was guilty.&lt;/p&gt;
+
+&lt;p&gt;I&amp;#8217;m not going to get all puffed up about the glory of the system or the honor of performing my civic duty or whatever.  The system is broken in a lot of ways, and there&amp;#8217;s a reason they call it a duty &amp;#8212; because it sounds a lot better in the abstract than it feels in the particular, slogging through downtown traffic and standing in line at the metal detectors and sitting quietly while people go on and on about their fucked up lives.  But I also got a glimpse of a marvelous and precarious machine, built up and crusted over from two centuries of radical tradition, grinding ever so slowly forward.  And it&amp;#8217;s a helluva thing.&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Things that are awesome]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/17/things" />
+<id>tag:diveintomark.org,2008-07-17:/archives/20080717044506</id>
+<updated>2008-07-17T04:47:24Z</updated>
+<published>2008-07-17T04:45:06Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="fonts" /><category scheme="http://diveintomark.org" term="goats" /><category scheme="http://diveintomark.org" term="java" /><category scheme="http://diveintomark.org" term="linux" /><category scheme="http://diveintomark.org" term="software" /><category scheme="http://diveintomark.org" term="wordle" /><summary type="html">Trader Joe's, because food wasn't expensive enough already.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/17/things">&lt;ul&gt;
+&lt;li&gt;&lt;a href="http://fontmatrix.net/"&gt;FontMatrix&lt;/a&gt;, which helped me pick the God-awful fonts I&amp;#8217;m foisting on the world&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://www.lesswatts.org/projects/powertop/"&gt;PowerTOP&lt;/a&gt;, because I love viewing new cross-sections of my computing environment&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://wordle.net/"&gt;Wordle&lt;/a&gt; (&lt;a href="http://bigpicture.typepad.com/comments/2008/07/bernanke-word-c.html"&gt;example&lt;/a&gt;), despite being a &lt;i&gt;Java applet written in 2008&lt;/i&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://openjdk.java.net/"&gt;OpenJDK&lt;/a&gt;, which is &lt;a href="http://packages.debian.org/openjdk"&gt;now in Debian main&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://developer.yahoo.com/yslow/"&gt;YSlow&lt;/a&gt;, which proved that my &lt;code&gt;Cache-Control&lt;/code&gt; headers really did blow goats&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://ocaoimh.ie/wp-super-cache/"&gt;WP-SuperCache&lt;/a&gt;, which fixed them (sorry, goats)&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://www.youtube.com/watch?v=WGoi1MSGu64"&gt;Flight of the Conchords&lt;/a&gt; (note: they are actually &lt;a href="http://www.youtube.com/watch?v=wd8yxDivs5g"&gt;twice as awesome&lt;/a&gt; as everything else on this list)&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://www.traderjoes.com/"&gt;Trader Joe&amp;#8217;s&lt;/a&gt;, because food wasn&amp;#8217;t expensive enough already&lt;/li&gt;
+&lt;li&gt;&lt;a href="http://www.toblerone.com/"&gt;Toblerone&lt;/a&gt;, just because&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;And you?&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Protocol buffers: the early reviews are in]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/12/protobuf" />
+<id>tag:diveintomark.org,2008-07-13:/archives/20080713011654</id>
+<updated>2008-07-13T04:19:40Z</updated>
+<published>2008-07-13T01:16:54Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="asn.1" /><category scheme="http://diveintomark.org" term="c++" /><category scheme="http://diveintomark.org" term="google" /><category scheme="http://diveintomark.org" term="java" /><category scheme="http://diveintomark.org" term="json" /><category scheme="http://diveintomark.org" term="programming" /><category scheme="http://diveintomark.org" term="python" /><category scheme="http://diveintomark.org" term="scalability" /><category scheme="http://diveintomark.org" term="xml" /><summary type="html">No wireless.  Less space than a Nomad.  Lame.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/12/protobuf">&lt;p&gt;Google (my current employer) has finally &lt;a href="http://google-opensource.blogspot.com/2008/07/protocol-buffers-googles-data.html"&gt;open sourced protocol buffers&lt;/a&gt;, the data interchange format we use for internal server-to-server communication.  The blogosphere&amp;#8217;s response?  &amp;#8220;&lt;a href="http://www.oreillynet.com/xml/blog/2008/07/google_hates_xml.html?CMP=OTC-TY3388567169&amp;amp;ATT=Google+hates+XML"&gt;No wireless&lt;/a&gt;.  &lt;a href="http://blogs.tedneward.com/CommentView,guid,98ba2332-0f84-4697-b165-87ee357309cb.aspx"&gt;Less space than a Nomad&lt;/a&gt;.  &lt;a href="http://steve.vinoski.net/blog/2008/07/11/protocol-buffers-no-big-deal/"&gt;Lame&lt;/a&gt;.&amp;#8221;&lt;/p&gt;
+
+&lt;p&gt;Aaaaanyway&amp;#8230;&lt;/p&gt;
+
+&lt;p&gt;Protocol buffers are &amp;#8220;&lt;a href="http://c2.com/cgi/wiki?JustIsaDangerousWord"&gt;just&lt;/a&gt;&amp;#8221; cross-platform data structures.  &lt;a href="http://www.coriolinus.net/2008/07/08/protocol-buffers/"&gt;All you have to write is the schema&lt;/a&gt; (a &lt;code&gt;.proto&lt;/code&gt; file), then generate bindings in &lt;a href="http://code.google.com/apis/protocolbuffers/docs/cpptutorial.html"&gt;C++&lt;/a&gt;, &lt;a href="http://code.google.com/apis/protocolbuffers/docs/javatutorial.html"&gt;Java&lt;/a&gt;, or &lt;a href="http://code.google.com/apis/protocolbuffers/docs/pythontutorial.html"&gt;Python&lt;/a&gt;.  (Or &lt;a href="http://hackage.haskell.org/cgi-bin/hackage-scripts/package/protocol-buffers-0.0.5"&gt;Haskell&lt;/a&gt;.  Or &lt;a href="http://groups.google.com/group/protobuf-perl"&gt;Perl&lt;/a&gt;.)  The &lt;code&gt;.proto&lt;/code&gt; file is &lt;a href="http://www.betanews.com/article/Google_releases_its_data_encoding_format_to_compete_with_XML/1215530589"&gt;just a schema&lt;/a&gt;; it doesn&amp;#8217;t contain any data except default values.  All getting and setting is done in code.  The serialized over-the-wire format is designed to minimize network traffic, and deserialization (especially in C++) is designed to maximize performance.  I can&amp;#8217;t begin to describe how much effort Google spends maximizing performance at every level.  We would tear down our data centers and rewire them with &lt;a href="http://news.cnet.com/8301-17938_105-9967991-1.html"&gt;$500 ethernet cables&lt;/a&gt; if you could prove that it would reduce latency by 1%.&lt;/p&gt;
+
+&lt;p&gt;Besides being blindingly fast, protocol buffers have lots of neat features.  &lt;a href="http://scottkirkwood.blogspot.com/2008/07/google-opensources-protocol-buffers.html"&gt;A zero-size &lt;abbr&gt;PB&lt;/abbr&gt; returns default values&lt;/a&gt;.  &lt;a href="http://zunger.livejournal.com/164024.html"&gt;You can nest &lt;abbr&gt;PB&lt;/abbr&gt;s inside each other&lt;/a&gt;.  And most importantly, &lt;abbr&gt;PB&lt;/abbr&gt;s are &lt;a href="http://news.ycombinator.com/item?id=239445"&gt;both backward and forward compatible&lt;/a&gt;, which means you can &lt;a href="http://www.mattcutts.com/blog/google-releases-protocol-buffers/"&gt;upgrade servers gradually&lt;/a&gt; and they can still talk to each other in the interim.  (When you have as many machines as Google has, it&amp;#8217;s always the interim somewhere.)&lt;/p&gt;
+
+&lt;p&gt;Comparisons to other data formats was, I suppose, inevitable.  &lt;a href="http://www.thenewsbeforethenews.com/2008/07/10/everything-old-is-new-again/"&gt;Old-timers may remember &lt;abbr&gt;ASN.1&lt;/abbr&gt;&lt;/a&gt; or &lt;a href="http://tech.slashdot.org/tech/08/07/08/201245.shtml"&gt;&lt;abbr&gt;IIOP&lt;/abbr&gt;&lt;/a&gt;.  Kids these days seem to &lt;a href="http://www.webmasterworld.com/xml/3693285.htm"&gt;compare everything to &lt;abbr&gt;XML&lt;/abbr&gt;&lt;/a&gt; or &lt;a href="http://www.freshblurbs.com/google-protocol-buffers-good-bad-and-ugly"&gt;&lt;abbr&gt;JSON&lt;/abbr&gt;&lt;/a&gt;.  They&amp;#8217;re actually closer to Facebook&amp;#8217;s &lt;a href="http://stuartsierra.com/2008/07/10/thrift-vs-protocol-buffers"&gt;Thrift&lt;/a&gt; (&lt;a href="http://news.ycombinator.com/item?id=239276"&gt;written by ex-Googlers&lt;/a&gt;) or &lt;a href="http://www.25hoursaday.com/weblog/CommentView.aspx?guid=898f56ef-0439-4100-90da-08701be03c13"&gt;SQL Server&amp;#8217;s &lt;abbr&gt;TDS&lt;/abbr&gt;&lt;/a&gt;.  Protocol buffers won&amp;#8217;t &lt;a href="http://zimboe.wordpress.com/2008/07/10/farewell-xml/"&gt;kill &lt;abbr&gt;XML&lt;/abbr&gt;&lt;/a&gt; (no matter how much &lt;a href="http://www.sharms.org/blog/?p=168"&gt;you wish they would&lt;/a&gt;), nor will they replace &lt;abbr&gt;JSON&lt;/abbr&gt;, &lt;abbr&gt;ASN.1&lt;/abbr&gt;, or &lt;a title="the world's first and only implementation of RFC 1149" href="http://www.blug.linux.no/rfc1149/"&gt;carrier pigeon&lt;/a&gt;.  But they&amp;#8217;re simple and they&amp;#8217;re fast and &lt;a href="http://www.webmonkey.com/blog/Google_s_Open_Source_Protocol_Buffers_Offer_Scalability__Speed"&gt;they scale like crazy&lt;/a&gt;, and that&amp;#8217;s the way Google likes it.&lt;/p&gt;
+</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[NY&#8217;s top child porn]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/12/nystopchildporn" />
+<id>tag:diveintomark.org,2008-07-12:/archives/20080712042845</id>
+<updated>2008-07-12T04:28:45Z</updated>
+<published>2008-07-12T04:28:45Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="culture" /><category scheme="http://diveintomark.org" term="politics" /><category scheme="http://diveintomark.org" term="thinkofthechildren" /><summary type="html">I really like pluralizing "Attorney General."  And verbing nouns.  And parenthesizing.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/12/nystopchildporn">&lt;p&gt;Despite the promising URL, &lt;a rel="nofollow" href="http://www.nystopchildporn.com/"&gt;NYsTopChildPorn.com&lt;/a&gt; does not, in fact, contain NY&amp;#8217;s top child porn.  (&amp;#8221;Package contained bobcat.  &lt;a href="http://xkcd.com/325/"&gt;Would not buy again&lt;/a&gt;.&amp;#8221;)  It will, however, be blocked by &lt;em&gt;every web filtering program ever&lt;/em&gt; based solely on the domain name &amp;#8212; an irony which will sadly be lost on the Attorneys General.  I bet they bring in a metric buttload of weird search traffic before they fold, though.&lt;/p&gt;
+
+&lt;p&gt;Yeah, I know, I&amp;#8217;m joking about child porn.  Carlin is dead, Pesci bless him, and somebody&amp;#8217;s gotta start &lt;a href="http://www.youtube.com/watch?v=3av_qRR_DWc"&gt;picking up the slack&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;(The site itself is not notable in any way except as a reason to point out the obvious design flaw &amp;#8212; that &lt;em&gt;you&amp;#8217;re declaring war on a protocol&lt;/em&gt;, and, you know, good luck with that.)&lt;/p&gt;
+
+&lt;p&gt;(I really like pluralizing &amp;#8220;Attorney General.&amp;#8221;  And verbing nouns.  And parenthesizing.)&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[New Orc City]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/05/new-orc-city" />
+<id>tag:diveintomark.org,2008-07-06:/archives/20080706022239</id>
+<updated>2008-07-06T04:12:31Z</updated>
+<published>2008-07-06T02:22:39Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="personal" /><summary type="html">
+
+I found this example of Papyrus on my doorstep last night &amp;#169;&amp;#160;Sarah Marriage / CC
+
+
+The wife and the first born are in New York City for the long weekend, except the second born pronounces it &amp;#8220;New Orc City,&amp;#8221; which sounds much more interesting if you ask me.  This is not the first time Ethan [...]</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/05/new-orc-city">&lt;div class="punch" style="width:180px"&gt;
+&lt;img src="http://wearehugh.com/public/2008/07/papyrus.jpg" alt="[example of Papyrus font]" title="" width="180" height="240"&gt;
+&lt;p&gt;&lt;a href="http://flickr.com/photos/semarr/125189245/"&gt;I found this example of Papyrus on my doorstep last night&lt;/a&gt; &amp;copy;&amp;nbsp;&lt;a href="http://flickr.com/people/semarr/"&gt;Sarah Marriage&lt;/a&gt; / &lt;a title="used under Creative Commons Attribution 2.0 License" href="http://creativecommons.org/licenses/by/2.0/"&gt;CC&lt;/a&gt;&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;p&gt;The wife and the first born are in New York City for the long weekend, except the second born pronounces it &amp;#8220;New Orc City,&amp;#8221; which sounds much more interesting if you ask me.  This is not the first time Ethan has traveled, but it&amp;#8217;s the first time that he and his brother have been separated for more than 8 hours.  It has also given them their first opportunity to talk to each other on the telephone, long distance.  I assume it won&amp;#8217;t be the last.&lt;/p&gt;
+
+&lt;p&gt;Wesley and I have been having a wonderful time doing all manner of things without, you know, competition.  Watching his &lt;a title="actually just one movie over and over" href="http://www.imdb.com/title/tt0055254/"&gt;favorite movies&lt;/a&gt;, wading in the &lt;a href="http://www.enoriver.org/Festival/"&gt;Eno River&lt;/a&gt;, and spotting butterflies at the &lt;a href="http://www.ncmls.org/"&gt;Museum of Life and Science&lt;/a&gt;.  No pics, sorry (the wife has the camera in New Orc City), but here&amp;#8217;s some pictures from our trip 2 years ago: a &lt;a href="http://flickr.com/photos/f8dy/121701744/"&gt;butterfly&lt;/a&gt;, a &lt;a href="http://flickr.com/photos/f8dy/121701637/"&gt;sheep&lt;/a&gt;, and a &lt;a href="http://flickr.com/photos/f8dy/121701704/"&gt;pot-bellied pig&lt;/a&gt;.  I swear the pig hasn&amp;#8217;t moved in 2 years.&lt;/p&gt;
+
+&lt;p&gt;On a coming-full-circle kind of note, the Festival of the Eno uses &lt;a href="/archives/2008/06/21/minimalism#comment-12293"&gt;Papyrus&lt;/a&gt; in their video materials.  We saw it on the shuttle bus on the way back to the parking lot.  My mother was sitting next to me, and I got all excited and poked her and pointed to the screen above us and said, &amp;#8220;Hey, I know that font!  Everybody hates that font!&amp;#8221;  Who says designers are useless?&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Adobe 9]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/07/04/adobe-9" />
+<id>tag:diveintomark.org,2008-07-04:/archives/20080704050619</id>
+<updated>2008-07-04T20:18:42Z</updated>
+<published>2008-07-04T05:06:19Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="adobe" /><category scheme="http://diveintomark.org" term="sillyseason" /><summary type="html">You can't make this stuff up.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/07/04/adobe-9">&lt;div class="punch" style="width:240px"&gt;
+&lt;img src="http://wearehugh.com/public/2008/07/upgrade-are-failed.jpg" alt="[upgrade are failed]" title="" width="240" height="180"&gt;
+&lt;p&gt;&lt;a href="http://flickr.com/photos/collinanderson/2413624779/"&gt;Upgrade are failed!&lt;/a&gt; &amp;copy;&amp;nbsp;&lt;a href="http://flickr.com/people/collinanderson/"&gt;Collin Anderson&lt;/a&gt; / &lt;a title="used under Creative Commons Attribution 2.0 License" href="http://creativecommons.org/licenses/by/2.0/"&gt;CC&lt;/a&gt;&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;p&gt;Adobe&lt;a title="you may think I'm intentionally overusing the marks for comedic effect, but I'm not (overusing them, that is)" href="http://www.adobe.com/misc/trade.html"&gt;&amp;reg;&lt;/a&gt; Reader&amp;reg; 9 is &lt;a href="http://gusmueller.com/blog/archives/2008/07/adobe_reader_9_is_out!.html"&gt;out&lt;/a&gt;.  It&amp;#8217;s now almost half as fast as &lt;a href="http://www.foxitsoftware.com/pdf/reader_2/down_reader.htm"&gt;Foxit Reader&lt;/a&gt;.  It lets you &lt;a href="http://www.download.com/8301-2007_4-9982192-12.html"&gt;embed Flash in PDF&lt;/a&gt; and &lt;a href="http://blogs.adobe.com/loridefurio/2008/07/pdf_widget_on_a.html"&gt;embed PDF in Flash&lt;/a&gt;.  Adobe supports both kinds of music, &lt;a href="http://www.microsoft.com/"&gt;country&lt;/a&gt; and &lt;a href="http://www.apple.com/"&gt;western&lt;/a&gt;.  They&amp;#8217;ve also &amp;#8220;&lt;a href="http://blogs.adobe.com/adobereader/2008/06/adobe_reader_9_is_here_1.html"&gt;conveniently&lt;/a&gt;&amp;#8221; bundled Adobe&amp;reg; AIR&amp;trade; &lt;a href="http://www.tuaw.com/2008/07/02/adobe-reader-9-released/#c12973868"&gt;for no apparent reason&lt;/a&gt; and added synergistic integration with &lt;a href="https://www.acrobat.com/"&gt;their cloud&lt;/a&gt;, which claims it doesn&amp;#8217;t support my browser and then requires both Javascript and Flash to sign up for an Adobe&amp;reg; ID, the use of which is governed by this &lt;a type="application/pdf" href="http://www.adobe.com/go/acrobat_com_tou_en"&gt;draconian service agreement&lt;/a&gt;, which is a PDF.&lt;/p&gt;
+
+&lt;p&gt;You can&amp;#8217;t make this stuff up.  And apparently it gets worse if you try to, you know, &lt;a href="http://blog.micropledge.com/2008/07/adobe-reader-9/"&gt;actually install it&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;It occurs to me that, at some point in the not-too-&lt;a href="http://www.youtube.com/watch?v=WGoi1MSGu64"&gt;distant future&lt;/a&gt;, we&amp;#8217;re going to achieve a harmonic convergence with these mega-platforms.  &amp;#8220;Adobe&amp;reg; Acrobat&amp;reg; version 9 with Adobe&amp;reg; Flash&amp;reg; version 10 with Adobe&amp;reg; Photoshop&amp;reg; CS3 with Adobe&amp;reg; AIR&amp;trade; beta 3&amp;#8243; will get truncated to &amp;#8220;Adobe 9.&amp;#8221;  Coming soon on &lt;a href="http://www.overheardinnewyork.com/"&gt;Overheard in New York&lt;/a&gt;: &amp;#8220;Hey, are you on Adobe 9?&amp;#8221;  &amp;#8220;No, I&amp;#8217;m on Microsoft 14.&amp;#8221;  &amp;#8220;Pity.  I was hoping we could have sex.&amp;#8221;  Or something like that.  Who knows, with these wacky kids today and their vendor-specific runtimes?&lt;/p&gt;</content>
+</entry>
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[Microformats and accessibility: the soap opera that never ends]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/06/29/microformats-accessibility" />
+<id>tag:diveintomark.org,2008-06-29:/archives/20080629044756</id>
+<updated>2008-06-29T04:55:43Z</updated>
+<published>2008-06-29T04:47:56Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="accessibility" /><category scheme="http://diveintomark.org" term="bbc" /><category scheme="http://diveintomark.org" term="microformats" /><category scheme="http://diveintomark.org" term="rant" /><category scheme="http://diveintomark.org" term="rdf" /><summary type="html">As far as I can tell, the only thing that leading accessibility experts agree on is that nobody listens to leading accessibility experts.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/06/29/microformats-accessibility">&lt;div class="punch" style="width:240px"&gt;
+&lt;img src="http://wearehugh.com/public/2008/06/ducks-butt.jpg" alt="[duck with its head underwater]" title="" width="240" height="160"&gt;
+&lt;p&gt;&lt;a href="http://flickr.com/photos/spacepleb/249761636/"&gt;ducks butt&lt;/a&gt; &amp;copy;&amp;nbsp;&lt;a href="http://flickr.com/people/spacepleb/"&gt;Dave Gough&lt;/a&gt; / &lt;a title="used under Creative Commons Attribution 2.0 License" href="http://creativecommons.org/licenses/by/2.0/"&gt;CC&lt;/a&gt;&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;p&gt;As far as I can tell, the only thing that leading accessibility experts agree on is that &lt;a href="http://adactio.com/journal/1451/"&gt;nobody listens to leading accessibility experts&lt;/a&gt;, especially not &lt;a href="http://www.webstandards.org/2008/06/23/haccessibility-redux/#comment-71549"&gt;the microformats cabal&lt;/a&gt;, which &lt;a href="http://microformats.org/wiki/datetime-design-pattern#Accessibility_issues"&gt;has never cared about accessibility&lt;/a&gt;, &lt;a href="http://microformats.org/wiki/assistive-technology-abbr-results"&gt;has never bothered to test it&lt;/a&gt;, and &lt;a href="http://www.isolani.co.uk/blog/access/AccessibilityOfDateTimeMicroformat"&gt;has never acknowledged&lt;/a&gt; those &lt;a href="http://lab.dotjay.co.uk/tests/screen-readers/microformats/datetime-design-pattern/"&gt;who have tested it&lt;/a&gt;.  In fact, &lt;a href="http://www.bbc.co.uk/blogs/radiolabs/2008/06/removing_microformats_from_bbc.shtml"&gt;the BBC recently removed one microformat&lt;/a&gt; from their site because one piece of it may be confusing to some screen reader users with a certain non-default configuration.  This proves what leading accessibility experts have been saying all along, that &lt;a href="http://adactio.com/journal/1457/"&gt;all microformats are inaccessible&lt;/a&gt;, and we should &lt;a href="http://ejohn.org/blog/bbc-removing-microformat-support/"&gt;all just use RDF&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Meanwhile, the devilish cabal is &lt;a href="http://microformats.org/wiki/datetime-design-pattern#date_and_time_separation_using_value_excerption"&gt;secretly solving the problem&lt;/a&gt; on their public wiki page, their public mailing list, and their public IRC channel.  But will it be &lt;a href="http://www.bbc.co.uk/blogs/radiolabs/2008/06/microformats_and_rdfa_and_rdf.shtml"&gt;enough for the BBC&lt;/a&gt;?  Be sure to tune in next week, when we&amp;#8217;ll &lt;a href="http://www.imdb.com/title/tt0071853/quotes"&gt;drown a leading accessibility expert&lt;/a&gt; to see if she&amp;#8217;s a witch.&lt;/p&gt;</content>
+</entry>
+</feed>

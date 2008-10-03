@@ -60,8 +60,7 @@ class AsyncAPIProxy(object):
                    lambda: user_callback(pbresponse, None))
     setattr(rpc, 'user_callback', user_callback) # TODO make this pretty
     self.enqueued.append(rpc)
-    logging.debug('Making call for RPC(%r, %r, %r, %r)',
-                  rpc.package, rpc.call, rpc.request, rpc.response)
+    logging.debug('Making call for RPC(%s, %s, .., ..)', rpc.package, rpc.call)
     rpc.MakeCall()
 
   def rpcs_outstanding(self):
@@ -73,8 +72,7 @@ class AsyncAPIProxy(object):
       return False
     
     rpc = self.enqueued.popleft()
-    logging.debug('Waiting for RPC(%r, %r, %r, %r)',
-                  rpc.package, rpc.call, rpc.request, rpc.response)
+    logging.debug('Waiting for RPC(%s, %s, .., ..)', rpc.package, rpc.call)
     rpc.Wait()
     try:
       rpc.CheckSuccess()
