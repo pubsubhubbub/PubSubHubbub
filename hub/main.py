@@ -19,6 +19,7 @@ import datetime
 import hashlib
 import logging
 import random
+import urllib
 import wsgiref.handlers
 
 from google.appengine.api import datastore_types
@@ -32,8 +33,7 @@ import async_apiproxy
 import feed_diff
 import urlfetch_async
 
-
-#async_proxy = async_apiproxy.AsyncAPIProxy()
+async_proxy = async_apiproxy.AsyncAPIProxy()
 
 ################################################################################
 # Config parameters
@@ -54,6 +54,9 @@ QUERY_AND_OWN_TRY_LOCK_SIZE = 5
 
 # How long to hold a lock after QueryAndOwn(), in seconds.
 LEASE_PERIOD_SECONDS = 15
+
+# How many subscribers to contact at a time when delivering events.
+EVENT_SUBSCRIBER_CHUNK_SIZE = 50
 
 ################################################################################
 # Helper functions
@@ -425,6 +428,54 @@ class FeedEntryRecord(db.Model):
                entry_updated=updated,
                entry_payload=xml_data)
 
+
+class EventToDeliver(db.Model):
+  """TODO
+  """
+
+  topic = db.TextProperty(required=True)
+  topic_hash = db.StringProperty(required=True)
+  payload = db.TextProperty(required=True)
+  last_callback_hash = db.StringProperty(default="")  # For paging
+  failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
+  last_modified = db.DateTimeProperty(auto_now=True)
+  
+  @classmethod
+  def create_event_for_topic(cls, topic, header_footer, entry_list):
+    """TODO
+    """
+    # TODO: Make this work for both RSS and Atom
+    close_index = header_footer.find('</feed>')
+    payload_list = [header_footer[:close_index]]
+    for entry in entry_list:
+      payload_list.append(entry.entry_payload)
+    payload_list.append('</feed>')
+    payload = '\n'.join(payload_list)
+
+    return cls(key_name=Sha1Hash(topic),
+               topic=topic,
+               topic_hash=Sha1Hash(topic),
+               payload=payload,
+               last_callback_hash="")
+  
+  def update(self, more_callbacks, last_callback_hash, more_failed_callbacks):
+    """TODO
+    """
+    if not more_callbacks:
+      # TODO: Correctly handle when there are no more callbacks, but
+      # 'more_failed_callbacks' has stuff in it.
+      self.delete()
+    else:
+      self.last_callback_hash = last_callback_hash
+      self.failed_callbacks.append(failed_callbacks)
+      self.put()
+
+  @classmethod
+  def get_work(cls):
+    """TODO
+    """
+    return QueryAndOwn(cls, 'ORDER BY last_modified ASC')
+
 ################################################################################
 # Subscription handlers and workers
 
@@ -555,6 +606,8 @@ class PullFeedHandler(webapp.RequestHandler):
       # Batch put all of this data and complete the work.
       # TODO: Also put the notification event entities.
       # TODO: Error handling
+      entities_to_save.append(EventToDeliver.create_event_for_topic(
+          work.topic, header_footer, entities_to_save))
       entities_to_save.append(FeedRecord.create_record(
           work.topic, header_footer))
       db.put(entities_to_save)
@@ -563,79 +616,50 @@ class PullFeedHandler(webapp.RequestHandler):
 
 ################################################################################
 
-# TODO: This is a prototype of publishing events to subscribers. We need to
-# change this to pull from the FeedEntryRecords instead, or have a new Event
-# model that encapsulates this information.
-
-class EventTestHandler(webapp.RequestHandler):
+class PushEventHandler(webapp.RequestHandler):
   def get(self):
-    self.response.out.write(template.render('event_test.html', {}))
+    work = EventToDeliver.get_work()
+    if not work:
+      logging.info('No events to deliver.')
+      return
+    
+    # Retrieve the first N + 1 subscribers; note if we have more to contact.
+    subscriber_list = Subscription.gql(
+        'WHERE callback_hash > :1 ORDER BY callback_hash ASC',
+        work.last_callback_hash).fetch(EVENT_SUBSCRIBER_CHUNK_SIZE + 1)
+    if not subscriber_list:
+      logging.info('No subscribers for topic %s', work.topic)
+      return
 
-  def post(self):
-    topic_url = self.request.get('topic_url')
-    callback_urls = self.request.get('callback_urls', '')
-    callback_urls = [url.strip() for url in callback_urls.split('\r\n')]
-    if not topic_url or not callback_urls:
-      return self.response.set_status(500, "Topic URL or callbacks missing.")
+    more_subscribers = len(subscriber_list) > EVENT_SUBSCRIBER_CHUNK_SIZE
+    more_callback_hash = subscriber_list[-1].callback_hash
+    subscriber_list[:EVENT_SUBSCRIBER_CHUNK_SIZE]
+    logging.info('%d subscribers to contact for topic %s',
+                 len(subscriber_list), work.topic)
 
-    response = urlfetch.fetch(topic_url, allow_truncated=True)
-    if response.status_code != 200:
-      return self.response.set_status(500, "Fetching feed failed.")
-    
-    feed = feedparser.parse(response.content)
-    
-    
-    broken_urls = []
-    def callback(callback_url, result, exception):
+    # Keep track of broken callbacks for try later.
+    broken_callbacks = []
+    def callback(url, result, exception):
       if exception or result.status_code != 200:
-        broken_urls.append(callback_url)
-      else:
-        logging.info('Received 200 from %s', unicode(callback_url))
-    
+        broken_callbacks.append(url)
+
     def create_callback(url):
       return lambda *args: callback(url, *args)
-    
-    for url in callback_urls:
-      urlfetch_async.fetch(url,
+
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
+    post_params = {'content': work.payload.encode('utf-8')}
+    payload = urllib.urlencode(post_params)
+
+    for subscriber in subscriber_list:
+      urlfetch_async.fetch(subscriber.callback,
                            method='POST',
-                           payload=response.content,
+                           payload=payload,
                            async_proxy=async_proxy,
-                           callback=create_callback(url))
-
+                           callback=create_callback(subscriber.callback))
     async_proxy.wait()
-    
-    context = {
-      'info': 'Broken URLs: %r' % broken_urls,
-      'callback_urls': '\r\n'.join(callback_urls),
-      'topic_url': topic_url,
-    }
-    self.response.out.write(template.render('event_test.html', context))
+    work.update(more_subscribers, more_callback_hash, broken_callbacks)
 
-
-## TODO: Remove this code
-##
-## class UrlFetchTestHandler(webapp.RequestHandler):
-##   def get(self):
-##     self.response.out.write('Hello world!')
-##     # start async fetch:
-##     all_files = ["http://pubsubhubbub-test.appspot.com/static/%d.txt" % i
-##                  for i in xrange(100)]
-##     for url in all_files:
-##       self.start_async_fetch(url)
-##     async_proxy.wait()
-## 
-##   def start_async_fetch(self, url):
-##     def callback(result, exception):
-##       self.on_url(url, result, exception)
-##     urlfetch_async.fetch(url, async_proxy=async_proxy, callback=callback)
-## 
-##   def on_url(self, url, result, exception):
-##     logging.info('Callback received for "%s": %s', url, result.status_code)
-##     if result:
-##       self.response.out.write("<p>Got content: " + result.content + "</p>\n")
-##     else:
-##       self.response.out.write("Got exception!")
-
+################################################################################
 
 def main():
   application = webapp.WSGIApplication([
@@ -643,6 +667,7 @@ def main():
     (r'/subscribe', SubscribeHandler),
     (r'/publish', PublishHandler),
     (r'/work/pull_feeds', PullFeedHandler),
+    (r'/work/push_events', PushEventHandler),
   ],debug=True)
   wsgiref.handlers.CGIHandler().run(application)
 
