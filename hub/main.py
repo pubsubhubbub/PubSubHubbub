@@ -446,13 +446,14 @@ class EventToDeliver(db.Model):
     """
     # TODO: Make this work for both RSS and Atom
     close_index = header_footer.find('</feed>')
-    payload_list = [header_footer[:close_index]]
+    payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
+                    header_footer[:close_index]]
     for entry in entry_list:
       payload_list.append(entry.entry_payload)
     payload_list.append('</feed>')
     payload = '\n'.join(payload_list)
 
-    return cls(key_name=Sha1Hash(topic),
+    return cls(key_name=GetHashKeyName(topic),
                topic=topic,
                topic_hash=Sha1Hash(topic),
                payload=payload,
@@ -532,6 +533,8 @@ class PublishHandler(webapp.RequestHandler):
     mode = self.request.get('hub.mode')
     assert mode.lower() == 'publish'
     urls = self.request.get_all('hub.url')
+    
+    logging.info('Got publish urls for %s', urls)
 
     # TODO: validate urls? probably not needed, since we can just validate
     # when the original subscription is made.
@@ -663,7 +666,6 @@ class PushEventHandler(webapp.RequestHandler):
 
 def main():
   application = webapp.WSGIApplication([
-    (r'/event_test', EventTestHandler),
     (r'/subscribe', SubscribeHandler),
     (r'/publish', PublishHandler),
     (r'/work/pull_feeds', PullFeedHandler),

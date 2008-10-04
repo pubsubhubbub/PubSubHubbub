@@ -21,20 +21,36 @@ import wsgiref.handlers
 from google.appengine.ext import webapp
 from google.appengine.ext import db
 
+import feedparser
 import simplejson
 
 class SomeUpdate(db.Model):
   """Some topic update."""
-  the_update = db.TextProperty(required=True)
-  update_time = db.DateTimeProperty(auto_now_add=True)
+  title = db.TextProperty(required=True)
+  updated = db.StringProperty(required=True)  # ISO 8601
 
 
 class LogEchoHandler(webapp.RequestHandler):
   """Echos all input data to the log."""
 
   def post(self):
-    some_update = SomeUpdate(the_update=self.request.get('content'))
-    some_update.put()
+    content = unicode(self.request.get('content')).encode('utf-8')
+    logging.info('Post data is %d bytes:\n%r', len(content), "")
+    data = feedparser.parse(content)
+    if data.bozo:
+      logging.error('Bozo feed data on line %d, message %s',
+                     data.bozo_exception.getLineNumber(),
+                     data.bozo_exception.getMessage())
+      return
+    
+    update_list = []
+    for entry in data.entries:
+      # TODO: Do something smarter than use the update time as the key name.
+      update_list.append(SomeUpdate(
+          key_name='key_' + entry.updated,
+          title=entry.title,
+          updated=entry.updated))                           
+    db.put(update_list)
     self.response.set_status(200)
     self.response.out.write("Aight.  Saved.");
 
@@ -53,21 +69,38 @@ class LogEchoHandler(webapp.RequestHandler):
     """)
 
 
+class DebugHandler(webapp.RequestHandler):
+  """Debug handler for simulating events."""
+  def get(self):
+    self.response.out.write("""
+      <html>
+      <body>
+      <form action="/" method="post">
+        <div>Simulate feed:</div>
+        <textarea name="content" cols="80" rows="40"></textarea>
+        <div><input type="submit" value="submit"></div>
+      </form>
+      </body>
+      </html>
+      """)
+
+
 class ItemsHandler(webapp.RequestHandler):
   """Gets the items."""
 
   def get(self):
     encoder = simplejson.JSONEncoder()
     stuff = []
-    for update in SomeUpdate.gql('ORDER BY update_time DESC').fetch(50):
-      stuff.append({'time': str(update.update_time),
-                    'update': update.the_update})
+    for update in SomeUpdate.gql('ORDER BY updated DESC').fetch(50):
+      stuff.append({'time': update.updated,
+                    'update': update.title})
     self.response.out.write(encoder.encode(stuff))
 
 
 application = webapp.WSGIApplication(
   [
     (r'/items', ItemsHandler),
+    (r'/debug', DebugHandler),
     (r'/.*', LogEchoHandler),
   ],
   debug=True)

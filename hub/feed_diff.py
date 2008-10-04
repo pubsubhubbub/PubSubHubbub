@@ -19,6 +19,7 @@ __author__ = 'bslatkin@gmail.com (Brett Slatkin)'
 
 """Atom feed parser that quickly filters enties by update time."""
 
+import cStringIO
 import logging
 import xml.sax
 import xml.sax.handler
@@ -82,6 +83,7 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
 
     content = self.pop()
     self.emit(content)
+    logging.info('Popped:\n%s', content)
     self.emit(['</', name, '>'])
 
     if event == (1, 'feed'):
@@ -106,6 +108,18 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
 
   def characters(self, content):
     self.emit(content)
+  
+  def skippedEntity(self, name):
+    print 'found skipped %s' % name
+
+
+class FeedEntityResolver(xml.sax.handler.EntityResolver):
+  """TODO
+  """
+
+  def resolveEntity(self, publicId, systemId):
+    print 'resolving: %s, %s' % (publicId, systemId)
+    return systemId
 
 
 def filter(updated_cutoff, data):
@@ -124,8 +138,13 @@ def filter(updated_cutoff, data):
         where updated is a string with the ISO 8601 timestamp of when the entry
         was updated, and content is a string containing the entry XML data.
   """
+  data_stream = cStringIO.StringIO(data)
   handler = FeedContentHandler(updated_cutoff)
-  xml.sax.parseString(data, handler)
+  parser = xml.sax.make_parser()
+  parser.setFeature(xml.sax.handler.feature_external_ges, 1)
+  parser.setContentHandler(handler)
+  parser.setEntityResolver(FeedEntityResolver())
+  parser.parse(data_stream)
   return handler.header_footer, handler.entries_map
 
 

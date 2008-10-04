@@ -7,7 +7,7 @@ function showStuff() {
         }
         gotStuff(req.status, req.responseText);
     };
-    req.send();
+    req.send(null);
 }
 
 function gotStuff(status, text) {

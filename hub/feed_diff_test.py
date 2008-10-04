@@ -36,7 +36,7 @@ class FeedDiffTest(unittest.TestCase):
   def testUptimeTimeFiltering(self):
     """Tests filtering by update time."""
     data = open(os.path.join(self.testdata, 'update_filtering.xml')).read()
-    header_footer, entries = feed_diff.filter("2008-07-12T04:28:45Z", data)
+    header_footer, entries = feed_diff.filter('2008-07-12T04:28:45Z', data)
     
     expected_list = [
       (u'tag:diveintomark.org,2008-07-12:/archives/20080712042845',
@@ -73,6 +73,18 @@ class FeedDiffTest(unittest.TestCase):
       self.assertEqual(expected_key, found_key)
       self.assertEqual(expected_updated, found_updated)
       self.assertTrue(found_content)
+
+  def testEntityEscaping(self):
+    """Tests when certain external entities show up in the feed.
+    
+    Example: '&amp;nbsp' will be converted to '&nbsp;' by the parser, but then
+    the new output entity won't be resolved.
+    """
+    data = open(os.path.join(self.testdata, 'entity_escaping.xml')).read()
+    header_footer, entries = feed_diff.filter('', data)
+    print header_footer
+    entity_id, (updated, content) = entries.items()[0]
+    print content
 
   # TODO: Add more tests, of course...
 
