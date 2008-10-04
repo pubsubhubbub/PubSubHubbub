@@ -664,8 +664,15 @@ class PushEventHandler(webapp.RequestHandler):
 
 ################################################################################
 
+class HomepageHandler(webapp.RequestHandler):
+  def get(self):
+    self.response.out.write(template.render('welcome.html', {}))
+
+################################################################################
+
 def main():
   application = webapp.WSGIApplication([
+    (r'/', HomepageHandler),
     (r'/subscribe', SubscribeHandler),
     (r'/publish', PublishHandler),
     (r'/work/pull_feeds', PullFeedHandler),
