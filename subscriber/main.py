@@ -19,24 +19,50 @@ import logging
 import random
 import wsgiref.handlers
 from google.appengine.ext import webapp
+from google.appengine.ext import db
 
 
+class SomeUpdate(db.Model):
+  """Some topic update."""
+  the_update = db.TextProperty(required=True)
+  update_time = db.DateTimeProperty(auto_now_add=True)
 
 
 class LogEchoHandler(webapp.RequestHandler):
   """Echos all input data to the log."""
 
   def post(self):
-    logging.info('Post body is "%s"', self.request.body)
-    if random.randint(0, 3) == 1:
-      logging.error('Returning error')
-      self.error(500)
-    else:
-      self.response.set_status(200)
+    some_update = SomeUpdate(the_update=self.request.get('content'))
+    some_update.put()
+    self.response.set_status(200)
+    self.response.out.write("Aight.  Saved.");
+
+  def get(self):
+    self.response.set_status(200)
+    self.response.out.write("""
+        <html>
+        <head>
+           <script src='/static/agg.js'></script>
+        </head>
+        <body>
+           <h1>Subscriber's Aggregator Page:</h1>
+           <div id='content'></div>
+        </body>
+        </html>
+    """)
+
+
+class ItemsHandler(webapp.RequestHandler):
+  """Gets the items."""
+
+  def get(self):
+    for update in SomeUpdate.gql('ORDER BY update_time DESC').fetch(50):
+      self.response.out.write("""<p>Tis: %s</p>""" % update.the_update)
 
 
 application = webapp.WSGIApplication(
   [
+    (r'/items', ItemsHandler),
     (r'/.*', LogEchoHandler),
   ],
   debug=True)
