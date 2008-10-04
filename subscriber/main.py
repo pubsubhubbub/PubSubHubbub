@@ -21,6 +21,7 @@ import wsgiref.handlers
 from google.appengine.ext import webapp
 from google.appengine.ext import db
 
+import simplejson
 
 class SomeUpdate(db.Model):
   """Some topic update."""
@@ -56,8 +57,12 @@ class ItemsHandler(webapp.RequestHandler):
   """Gets the items."""
 
   def get(self):
+    encoder = simplejson.JSONEncoder()
+    stuff = []
     for update in SomeUpdate.gql('ORDER BY update_time DESC').fetch(50):
-      self.response.out.write("""<p>Tis: %s</p>""" % update.the_update)
+      stuff.append({'time': str(update.update_time),
+                    'update': update.the_update})
+    self.response.out.write(encoder.encode(stuff))
 
 
 application = webapp.WSGIApplication(
