@@ -27,17 +27,17 @@ import feed_diff
 
 
 class FeedDiffTest(unittest.TestCase):
-  
+
   def setUp(self):
     """Sets up the test harness."""
     self.testdata = os.path.join(os.path.dirname(__file__),
                                  'feed_diff_testdata')
-  
+
   def testUptimeTimeFiltering(self):
     """Tests filtering by update time."""
     data = open(os.path.join(self.testdata, 'update_filtering.xml')).read()
     header_footer, entries = feed_diff.filter('2008-07-12T04:28:45Z', data)
-    
+
     expected_list = [
       (u'tag:diveintomark.org,2008-07-12:/archives/20080712042845',
        u'2008-07-12T04:28:45Z'),
@@ -64,7 +64,7 @@ class FeedDiffTest(unittest.TestCase):
       (u'tag:diveintomark.org,2008-08-14:/archives/20080814215936',
        u'2008-08-14T23:08:54Z'),
     ]
-    
+
     found_entries = sorted(entries.items())
     self.assertEqual(len(expected_list), len(found_entries))
     for expected, found in zip(expected_list, found_entries):
@@ -76,15 +76,15 @@ class FeedDiffTest(unittest.TestCase):
 
   def testEntityEscaping(self):
     """Tests when certain external entities show up in the feed.
-    
+
     Example: '&amp;nbsp' will be converted to '&nbsp;' by the parser, but then
     the new output entity won't be resolved.
     """
     data = open(os.path.join(self.testdata, 'entity_escaping.xml')).read()
     header_footer, entries = feed_diff.filter('', data)
-    print header_footer
+    self.assertTrue('&#x27;' not in header_footer)
     entity_id, (updated, content) = entries.items()[0]
-    print content
+    self.assertTrue('&amp;nbsp;' in content)
 
   # TODO: Add more tests, of course...
 

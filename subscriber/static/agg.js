@@ -19,7 +19,8 @@ function gotStuff(status, text) {
     var content = "";
     var items = eval(text);
     for (var i = 0; i < items.length; ++i) {
-        content += "<p><b>" + items[i].time + ":</b> " + items[i].update + "</p>\n";
+        content += "<p><b>" + items[i].time + "</b> - " +
+            items[i].title + ": " + items[i].content + "</p>\n";
     }
 
     document.getElementById("content").innerHTML = content;

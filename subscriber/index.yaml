@@ -10,7 +10,7 @@ indexes:
 # automatically uploaded to the admin console when you next deploy
 # your application using appcfg.py.
 
-# Used 17 times in query history.
+# Used 50 times in query history.
 - kind: SomeUpdate
   properties:
   - name: updated

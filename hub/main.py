@@ -73,12 +73,12 @@ def GetHashKeyName(value):
 
 def QueryAndOwn(model_class, gql_query):
   """Query for work to do and temporarily own it.
-  
+
   Args:
     model_class: The db.Model sub-class that contains the work to do.
     gql_query: String containing the GQL query that will retrieve the work
       to do in order of priority for this model_class.
-  
+
   Returns:
     A model_class instance, if work could be retrieved, or None if there is
     no work to do or work could not be retrieved (due to collisions, etc).
@@ -92,7 +92,7 @@ def QueryAndOwn(model_class, gql_query):
   for work in possible_work:
     if memcache.add(str(work.key()), 'owned', time=LEASE_PERIOD_SECONDS):
       return work
-  
+
   return None
 
 ################################################################################
@@ -122,11 +122,11 @@ class Subscription(db.Model):
   @staticmethod
   def create_key_name(callback, topic):
     """Returns the key name for a Subscription entity.
-    
+
     Args:
       callback: URL of the callback subscriber.
       topic: URL of the topic being subscribed to.
-    
+
     Returns:
       String containing the key name for the corresponding Subscription.
     """
@@ -135,14 +135,14 @@ class Subscription(db.Model):
   @classmethod
   def insert(cls, callback, topic):
     """Marks a callback URL as being subscribed to a topic.
-    
+
     Creates a new subscription if None already exists. Forces any existing,
     pending request (i.e., async) to immediately enter the verified state.
-    
+
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
-    
+
     Returns:
       True if the subscription was newly created, False otherwise.
     """
@@ -166,16 +166,16 @@ class Subscription(db.Model):
   @classmethod
   def request_insert(cls, callback, topic, **kwargs):
     """Records that a callback URL needs verification before being subscribed.
-    
+
     Creates a new subscription request (for asynchronous verification) if None
     already exists. Any existing subscription request will not be modified;
     for instance, if a subscription has already been verified, this method
     will do nothing.
-    
+
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
-    
+
     Returns:
       True if the subscription request was newly created, False otherwise.
     """
@@ -199,14 +199,14 @@ class Subscription(db.Model):
   @classmethod
   def remove(cls, callback, topic):
     """Causes a callback URL to no longer be subscribed to a topic.
-    
+
     If the callback was not already subscribed to the topic, this method
     will do nothing. Otherwise, the subscription will immediately be removed.
-    
+
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
-    
+
     Returns:
       True if the subscription had previously existed, False otherwise.
     """
@@ -222,15 +222,15 @@ class Subscription(db.Model):
   @classmethod
   def request_remove(cls, callback, topic):
     """Records that a callback URL needs to be unsubscribed.
-    
+
     Creates a new request to unsubscribe a callback URL from a topic (where
     verification should happen asynchronously). If an unsubscribe request
     has already been made, this method will do nothing.
-    
+
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
-    
+
     Returns:
       True if the unsubscribe request is new, False otherwise (i.e., a request
       for asynchronous unsubscribe was already made).
@@ -244,14 +244,14 @@ class Subscription(db.Model):
         return True
       return False
     return db.run_in_transaction(txn)
-  
+
   @classmethod
   def has_subscribers(cls, topic):
     """Check if a topic URL has subscribers.
-    
+
     Args:
       topic: The topic URL to check for subscribers.
-    
+
     Returns:
       True if it has subscribers, False otherwise.
     """
@@ -263,7 +263,7 @@ class Subscription(db.Model):
   @classmethod
   def get_subscribers(cls, topic, count, starting_at_callback_hash=None):
     """Gets the list of subscribers starting at an offset.
-    
+
     Args:
       topic: The topic URL to retrieve subscribers for.
       count: How many subscribers to retrieve.
@@ -276,25 +276,25 @@ class Subscription(db.Model):
     if starting_at_callback:
       query.filter('callback_hash =', Sha1Hash(starting_at_callback))
     query.order('callback_hash')
-    
+
     return query.fetch(count)
 
 
 class FeedToFetch(db.Model):
   """A feed that has new data that needs to be pulled.
-  
+
   The key name of this entity is a GetHashKeyName() hash of the topic URL.
   """
 
   topic = db.TextProperty(required=True)
   update_time = db.DateTimeProperty(auto_now=True)
-  
+
   @classmethod
   def insert(cls, topic_list):
     """Inserts a set of FeedToFetch entities for a set of topics.
-    
+
     Overwrites any existing entities that are already there.
-    
+
     Args:
       topic_list: List of the topic URLs of feeds that need to be fetched.
     """
@@ -305,7 +305,7 @@ class FeedToFetch(db.Model):
   @classmethod
   def get_work(cls):
     """Retrieves a feed to fetch and owns it by acquiring a temporary lock.
-    
+
     Returns:
       A FeedToFetch entity that has been owned, or None if there is currently
       no work to do.
@@ -315,14 +315,14 @@ class FeedToFetch(db.Model):
 
 class FeedRecord(db.Model):
   """Represents the content of a feed without any entries.
-  
+
   This is everything in a feed except for the entry data. That means any
   footers, top-level XML elements, namespace declarations, etc, will be
   captured in this entity.
 
   The key name of this entity is a GetHashKeyName() of the topic URL.
   """
-  
+
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
   header_footer = db.TextProperty(required=True)
@@ -331,26 +331,26 @@ class FeedRecord(db.Model):
   @classmethod
   def get_by_topic(cls, topic):
     """Retrieves a FeedRecord entity by its topic.
-    
+
     Args:
       topic: The topic URL to retrieve the FeedRecord for.
-    
+
     Returns:
       The FeedRecord for this topic, or None if it could not be found.
     """
     return cls.get_by_key_name(GetHashKeyName(topic))
-  
+
   @classmethod
   def create_record(cls, topic, header_footer):
     """Creates a FeedRecord representing its current state.
-    
+
     This does not insert the new entity into the Datastore. It is just returned
     so it can be submitted later as part of a batch put().
-    
+
     Args:
       topic: The topic URL to update the header_footer for.
       header_footer: Contents of the feed's XML document minus the entry data.
-    
+
     Returns:
       A FeedRecord instance with the supplied parameters.
     """
@@ -362,22 +362,22 @@ class FeedRecord(db.Model):
 
 class FeedEntryRecord(db.Model):
   """Represents a feed entry that has been seen.
-  
+
   The key name of this entity is a GetHashKeyName() hash of the combination
   of the topic URL and the entry_id.
   """
-  
+
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
   entry_id = db.TextProperty(required=True)
   entry_id_hash = db.StringProperty(required=True)
   entry_updated = db.StringProperty(required=True)  # ISO 8601
   entry_payload = db.TextProperty(required=True)
-  
+
   @staticmethod
   def create_key_name(topic, entry_id):
     """Creates a new key name for a FeedEntryRecord entity.
-    
+
     Args:
       topic: The topic URL to retrieve entries for.
       entry_id: String containing the entry_id.
@@ -386,15 +386,15 @@ class FeedEntryRecord(db.Model):
       String containing the corresponding key name.
     """
     return GetHashKeyName('%s\n%s' % (topic, entry_id))
-  
+
   @classmethod
   def get_entries_for_topic(cls, topic, entry_id_list):
     """Gets multiple FeedEntryRecord entities for a topic by their entry_ids.
-    
+
     Args:
       topic: The topic URL to retrieve entries for.
       entry_id_list: Sequence of entry_ids to retrieve.
-    
+
     Returns:
       List of FeedEntryRecords that were found, if any.
     """
@@ -402,14 +402,14 @@ class FeedEntryRecord(db.Model):
                                    for entry_id in entry_id_list])
     # Filter out those pesky Nones.
     return [r for r in results if r]
-  
+
   @classmethod
   def create_entry_for_topic(cls, topic, entry_id, updated, xml_data):
     """Creates multiple FeedEntryRecords entities for a topic.
-    
+
     Does not actually insert the entities into the Datastore. This is left to
     the caller so they can do it as part of a larger batch put().
-    
+
     Args:
       topic: The topic URL to insert entities for.
       entry_id: String containing the ID of the entry.
@@ -439,7 +439,7 @@ class EventToDeliver(db.Model):
   last_callback_hash = db.StringProperty(default="")  # For paging
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
   last_modified = db.DateTimeProperty(auto_now=True)
-  
+
   @classmethod
   def create_event_for_topic(cls, topic, header_footer, entry_list):
     """TODO
@@ -458,7 +458,7 @@ class EventToDeliver(db.Model):
                topic_hash=Sha1Hash(topic),
                payload=payload,
                last_callback_hash="")
-  
+
   def update(self, more_callbacks, last_callback_hash, more_failed_callbacks):
     """TODO
     """
@@ -483,10 +483,10 @@ class EventToDeliver(db.Model):
 class SubscribeHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write(template.render('subscribe_debug.html', {}))
-  
+
   def post(self):
     # TODO: Update this to match the design doc
-    
+
     callback = self.request.get('callback', '').lower()
     topic = self.request.get('topic', '').lower()
     async = self.request.get('async', '').lower()
@@ -494,7 +494,7 @@ class SubscribeHandler(webapp.RequestHandler):
     # TODO: Error handling, input validation
     if not (callback and topic and async and mode):
       return self.error(500)
-    
+
     # TODO: Verify the callback
 
     # TODO: exception handling
@@ -528,12 +528,12 @@ class SubscribeHandler(webapp.RequestHandler):
 class PublishHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write(template.render('publish_debug.html', {}))
-  
+
   def post(self):
     mode = self.request.get('hub.mode')
     assert mode.lower() == 'publish'
     urls = self.request.get_all('hub.url')
-    
+
     logging.info('Got publish urls for %s', urls)
 
     # TODO: validate urls? probably not needed, since we can just validate
@@ -545,7 +545,7 @@ class PublishHandler(webapp.RequestHandler):
         logging.info('topic_url="%s" has no subscribers', topic_url)
       else:
         new_topics.append(topic_url)
-    
+
     FeedToFetch.insert(new_topics)
     self.response.set_status(204)
 
@@ -623,15 +623,16 @@ class PushEventHandler(webapp.RequestHandler):
   def get(self):
     work = EventToDeliver.get_work()
     if not work:
-      logging.info('No events to deliver.')
+      logging.debug('No events to deliver.')
       return
-    
+
     # Retrieve the first N + 1 subscribers; note if we have more to contact.
     subscriber_list = Subscription.gql(
         'WHERE callback_hash > :1 ORDER BY callback_hash ASC',
         work.last_callback_hash).fetch(EVENT_SUBSCRIBER_CHUNK_SIZE + 1)
     if not subscriber_list:
       logging.info('No subscribers for topic %s', work.topic)
+      work.delete()
       return
 
     more_subscribers = len(subscriber_list) > EVENT_SUBSCRIBER_CHUNK_SIZE

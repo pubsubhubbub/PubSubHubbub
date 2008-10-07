@@ -13,7 +13,7 @@
     <id>http://www.foo.com/1</id>
     <updated>2008-10-01T06:57:56Z</updated>
     <content type="html">
-      some detail here &nbsp;
+      some detail here &amp;nbsp;
     </content>
   </entry>
 </feed>

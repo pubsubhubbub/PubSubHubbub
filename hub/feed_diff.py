@@ -23,6 +23,7 @@ import cStringIO
 import logging
 import xml.sax
 import xml.sax.handler
+import xml.sax.saxutils
 
 
 # Set to true to see stack level messages and other debugging information.
@@ -32,7 +33,15 @@ DEBUG = False
 class FeedContentHandler(xml.sax.handler.ContentHandler):
   """Sax content handler for quickly parsing Atom feeds."""
 
-  def __init__(self, updated_cutoff):
+  def __init__(self, parser, updated_cutoff):
+    """Initializer.
+
+    Args:
+      parser: Instance of the xml.sax parser being used with this handler.
+      updated_cutoff: A string containing the ISO 8601 timestamp before which
+        Atom entries should be ignored. Pass an empty string to get all entries.
+    """
+    self.parser = parser
     self.updated_cutoff = updated_cutoff
     self.header_footer = ""
     self.entries_map = {}
@@ -50,7 +59,7 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
       self.current_level.extend(data)
     else:
       self.current_level.append(data)
-  
+
   def push(self):
     self.current_level = []
     self.output_stack.append(self.current_level)
@@ -77,13 +86,12 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
 
     self.push()
 
-  def endElement(self, name):  
+  def endElement(self, name):
     event = (self.stack_level, name)
     if DEBUG: logging.debug('End stack level %r', event)
 
     content = self.pop()
     self.emit(content)
-    logging.info('Popped:\n%s', content)
     self.emit(['</', name, '>'])
 
     if event == (1, 'feed'):
@@ -103,33 +111,26 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
       self.emit(self.pop())
     else:
       self.emit(self.pop())
-    
+
     self.stack_level -= 1
 
   def characters(self, content):
-    self.emit(content)
-  
-  def skippedEntity(self, name):
-    print 'found skipped %s' % name
-
-
-class FeedEntityResolver(xml.sax.handler.EntityResolver):
-  """TODO
-  """
-
-  def resolveEntity(self, publicId, systemId):
-    print 'resolving: %s, %s' % (publicId, systemId)
-    return systemId
+    # The SAX parser will try to escape XML entities (like &amp;) and other
+    # fun stuff. But this is not what we actually want. We want the original
+    # content to be reproduced exactly as we received it, so we can pass it
+    # along to others. The reason is simple: reformatting the XML by unescaping
+    # certain data may cause the resulting XML to no longer validate.
+    self.emit(xml.sax.saxutils.escape(content))
 
 
 def filter(updated_cutoff, data):
   """Filter a feed by an update cutoff time.
-  
+
   Args:
     updated_cutoff: Cutoff time as a string containing an ISO 8601 datetime.
     data: String containing the data of the XML feed to parse. For now, this
       must be an Atom feed.
-  
+
   Returns:
     Tuple (header_footer, entries_map) where:
       header_footer: String containing everything else in the feed document
@@ -137,13 +138,14 @@ def filter(updated_cutoff, data):
       entries_map: Dictionary mapping entry_id to tuple (updated, content)
         where updated is a string with the ISO 8601 timestamp of when the entry
         was updated, and content is a string containing the entry XML data.
+
+  Raises:
+    xml.sax.SAXException on error.
   """
   data_stream = cStringIO.StringIO(data)
-  handler = FeedContentHandler(updated_cutoff)
   parser = xml.sax.make_parser()
-  parser.setFeature(xml.sax.handler.feature_external_ges, 1)
+  handler = FeedContentHandler(parser, updated_cutoff)
   parser.setContentHandler(handler)
-  parser.setEntityResolver(FeedEntityResolver())
   parser.parse(data_stream)
   return handler.header_footer, handler.entries_map
 

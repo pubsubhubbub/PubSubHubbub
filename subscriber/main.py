@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+ #!/usr/bin/env python
 #
 # Copyright 2008 Google Inc.
 #
@@ -27,32 +27,12 @@ import simplejson
 class SomeUpdate(db.Model):
   """Some topic update."""
   title = db.TextProperty(required=True)
+  content = db.TextProperty(required=True)
   updated = db.StringProperty(required=True)  # ISO 8601
 
 
-class LogEchoHandler(webapp.RequestHandler):
-  """Echos all input data to the log."""
-
-  def post(self):
-    content = unicode(self.request.get('content')).encode('utf-8')
-    logging.info('Post data is %d bytes:\n%r', len(content), "")
-    data = feedparser.parse(content)
-    if data.bozo:
-      logging.error('Bozo feed data on line %d, message %s',
-                     data.bozo_exception.getLineNumber(),
-                     data.bozo_exception.getMessage())
-      return
-    
-    update_list = []
-    for entry in data.entries:
-      # TODO: Do something smarter than use the update time as the key name.
-      update_list.append(SomeUpdate(
-          key_name='key_' + entry.updated,
-          title=entry.title,
-          updated=entry.updated))                           
-    db.put(update_list)
-    self.response.set_status(200)
-    self.response.out.write("Aight.  Saved.");
+class InputHandler(webapp.RequestHandler):
+  """Handles feed input."""
 
   def get(self):
     self.response.set_status(200)
@@ -68,6 +48,27 @@ class LogEchoHandler(webapp.RequestHandler):
         </html>
     """)
 
+  def post(self):
+    content = unicode(self.request.get('content')).encode('utf-8')
+    data = feedparser.parse(content)
+    if data.bozo:
+      logging.error('Bozo feed data on line %d, message %s',
+                     data.bozo_exception.getLineNumber(),
+                     data.bozo_exception.getMessage())
+      return
+
+    update_list = []
+    for entry in data.entries:
+      # TODO: Do something smarter than use the update time as the key name.
+      update_list.append(SomeUpdate(
+          key_name='key_' + entry.updated,
+          title=entry.title,
+          content=entry.content[0].value,
+          updated=entry.updated))
+    db.put(update_list)
+    self.response.set_status(200)
+    self.response.out.write("Aight.  Saved.");
+
 
 class DebugHandler(webapp.RequestHandler):
   """Debug handler for simulating events."""
@@ -77,7 +78,7 @@ class DebugHandler(webapp.RequestHandler):
       <body>
       <form action="/" method="post">
         <div>Simulate feed:</div>
-        <textarea name="content" cols="80" rows="40"></textarea>
+        <textarea name="content" cols="40" rows="40"></textarea>
         <div><input type="submit" value="submit"></div>
       </form>
       </body>
@@ -93,7 +94,8 @@ class ItemsHandler(webapp.RequestHandler):
     stuff = []
     for update in SomeUpdate.gql('ORDER BY updated DESC').fetch(50):
       stuff.append({'time': update.updated,
-                    'update': update.title})
+                    'title': update.title,
+                    'content': update.content})
     self.response.out.write(encoder.encode(stuff))
 
 
@@ -101,7 +103,7 @@ application = webapp.WSGIApplication(
   [
     (r'/items', ItemsHandler),
     (r'/debug', DebugHandler),
-    (r'/.*', LogEchoHandler),
+    (r'/.*', InputHandler),
   ],
   debug=True)
 
