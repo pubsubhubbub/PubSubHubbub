@@ -17,7 +17,7 @@
 
 __author__ = 'bslatkin@gmail.com (Brett Slatkin)'
 
-"""Atom feed parser that quickly filters enties by update time."""
+"""Atom feed parser that quickly filters entries by update time."""
 
 import cStringIO
 import logging

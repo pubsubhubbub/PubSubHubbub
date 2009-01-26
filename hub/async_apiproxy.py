@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+"""APIProxy-like object that enables asynchronous API calls."""
+
 import collections
 import logging
 
@@ -25,6 +27,8 @@ from google3.apphosting.runtime import _apphosting_runtime___python__apiproxy
 
 
 class DevAppServerRPC(apiproxy.RPC):
+  """RPC-like object for use in the dev_appserver environment."""
+
   def MakeCall(self):
     pass
   
@@ -46,9 +50,12 @@ else:
 
 
 class AsyncAPIProxy(object):
+  """Proxy for asynchronous API calls."""
+  
   def __init__(self):
     # TODO: Randomize this queue in the dev_appserver to simulate a real
-    # asynchronous queue
+    # asynchronous queue and better catch any funny race-conditions or
+    # unclear event ordering dependencies.
     self.enqueued = collections.deque()
 
   def start_call(self, package, call, pbrequest, pbresponse, user_callback):
@@ -64,6 +71,7 @@ class AsyncAPIProxy(object):
     rpc.MakeCall()
 
   def rpcs_outstanding(self):
+    """Returns the number of asynchronous RPCs pending in this proxy."""
     return len(self.enqueued)
 
   def wait_one(self):

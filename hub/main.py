@@ -15,6 +15,12 @@
 # limitations under the License.
 #
 
+"""Publish-subscribe hub implementation built on Google App Engine.
+
+
+
+"""
+
 import datetime
 import hashlib
 import logging
@@ -28,6 +34,7 @@ from google.appengine.api import urlfetch
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
+from google.appengine.runtime import apiproxy_errors
 
 import async_apiproxy
 import feed_diff
@@ -46,58 +53,98 @@ if DEBUG:
 # How long a subscription will last before it must be renewed by the subscriber.
 EXPIRATION_DELTA = datetime.timedelta(days=90)
 
-# How many entities to retrieve when doing QueryAndOwn() on pending queues.
-QUERY_AND_OWN_SIZE = 50
-
-# How many entities to try to lock when doing QueryAndOwn().
-QUERY_AND_OWN_TRY_LOCK_SIZE = 5
-
-# How long to hold a lock after QueryAndOwn(), in seconds.
+# How long to hold a lock after query_and_own(), in seconds.
 LEASE_PERIOD_SECONDS = 15
 
 # How many subscribers to contact at a time when delivering events.
-EVENT_SUBSCRIBER_CHUNK_SIZE = 50
+EVENT_SUBSCRIBER_CHUNK_SIZE = 10
 
 ################################################################################
 # Helper functions
 
-def Sha1Hash(value):
+def sha1_hash(value):
   """Returns the sha1 hash of the supplied value."""
   return hashlib.sha1(value).hexdigest()
 
 
-def GetHashKeyName(value):
+def get_hash_key_name(value):
   """Returns a valid entity key_name that's a hash of the supplied value."""
-  return 'hash_' + Sha1Hash(value)
+  return 'hash_' + sha1_hash(value)
 
 
-def QueryAndOwn(model_class, gql_query):
+def query_and_own(model_class, gql_query, lease_period,
+                  work_count=1, sample_ratio=20, lock_ratio=4, **gql_bindings):
   """Query for work to do and temporarily own it.
 
   Args:
     model_class: The db.Model sub-class that contains the work to do.
     gql_query: String containing the GQL query that will retrieve the work
       to do in order of priority for this model_class.
+    lease_period: How long in seconds that the newly retrieved worked should
+      be owned before being retried later.
+    work_count: Maximum number of owned items to retrieve.
+    sample_ratio: How many times work_count items to query for before randomly
+      selecting up to work_count of them to take ownership of. Increase this
+      ratio if there are a lot of workers (and thus more contention).
+    lock_ratio: How many times work_count items to try to lock at a time.
+      Increase this ratio if the lease period is low and the overall work
+      throughput is high.
+    **gql_bindings: Any other keyword-based GQL bindings to use in the query
+      for more work;
 
   Returns:
-    A model_class instance, if work could be retrieved, or None if there is
-    no work to do or work could not be retrieved (due to collisions, etc).
+    If work_count is greater than 1, this function returns a list of model_class
+    instances up to work_count in length if work could be retrieved. An empty
+    list will be returned if there is no work to do or work could not be
+    retrieved (due to collisions, etc).
+    
+    If work_count is 1, this function will return a single model_class if work
+    could be retrieved. If there is no work left to do or work could not be
+    retrieved, this function will return None.
   """
-  work_to_do = model_class.gql(gql_query).fetch(QUERY_AND_OWN_SIZE)
+  sample_size = work_count * sample_ratio
+  work_to_do = model_class.gql(gql_query, **gql_bindings).fetch(sample_size)
   if not work_to_do:
-    return None
+    if work_count == 1:
+      return None
+    else:
+      return []
 
+  # Attempt to lock more work than we actually need to do, since there likely
+  # will be conflicts if the number of workers is high or the work_count is
+  # high. If we've acquired more than we can use, we'll just delete the memcache
+  # key and unlock the work. This is much better than an iterative solution,
+  # since a single locking API call per worker reduces the locking window.
   possible_work = random.sample(work_to_do,
-      min(len(work_to_do), QUERY_AND_OWN_TRY_LOCK_SIZE))
-  for work in possible_work:
-    if memcache.add(str(work.key()), 'owned', time=LEASE_PERIOD_SECONDS):
-      return work
+      min(len(work_to_do), lock_ratio * work_count))
+  work_map = dict((str(w.key()), w) for w in possible_work)
+  try_lock_map = dict((k, 'owned') for k in work_map)
+  not_set_keys = set(memcache.add_multi(try_lock_map, time=lease_period))
+  if len(not_set_keys) == len(try_lock_map):
+    logging.warning(
+        'Conflict; failed to acquire any locks for model %s. Tried: %s',
+        model_class.kind(), not_set_keys)
+  
+  locked_keys = [k for k in work_map if k not in not_set_keys]
+  reset_keys = locked_keys[work_count:]
+  if reset_keys and not memcache.delete_multi(reset_keys):
+    logging.warning('Could not reset acquired work for model %s: %s',
+                    model_class.kind(), reset_keys)
 
-  return None
+  work = [work_map[k] for k in locked_keys[:work_count]]
+  if work_count == 1:
+    if work:
+      return work[0]
+    else:
+      return None
+  else:
+    return work
 
 ################################################################################
 # Models
 
+# TODO: Change the methods of this class to return entity instances or None
+# if they could not be found, instead of True/False.
 class Subscription(db.Model):
   """Represents a single subscription to a topic for a callback URL."""
 
@@ -115,6 +162,7 @@ class Subscription(db.Model):
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
   created_time = db.DateTimeProperty(auto_now_add=True)
+  last_modified = db.DateTimeProperty(auto_now=True)
   expiration_time = db.DateTimeProperty(required=True)
   subscription_state = db.StringProperty(default=STATE_NOT_VERIFIED,
                                          choices=STATES)
@@ -130,7 +178,7 @@ class Subscription(db.Model):
     Returns:
       String containing the key name for the corresponding Subscription.
     """
-    return GetHashKeyName('%s\n%s' % (callback, topic))
+    return get_hash_key_name('%s\n%s' % (callback, topic))
 
   @classmethod
   def insert(cls, callback, topic):
@@ -154,9 +202,9 @@ class Subscription(db.Model):
         sub_is_new = True
         sub = cls(key_name=key_name,
                   callback=callback,
-                  callback_hash=Sha1Hash(callback),
+                  callback_hash=sha1_hash(callback),
                   topic=topic,
-                  topic_hash=Sha1Hash(topic),
+                  topic_hash=sha1_hash(topic),
                   expiration_time=datetime.datetime.now() + EXPIRATION_DELTA)
       sub.subscription_state = cls.STATE_VERIFIED
       sub.put()
@@ -164,7 +212,7 @@ class Subscription(db.Model):
     return db.run_in_transaction(txn)
 
   @classmethod
-  def request_insert(cls, callback, topic, **kwargs):
+  def request_insert(cls, callback, topic):
     """Records that a callback URL needs verification before being subscribed.
 
     Creates a new subscription request (for asynchronous verification) if None
@@ -187,11 +235,10 @@ class Subscription(db.Model):
         sub_is_new = True
         sub = cls(key_name=key_name,
                   callback=callback,
-                  callback_hash=Sha1Hash(callback),
+                  callback_hash=sha1_hash(callback),
                   topic=topic,
-                  topic_hash=Sha1Hash(topic),
-                  expiration_time=datetime.datetime.now() + EXPIRATION_DELTA,
-                  **kwargs)
+                  topic_hash=sha1_hash(topic),
+                  expiration_time=datetime.datetime.now() + EXPIRATION_DELTA)
         sub.put()
       return sub_is_new
     return db.run_in_transaction(txn)
@@ -247,43 +294,66 @@ class Subscription(db.Model):
 
   @classmethod
   def has_subscribers(cls, topic):
-    """Check if a topic URL has subscribers.
+    """Check if a topic URL has verified subscribers.
 
     Args:
       topic: The topic URL to check for subscribers.
 
     Returns:
-      True if it has subscribers, False otherwise.
+      True if it has verified subscribers, False otherwise.
     """
-    if cls.all().filter('topic_hash =', Sha1Hash(topic)).get() is not None:
+    if (cls.all().filter('topic_hash =', sha1_hash(topic))
+        .filter('subscription_state = ', cls.STATE_VERIFIED).get() is not None):
       return True
     else:
       return False
 
   @classmethod
-  def get_subscribers(cls, topic, count, starting_at_callback_hash=None):
+  def get_subscribers(cls, topic, count, starting_at_callback=None):
     """Gets the list of subscribers starting at an offset.
 
     Args:
       topic: The topic URL to retrieve subscribers for.
       count: How many subscribers to retrieve.
       starting_at_callback: A string containing the callback hash to offset
-        to when retrieving more subscribers. If None, then subscribers will
-        be retrieved from the beginning
+        to when retrieving more subscribers. The callback at the given offset
+        *will* be included in the results. If None, then subscribers will
+        be retrieved from the beginning.
+    
+    Returns:
+      List of Subscription objects that were found, or an empty list if none
+      were found.
     """
     query = cls.all()
-    query.filter('topic_hash =', Sha1Hash(topic))
+    query.filter('topic_hash =', sha1_hash(topic))
+    query.filter('subscription_state = ', cls.STATE_VERIFIED)
     if starting_at_callback:
-      query.filter('callback_hash =', Sha1Hash(starting_at_callback))
+      query.filter('callback_hash >=', sha1_hash(starting_at_callback))
     query.order('callback_hash')
 
     return query.fetch(count)
+  
+  @classmethod
+  def get_confirm_work(cls):
+    """Retrieves a Subscription to verify or remove asynchronously.
+
+    Returns:
+      A Subscription instance, or None if no work is available. The returned
+      instance needs to have its status updated by confirming the subscription
+      is still desired by the callback URL.
+    """
+    return query_and_own(cls,
+        'WHERE subscription_state IN :valid_states ORDER BY last_modified ASC',
+        LEASE_PERIOD_SECONDS,
+        valid_states=[cls.STATE_NOT_VERIFIED, cls.STATE_TO_DELETE])
+        
 
 
 class FeedToFetch(db.Model):
   """A feed that has new data that needs to be pulled.
 
-  The key name of this entity is a GetHashKeyName() hash of the topic URL.
+  The key name of this entity is a get_hash_key_name() hash of the topic URL, so
+  multiple inserts will only ever write a single entity.
   """
 
   topic = db.TextProperty(required=True)
@@ -298,7 +368,7 @@ class FeedToFetch(db.Model):
     Args:
       topic_list: List of the topic URLs of feeds that need to be fetched.
     """
-    feed_list = [cls(key_name=GetHashKeyName(topic), topic=topic)
+    feed_list = [cls(key_name=get_hash_key_name(topic), topic=topic)
                  for topic in topic_list]
     db.put(feed_list)
 
@@ -308,9 +378,10 @@ class FeedToFetch(db.Model):
 
     Returns:
       A FeedToFetch entity that has been owned, or None if there is currently
-      no work to do.
+      no work to do. Callers should invoke delete() on the entity once the
+      work has been completed.
     """
-    return QueryAndOwn(cls, 'ORDER BY update_time ASC')
+    return query_and_own(cls, 'ORDER BY update_time ASC', LEASE_PERIOD_SECONDS)
 
 
 class FeedRecord(db.Model):
@@ -318,9 +389,11 @@ class FeedRecord(db.Model):
 
   This is everything in a feed except for the entry data. That means any
   footers, top-level XML elements, namespace declarations, etc, will be
-  captured in this entity.
+  captured in this entity. We keep these around just to have an idea of how
+  many feeds there are in existence being tracked by the system. In the future
+  we could use these records to track interesting statistics.
 
-  The key name of this entity is a GetHashKeyName() of the topic URL.
+  The key name of this entity is a get_hash_key_name() of the topic URL.
   """
 
   topic = db.TextProperty(required=True)
@@ -338,7 +411,7 @@ class FeedRecord(db.Model):
     Returns:
       The FeedRecord for this topic, or None if it could not be found.
     """
-    return cls.get_by_key_name(GetHashKeyName(topic))
+    return cls.get_by_key_name(get_hash_key_name(topic))
 
   @classmethod
   def create_record(cls, topic, header_footer):
@@ -354,16 +427,16 @@ class FeedRecord(db.Model):
     Returns:
       A FeedRecord instance with the supplied parameters.
     """
-    return cls(key_name=GetHashKeyName(topic),
+    return cls(key_name=get_hash_key_name(topic),
                topic=topic,
-               topic_hash=Sha1Hash(topic),
+               topic_hash=sha1_hash(topic),
                header_footer=header_footer)
 
 
 class FeedEntryRecord(db.Model):
   """Represents a feed entry that has been seen.
 
-  The key name of this entity is a GetHashKeyName() hash of the combination
+  The key name of this entity is a get_hash_key_name() hash of the combination
   of the topic URL and the entry_id.
   """
 
@@ -385,7 +458,7 @@ class FeedEntryRecord(db.Model):
     Returns:
       String containing the corresponding key name.
     """
-    return GetHashKeyName('%s\n%s' % (topic, entry_id))
+    return get_hash_key_name('%s\n%s' % (topic, entry_id))
 
   @classmethod
   def get_entries_for_topic(cls, topic, entry_id_list):
@@ -415,37 +488,64 @@ class FeedEntryRecord(db.Model):
       entry_id: String containing the ID of the entry.
       updated: String containing the ISO 8601 timestamp of when the entry
         was last updated.
-      xml_data: String containing the entry XML data.
+      xml_data: String containing the entry XML data. For example, with Atom
+        this would be everything from <entry> to </entry> with the surrounding
+        tags included.
 
     Returns:
       A new FeedEntryRecord that should be inserted into the Datastore.
     """
     return cls(key_name=cls.create_key_name(topic, entry_id),
                topic=topic,
-               topic_hash=Sha1Hash(topic),
+               topic_hash=sha1_hash(topic),
                entry_id=entry_id,
-               entry_id_hash=Sha1Hash(entry_id),
+               entry_id_hash=sha1_hash(entry_id),
                entry_updated=updated,
                entry_payload=xml_data)
 
 
 class EventToDeliver(db.Model):
-  """TODO
+  """Represents a publishing event to deliver to subscribers.
+  
+  This model is meant to be used together with Subscription entities. When a
+  feed has new published data and needs to be pushed to subscribers, one of
+  these entities will be inserted. The background worker should iterate
+  through all Subscription entities for this topic, sending them the event
+  payload. The update() method should be used to track the progress of the
+  background worker as well as any Subscription entities that failed delivery.
+  
+  The key_name for each of these entities is unique. It is up to the event
+  injection side of the system to de-dupe events to deliver. For example, when
+  a publish event comes in, that publish request should be de-duped immediately.
+  Later, when the feed puller comes through to grab feed diffs, it should insert
+  a single event to deliver, collapsing any overlapping publish events during
+  the delay from publish time to feed pulling time.
   """
 
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
   payload = db.TextProperty(required=True)
-  last_callback_hash = db.StringProperty(default="")  # For paging
+  last_callback = db.TextProperty(default="")  # For paging Subscriptions
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
   last_modified = db.DateTimeProperty(auto_now=True)
 
   @classmethod
   def create_event_for_topic(cls, topic, header_footer, entry_list):
-    """TODO
+    """Creates an event to deliver for a topic and set of published entries.
+    
+    Args:
+      topic: The topic that had the event.
+      header_footer: The header and footer of the published feed into which
+        the entry list will be spliced.
+      entry_list: List of FeedEntryRecord entities to deliver in this event,
+        in order of newest to oldest.
+    
+    Returns:
+      A new EventToDeliver instance that has not been stored.
     """
     # TODO: Make this work for both RSS and Atom
-    close_index = header_footer.find('</feed>')
+    close_index = header_footer.rfind('</feed>')
+    assert close_index != -1, 'Could not find </feed> in header/footer data'
     payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
                     header_footer[:close_index]]
     for entry in entry_list:
@@ -453,29 +553,43 @@ class EventToDeliver(db.Model):
     payload_list.append('</feed>')
     payload = '\n'.join(payload_list)
 
-    return cls(key_name=GetHashKeyName(topic),
-               topic=topic,
-               topic_hash=Sha1Hash(topic),
-               payload=payload,
-               last_callback_hash="")
+    return cls(topic=topic,
+               topic_hash=sha1_hash(topic),
+               payload=payload)
 
-  def update(self, more_callbacks, last_callback_hash, more_failed_callbacks):
-    """TODO
+  def update(self, more_callbacks, last_callback, more_failed_callbacks):
+    """Updates an event with work progress or deletes it if it's done.
+    
+    Also deletes the ownership memcache entry for this work item so it will
+    be picked up again the next time get_work() is called.
+    
+    Args:
+      more_callbacks: True if there are more callbacks to deliver, False if
+        there are no more subscribers to deliver for this feed.
+      last_callback: The last callback to be contacted while going through the
+        work during the most recent iteration.
+      more_failed_callbacks: List of Subscription entities for this event that
+        failed to deliver.
     """
     if not more_callbacks:
       # TODO: Correctly handle when there are no more callbacks, but
-      # 'more_failed_callbacks' has stuff in it.
+      # 'self.failed_callbacks' has stuff in it.
       self.delete()
     else:
-      self.last_callback_hash = last_callback_hash
-      self.failed_callbacks.append(failed_callbacks)
+      self.last_callback = last_callback
+      self.failed_callbacks.extend(e.key() for e in more_failed_callbacks)
       self.put()
+      memcache.delete(str(self.key()))
 
   @classmethod
   def get_work(cls):
-    """TODO
+    """Retrieves a pending event to deliver.
+    
+    Returns:
+      An EventToDeliver instance, or None if no work is available.
     """
-    return QueryAndOwn(cls, 'ORDER BY last_modified ASC')
+    return query_and_own(cls, 'ORDER BY last_modified ASC',
+                         LEASE_PERIOD_SECONDS)
 
 ################################################################################
 # Subscription handlers and workers
@@ -526,31 +640,51 @@ class SubscribeHandler(webapp.RequestHandler):
 # Publishing handlers and workers
 
 class PublishHandler(webapp.RequestHandler):
+  """End-user accessible handler for the Publish event."""
+
   def get(self):
     self.response.out.write(template.render('publish_debug.html', {}))
 
   def post(self):
+    self.response.headers['Content-Type'] = 'text/plain'
+
     mode = self.request.get('hub.mode')
-    assert mode.lower() == 'publish'
+    if mode.lower() != 'publish':
+      self.response.set_status(400)
+      self.response.out.write('hub.mode MUST be "publish"')
+      return
+
     urls = self.request.get_all('hub.url')
+    if not urls:
+      self.response.set_status(400)
+      self.response.out.write('MUST supply at least one hub.url parameter')
+      return
+    
+    # TODO: Possibly limit the number of URLs to publish at a time?
+    logging.info('Publish event for URLs: %s', urls)
 
-    logging.info('Got publish urls for %s', urls)
-
-    # TODO: validate urls? probably not needed, since we can just validate
-    # when the original subscription is made.
-
-    new_topics = []
-    for topic_url in urls:
-      if not Subscription.has_subscribers(topic_url):
-        logging.info('topic_url="%s" has no subscribers', topic_url)
-      else:
-        new_topics.append(topic_url)
-
-    FeedToFetch.insert(new_topics)
-    self.response.set_status(204)
+    # Record all FeedToFetch requests here. The background Pull worker will
+    # verify if there are any subscribers that need event delivery and will
+    # skip any unused feeds.
+    try:
+      FeedToFetch.insert(urls)
+    except (apiproxy_errors.Error, db.Error):
+      logging.exception('Failed to insert FeedToFetch records')
+      self.response.headers['Retry-After'] = '120'
+      self.response.set_status(503)
+      self.response.out.write('Transient error; please try again later')
+    else:
+      self.response.set_status(204)
 
 
 class PullFeedHandler(webapp.RequestHandler):
+  """Background worker for pulling feeds."""
+  
+  def __init__(self, filter_feed=feed_diff.filter):
+    """Initializer."""
+    webapp.RequestHandler.__init__(self)
+    self.filter_feed = filter_feed
+  
   def get(self):
     work = FeedToFetch.get_work()
     if not work:
@@ -572,7 +706,7 @@ class PullFeedHandler(webapp.RequestHandler):
       return
 
     # Parse the feed.
-    header_footer, entries_map = feed_diff.filter('', response.content)
+    header_footer, entries_map = self.filter_feed('', response.content)
 
     # Find the new entries we've never seen before, and any entries that we
     # knew about that have been updated.
@@ -581,7 +715,7 @@ class PullFeedHandler(webapp.RequestHandler):
     existing_dict = dict((e.entry_id, (e.entry_updated, e.entry_payload))
                          for e in existing_entries if e)
 
-    logging.info('Retrieved %d entries, %d of which have been seen before',
+    logging.info('Retrieved %d feed entries, %d of which have been seen before',
                  len(entries_map), len(existing_dict))
 
     entities_to_save = []
@@ -606,9 +740,16 @@ class PullFeedHandler(webapp.RequestHandler):
     if not entities_to_save:
       logging.info('No new entries found')
     else:
+      logging.info('Saving %d new/updated entries', len(entities_to_save))
+      # Ensure the entries are in descending date order, newest first.
+      entities_to_save.sort(key=lambda x: getattr(x, 'entry_updated'),
+                            reverse=True)
+
       # Batch put all of this data and complete the work.
-      # TODO: Also put the notification event entities.
-      # TODO: Error handling
+      # TODO: Better error handling. Maybe have EventToDeliver have a unique
+      # key name so any failure at this point is idempotent. Only the
+      # FeedToFetch instances will need an update time to help set the key
+      # of the EventToDeliver?
       entities_to_save.append(EventToDeliver.create_event_for_topic(
           work.topic, header_footer, entities_to_save))
       entities_to_save.append(FeedRecord.create_record(
