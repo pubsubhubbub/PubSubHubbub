@@ -423,8 +423,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
       return main.PullFeedHandler(filter_feed=my_filter)
     self.handler_class = create_handler    
     testutil.HandlerTestBase.setUp(self)
-    urlfetch_test_stub.instance.expect(
-        'get', self.topic, 200, self.expected_response)
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    urlfetch_test_stub.instance.verify_and_reset()
 
   def testNoWork(self):
     self.handle('get')
@@ -432,6 +434,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
   def testAllNewContent(self):
     """Tests when all pulled feed content is new."""
     FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response)
     self.handle('get')
     
     # Verify that all feed entry records have been written along with the
@@ -462,6 +466,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         self.topic, 'id2', 'time2', 'oldcontent2').put()
 
     FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response)
     self.handle('get')
     
     # Verify that the old feed entries were not overwritten.
@@ -487,6 +493,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.entries_map['id1'] = ('time4', 'newcontent1')
     
     FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response)
     self.handle('get')
     
     # Verify the old entry was overwritten.
@@ -499,6 +507,64 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue('content3' in work.payload)
     self.assertTrue('content2' not in work.payload)
     self.assertTrue('newcontent1' in work.payload)
+  
+  def testPullError(self):
+    """Tests when URLFetch raises an error."""
+    # TODO: Write this test.
+
+################################################################################
+
+class PushEventHandlerTest(testutil.HandlerTestBase):
+
+  handler_class = main.PushEventHandler
+
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.HandlerTestBase.setUp(self)
+    self.chunk_size = main.EVENT_SUBSCRIBER_CHUNK_SIZE
+    self.topic = 'http://example.com/hamster-topic'
+    self.callback1 = 'http://example.com/hamster-callback1'
+    self.callback2 = 'http://example.com/hamster-callback2'
+    self.callback3 = 'http://example.com/hamster-callback3'
+    self.header_footer = '<feed>\n<stuff>blah</stuff>\n<xmldata/></feed>'
+    self.test_entries = [
+        FeedEntryRecord.create_entry_for_topic(self.topic, '1', 'time1',
+                                               '<entry>article1</entry>'),
+        FeedEntryRecord.create_entry_for_topic(self.topic, '2', 'time2',
+                                               '<entry>article2</entry>'),
+        FeedEntryRecord.create_entry_for_topic(self.topic, '3', 'time3',
+                                               '<entry>article3</entry>'),
+    ]
+
+  def tearDown(self):
+    """Resets any external modules modified for testing."""
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = self.chunk_size
+    urlfetch_test_stub.instance.verify_and_reset()
+
+  def testNoWork(self):
+    self.handle('get')
+  
+  def testNoExtraSubscribers(self):
+    """Tests when a single chunk of delivery is enough."""
+    self.assertTrue(Subscription.insert(self.callback1, self.topic))
+    self.assertTrue(Subscription.insert(self.callback2, self.topic))
+    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 204, '')
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback2, 200, '')
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 204, '')
+    EventToDeliver.create_event_for_topic(
+        self.topic, self.header_footer, self.test_entries).put()
+    self.handle('get')
+
+  def testExtraSubscribers(self):
+    """Tests when there are more subscribers to contact after delivery."""
+  
+  def testBrokenCallbacks(self):
+    pass
 
 ################################################################################
 

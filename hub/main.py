@@ -15,11 +15,7 @@
 # limitations under the License.
 #
 
-"""Publish-subscribe hub implementation built on Google App Engine.
-
-
-
-"""
+"""Publish-subscribe hub implementation built on Google App Engine."""
 
 import datetime
 import hashlib
@@ -693,7 +689,8 @@ class PullFeedHandler(webapp.RequestHandler):
 
     # TODO: correctly handle when feed fetching fails. have a maximum number
     # of retries before we give up and mark the feed as bad (and put it on
-    # probation for some amount of time).
+    # probation for some amount of time). Maybe have exponential back-off on
+    # the number of retries that we'll do after subsequent failures?
     logging.info('Fetching topic %s', work.topic)
     try:
       response = urlfetch.fetch(work.topic)
@@ -768,41 +765,37 @@ class PushEventHandler(webapp.RequestHandler):
       return
 
     # Retrieve the first N + 1 subscribers; note if we have more to contact.
-    subscriber_list = Subscription.gql(
-        'WHERE callback_hash > :1 ORDER BY callback_hash ASC',
-        work.last_callback_hash).fetch(EVENT_SUBSCRIBER_CHUNK_SIZE + 1)
-    if not subscriber_list:
-      logging.info('No subscribers for topic %s', work.topic)
-      work.delete()
-      return
-
+    subscriber_list = Subscription.get_subscribers(
+        work.topic, EVENT_SUBSCRIBER_CHUNK_SIZE + 1,
+        starting_at_callback=work.last_callback)
     more_subscribers = len(subscriber_list) > EVENT_SUBSCRIBER_CHUNK_SIZE
-    more_callback_hash = subscriber_list[-1].callback_hash
-    subscriber_list[:EVENT_SUBSCRIBER_CHUNK_SIZE]
-    logging.info('%d subscribers to contact for topic %s',
+    last_callback = ''
+    if subscriber_list:
+      last_callback = subscriber_list[-1].callback
+    subscriber_list = subscriber_list[:EVENT_SUBSCRIBER_CHUNK_SIZE]
+    logging.info('%d more subscribers to contact for topic %s',
                  len(subscriber_list), work.topic)
 
     # Keep track of broken callbacks for try later.
     broken_callbacks = []
     def callback(url, result, exception):
-      if exception or result.status_code != 200:
+      if exception or result.status_code not in (200, 204):
+        logging.warning('Could not deliver to target url %s: '
+                        'Exception = %r, status_code = %s',
+                        url, exception, result.status_code)
         broken_callbacks.append(url)
-
     def create_callback(url):
       return lambda *args: callback(url, *args)
-
-    headers = {'content-type': 'application/x-www-form-urlencoded'}
-    post_params = {'content': work.payload.encode('utf-8')}
-    payload = urllib.urlencode(post_params)
 
     for subscriber in subscriber_list:
       urlfetch_async.fetch(subscriber.callback,
                            method='POST',
-                           payload=payload,
+                           headers={'content-type': 'application/atom+xml'},
+                           payload=work.payload.encode('utf-8'),
                            async_proxy=async_proxy,
                            callback=create_callback(subscriber.callback))
     async_proxy.wait()
-    work.update(more_subscribers, more_callback_hash, broken_callbacks)
+    work.update(more_subscribers, last_callback, broken_callbacks)
 
 ################################################################################
 

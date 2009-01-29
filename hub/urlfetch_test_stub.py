@@ -17,6 +17,8 @@
 
 """URLFetchServiceStub implementation that returns mock values."""
 
+import logging
+
 from google.appengine.api import apiproxy_stub
 from google.appengine.api import urlfetch_service_pb
 from google.appengine.api import urlfetch_stub
@@ -63,6 +65,14 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
 
     self._expectations[(method.lower(), url)] = (
         request_payload, response_code, response_data, error_instance)
+  
+  def verify_and_reset(self):
+    """Verify that all expectations have been met and clear any remaining."""
+    old_expectations = self._expectations
+    self._expectations = {}
+    if old_expectations:
+      assert False, '%d expectations remain: %r' % (
+          len(old_expectations), old_expectations)
 
   def _RetrieveURL(self, url, payload, method, headers, response,
                    follow_redirects=True):
@@ -71,9 +81,16 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     Args:
       All override super-class's parameters.
     """
+    header_text = None
+    print headers
+    if headers:
+      header_text = ', '.join('%s=%s' % (h.key(), h.value()) for h in headers)
+    logging.info('Received URLFetch request:\n%s %s\nHeaders: %r\nPayload: %r',
+        method, url,
+        header_text, payload)
+
     key = (method.lower(), url)
-    expected = self._expectations.get(key)
-    assert expected, 'Could not find expectations for %s' % (key,)
+    expected = self._expectations.pop(key)
     if expected[0]:
       assert payload == expected[0], (
         'Request payload: "%s" did not match expected: "%s"' %

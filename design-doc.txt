@@ -419,9 +419,9 @@ always knows how many subscribers are on the hub. Example:
    X-Hub-Subscribers: 120
 
 
----
-
-Receive Event Protocol:
+============================================================================
+>> Receive Events
+============================================================================
 
 POST
 http://subscriber.com/callback.php
@@ -435,8 +435,9 @@ The subscriber will know the topic URL by looking at the
 //atom:feed/link[@rel="self"] value? Or maybe we'll make it rel="source" for
 the notifications?
 
-The post will always be a multi-part post, each part will be an Atom feed
-for an individual topic.
+<OLDINFO>The post will always be a multi-part post, each part will be an Atom feed for an individual topic.</OLDINFO>
+
+The subscriber should return 200 or 204 on successful acceptance of the event. 4xx and 5xx responses will be considered errors (and delivery will be attempted again later). What should we do with 3xx responses?
 
 ===========================================================================
 >> Meeting notes from 2008-09-16:
