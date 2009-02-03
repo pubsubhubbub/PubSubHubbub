@@ -99,9 +99,7 @@ class HandlerTestBase(unittest.TestCase):
 
   def setUp(self):
     """Sets up the test harness."""
-    from google.appengine.ext import webapp
     setup_for_testing()
-    self.resp = webapp.Response()
   
   def handle(self, method, *params):
     """Runs a test of a webapp.RequestHandler.
@@ -110,6 +108,8 @@ class HandlerTestBase(unittest.TestCase):
       method: The method to invoke for this test.
       *params: Passed to testutil.create_test_request
     """
+    from google.appengine.ext import webapp
+    self.resp = webapp.Response()
     self.req = create_test_request(method, *params)
     handler = self.handler_class()
     handler.initialize(self.req, self.resp)

@@ -517,12 +517,18 @@ class EventToDeliver(db.Model):
   a single event to deliver, collapsing any overlapping publish events during
   the delay from publish time to feed pulling time.
   """
+  
+  DELIVERY_MODES = ('normal', 'retry')
+  NORMAL = 'normal'
+  RETRY = 'retry'
 
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
   payload = db.TextProperty(required=True)
   last_callback = db.TextProperty(default="")  # For paging Subscriptions
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
+  delivery_mode = db.StringProperty(default=NORMAL, choices=DELIVERY_MODES)
+  retry_attempts = db.IntegerProperty(default=0)
   last_modified = db.DateTimeProperty(auto_now=True)
 
   @classmethod
@@ -567,13 +573,21 @@ class EventToDeliver(db.Model):
       more_failed_callbacks: List of Subscription entities for this event that
         failed to deliver.
     """
-    if not more_callbacks:
-      # TODO: Correctly handle when there are no more callbacks, but
-      # 'self.failed_callbacks' has stuff in it.
+    if not more_callbacks and not self.failed_callbacks:
+      logging.info('EventToDeliver complete: topic = %s', self.topic)
       self.delete()
     else:
-      self.last_callback = last_callback
       self.failed_callbacks.extend(e.key() for e in more_failed_callbacks)
+      logging.info('Updating EventToDeliver: topic = %s, last_callback = %s',
+                   self.topic, last_callback)
+      if self.last_callback == last_callback:
+        logging.info('Normal delivery done; %d broken callbacks remain',
+                     len(self.failed_callbacks))
+        self.last_callback = ''
+        self.delivery_mode = EventToDeliver.RETRY
+        # TODO: Actually handle the retry mode.
+      else:
+        self.last_callback = last_callback
       self.put()
       memcache.delete(str(self.key()))
 
@@ -772,28 +786,30 @@ class PushEventHandler(webapp.RequestHandler):
     last_callback = ''
     if subscriber_list:
       last_callback = subscriber_list[-1].callback
-    subscriber_list = subscriber_list[:EVENT_SUBSCRIBER_CHUNK_SIZE]
+    subscription_list = subscriber_list[:EVENT_SUBSCRIBER_CHUNK_SIZE]
     logging.info('%d more subscribers to contact for topic %s',
                  len(subscriber_list), work.topic)
 
     # Keep track of broken callbacks for try later.
     broken_callbacks = []
-    def callback(url, result, exception):
+    def callback(sub, result, exception):
       if exception or result.status_code not in (200, 204):
         logging.warning('Could not deliver to target url %s: '
                         'Exception = %r, status_code = %s',
-                        url, exception, result.status_code)
-        broken_callbacks.append(url)
-    def create_callback(url):
-      return lambda *args: callback(url, *args)
+                        sub.callback, exception, result.status_code)
+        broken_callbacks.append(sub)
 
-    for subscriber in subscriber_list:
-      urlfetch_async.fetch(subscriber.callback,
+    def create_callback(sub):
+      return lambda *args: callback(sub, *args)
+
+    for sub in subscription_list:
+      urlfetch_async.fetch(sub.callback,
                            method='POST',
                            headers={'content-type': 'application/atom+xml'},
                            payload=work.payload.encode('utf-8'),
                            async_proxy=async_proxy,
-                           callback=create_callback(subscriber.callback))
+                           callback=create_callback(sub))
+
     async_proxy.wait()
     work.update(more_subscribers, last_callback, broken_callbacks)
 
@@ -812,7 +828,7 @@ def main():
     (r'/publish', PublishHandler),
     (r'/work/pull_feeds', PullFeedHandler),
     (r'/work/push_events', PushEventHandler),
-  ],debug=True)
+  ], debug=DEBUG)
   wsgiref.handlers.CGIHandler().run(application)
 
 

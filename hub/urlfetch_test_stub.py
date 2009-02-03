@@ -82,7 +82,6 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
       All override super-class's parameters.
     """
     header_text = None
-    print headers
     if headers:
       header_text = ', '.join('%s=%s' % (h.key(), h.value()) for h in headers)
     logging.info('Received URLFetch request:\n%s %s\nHeaders: %r\nPayload: %r',

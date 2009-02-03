@@ -344,9 +344,16 @@ u"""<?xml version="1.0" encoding="utf-8"?>
                       event.failed_callbacks)
     self.assertTrue(memcache.get(work_key) is None)
 
+    # Assert that the final call to update will NOT clear the event because
+    # it still has failures that remain.
     event.update(False, '', [])
-    self.assertTrue(EventToDeliver.get(work_key) is None)
+    self.assertTrue(EventToDeliver.get(work_key) is not None)
   
+  def testUpdateWithFailures(self):
+    """Tests the update method when callback failures are encountered."""
+    # TODO: Tests that update failures are recorded property and eventually
+    # cleaned up.
+
   def testGetWork(self):
     event1 = EventToDeliver.create_event_for_topic(
         self.topic, self.header_footer, self.test_entries).put()
@@ -535,6 +542,16 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         FeedEntryRecord.create_entry_for_topic(self.topic, '3', 'time3',
                                                '<entry>article3</entry>'),
     ]
+    self.expected_payload = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<feed>\n'
+        '<stuff>blah</stuff>\n'
+        '<xmldata/>\n'
+        '<entry>article1</entry>\n'
+        '<entry>article2</entry>\n'
+        '<entry>article3</entry>\n'
+        '</feed>'
+    )
 
   def tearDown(self):
     """Resets any external modules modified for testing."""
@@ -551,20 +568,71 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.insert(self.callback3, self.topic))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     urlfetch_test_stub.instance.expect(
-        'post', self.callback1, 204, '')
+        'post', self.callback1, 204, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
-        'post', self.callback2, 200, '')
+        'post', self.callback2, 200, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
-        'post', self.callback3, 204, '')
+        'post', self.callback3, 204, '', request_payload=self.expected_payload)
     EventToDeliver.create_event_for_topic(
         self.topic, self.header_footer, self.test_entries).put()
     self.handle('get')
+    self.assertTrue(EventToDeliver.get_work() is None)
 
   def testExtraSubscribers(self):
     """Tests when there are more subscribers to contact after delivery."""
-  
+    self.assertTrue(Subscription.insert(self.callback1, self.topic))
+    self.assertTrue(Subscription.insert(self.callback2, self.topic))
+    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 1
+    EventToDeliver.create_event_for_topic(
+        self.topic, self.header_footer, self.test_entries).put()
+    
+    # Order of these URL fetches is determined by the ordering of the hashes
+    # of the callback URLs, so it's kind of random here (which is why 1 and 3
+    # come before 2).
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 204, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 200, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+    
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback2, 204, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+    self.assertTrue(EventToDeliver.get_work() is None)
+
   def testBrokenCallbacks(self):
-    pass
+    """Tests when callbacks return errors and are saved for later."""
+    self.assertTrue(Subscription.insert(self.callback1, self.topic))
+    self.assertTrue(Subscription.insert(self.callback2, self.topic))
+    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
+    EventToDeliver.create_event_for_topic(
+        self.topic, self.header_footer, self.test_entries).put()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 302, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 404, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback2, 500, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+    
+    work = EventToDeliver.get_work()
+    sub_list = Subscription.get(work.failed_callbacks)
+    callback_list = [sub.callback for sub in sub_list]
+
+    self.assertEquals([self.callback1, self.callback3, self.callback2],
+                      callback_list)
 
 ################################################################################
 
