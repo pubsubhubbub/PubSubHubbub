@@ -8,7 +8,10 @@
 
 <form action="/publish" method="post" accept-charset="utf-8">
   <input type="hidden" name="hub.mode" value="publish"/>
-  <p><label for="topic">Topic:</label><input type="text" name="hub.url" value="" size="50" id="topic"/></p>
+  <p>
+    <label for="topic">Topic URL:</label>
+    <input type="text" name="hub.url" value="" size="50" id="topic">
+  </p>
   <p><input type="submit" value="Publish"></p>
 </form>
 

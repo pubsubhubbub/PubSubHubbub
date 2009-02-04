@@ -1,29 +1,39 @@
 <html>
 <head>
-  <title>Subscribe debug</title>
+  <title>Subscription debug</title>
 </head>
 <body>
 
 <h1>Subscribe/Unsubscribe</h1>
 
 <form action="/subscribe" method="post" accept-charset="utf-8">
-  <p><label for="callback">Callback:</label><input type="text" name="callback" value="" size="50" id="callback"/></p>
-  <p><label for="topic">Topic:</label><input type="text" name="topic" value="" size="50" id="topic"/></p>
   <p>
-    <label for="async">Async:</label>
-    <select name="async" id="async">
-      <option value="sa">Synchronous, then deferred</option>
-      <option value="as">Deferred, then synchronous</option>
-      <option value="s" selected="selected">Synchronous only</option>
-      <option value="a">Asynchronous only</option>
+    <label for="callback">Callback:</label>
+    <input type="text" name="hub.callback" value="" size="50" id="callback">
+  </p>
+  <p>
+    <label for="topic">Topic:</label>
+    <input type="text" name="hub.topic" value="" size="50" id="topic">
+  </p>
+  <p>
+    <label for="verify">Verify type:</label>
+    <select name="hub.verify" id="async">
+      <option value="sync,async">Synchronous, then deferred</option>
+      <option value="async,sync">Deferred, then synchronous</option>
+      <option value="sync" selected="selected">Synchronous only</option>
+      <option value="async">Asynchronous only</option>
     </select>
   </p>
   <p>
     <label for="mode">Mode:</label>
-    <select name="mode" id="mode">
+    <select name="hub.mode" id="mode">
       <option value="subscribe" selected="selected">Subscribe</option>
       <option value="unsubscribe">Unsubscribe</option>
     </select>
+  </p>
+  <p>
+    <label for="verify_token">Verify token:</label>
+    <input type="text" name="hub.verify_token" id="verify_token" value="" size="50">
   </p>
   <p><input type="submit" value="Do it"></p>
 </form>

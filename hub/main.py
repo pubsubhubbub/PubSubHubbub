@@ -22,11 +22,13 @@ import hashlib
 import logging
 import random
 import urllib
+import urlparse
 import wsgiref.handlers
 
 from google.appengine.api import datastore_types
 from google.appengine.api import memcache
 from google.appengine.api import urlfetch
+from google.appengine.api import urlfetch_errors
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
@@ -160,6 +162,7 @@ class Subscription(db.Model):
   created_time = db.DateTimeProperty(auto_now_add=True)
   last_modified = db.DateTimeProperty(auto_now=True)
   expiration_time = db.DateTimeProperty(required=True)
+  verify_token = db.TextProperty()
   subscription_state = db.StringProperty(default=STATE_NOT_VERIFIED,
                                          choices=STATES)
 
@@ -208,7 +211,7 @@ class Subscription(db.Model):
     return db.run_in_transaction(txn)
 
   @classmethod
-  def request_insert(cls, callback, topic):
+  def request_insert(cls, callback, topic, verify_token):
     """Records that a callback URL needs verification before being subscribed.
 
     Creates a new subscription request (for asynchronous verification) if None
@@ -219,6 +222,8 @@ class Subscription(db.Model):
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
+      verify_token: The verification token to use to confirm the
+        subscription request.
 
     Returns:
       True if the subscription request was newly created, False otherwise.
@@ -234,6 +239,7 @@ class Subscription(db.Model):
                   callback_hash=sha1_hash(callback),
                   topic=topic,
                   topic_hash=sha1_hash(topic),
+                  verify_token=verify_token,
                   expiration_time=datetime.datetime.now() + EXPIRATION_DELTA)
         sub.put()
       return sub_is_new
@@ -263,7 +269,7 @@ class Subscription(db.Model):
     return db.run_in_transaction(txn)
 
   @classmethod
-  def request_remove(cls, callback, topic):
+  def request_remove(cls, callback, topic, verify_token):
     """Records that a callback URL needs to be unsubscribed.
 
     Creates a new request to unsubscribe a callback URL from a topic (where
@@ -273,6 +279,8 @@ class Subscription(db.Model):
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
+      verify_token: The verification token to use to confirm the
+        unsubscription request.
 
     Returns:
       True if the unsubscribe request is new, False otherwise (i.e., a request
@@ -283,6 +291,7 @@ class Subscription(db.Model):
       sub = cls.get_by_key_name(key_name)
       if sub is not None and sub.subscription_state != cls.STATE_TO_DELETE:
         sub.subscription_state = cls.STATE_TO_DELETE
+        sub.verify_token = verify_token
         sub.put()
         return True
       return False
@@ -604,47 +613,139 @@ class EventToDeliver(db.Model):
 ################################################################################
 # Subscription handlers and workers
 
+def ConfirmSubscription(mode, topic, callback, verify_token):
+  """Confirms a subscription request and updates a Subscription instance.
+  
+  Args:
+    mode: The mode of subscription confirmation ('subscribe' or 'unsubscribe').
+    topic: URL of the topic being subscribed to.
+    callback: URL of the callback handler to confirm the subscription with.
+    verify_token: Opaque token passed to the callback.
+  
+  Returns:
+    True if the subscription was confirmed properly, False if the subscription
+    request encountered an error or any other error has hit.
+  """
+  logging.info('Attempting to confirm %s for topic = %s, '
+               'callback = %s, verify_token = %s',
+               mode, topic, callback, verify_token)
+
+  parsed_url = list(urlparse.urlparse(callback, allow_fragments=False))
+  params = {
+    'hub.mode': mode,
+    'hub.topic': topic,
+    'hub.verify_token': verify_token,
+  }
+  parsed_url[4] = urllib.urlencode(params)
+  adjusted_url = urlparse.urlunparse(parsed_url)
+
+  try:
+    response = urlfetch.fetch(adjusted_url, method='get',
+                              follow_redirects=False)
+  except (apiproxy_errors.Error, urlfetch_errors.Error):
+    logging.exception('Error encountered while confirming subscription')
+    return False
+
+  if response.status_code == 204:
+    if mode == 'subscribe':
+      Subscription.insert(callback, topic)
+    else:
+      Subscription.remove(callback, topic)
+    logging.info('Subscription action verified: %s', mode)
+    return True
+  else:
+    logging.warning('Could not confirm subscription; encountered '
+                    'status %d with content: %s', response.status_code,
+                    response.content)
+    return False
+
+
 class SubscribeHandler(webapp.RequestHandler):
+  """End-user accessible handler for Subscribe and Unsubscribe events."""
+  
   def get(self):
     self.response.out.write(template.render('subscribe_debug.html', {}))
 
   def post(self):
-    # TODO: Update this to match the design doc
+    self.response.headers['Content-Type'] = 'text/plain'
 
-    callback = self.request.get('callback', '').lower()
-    topic = self.request.get('topic', '').lower()
-    async = self.request.get('async', '').lower()
-    mode = self.request.get('mode', '').lower()
-    # TODO: Error handling, input validation
-    if not (callback and topic and async and mode):
-      return self.error(500)
+    callback = self.request.get('hub.callback', '').lower()
+    topic = self.request.get('hub.topic', '').lower()
+    verify_type = self.request.get('hub.verify', 'sync').lower()
+    verify_token = self.request.get('hub.verify_token', '')
+    mode = self.request.get('hub.mode', '').lower()
 
-    # TODO: Verify the callback
+    error_message = None
+    if not callback:
+      error_message = 'Invalid parameter: hub.callback'
+    if not topic:
+      error_message = 'Invalid parameter: hub.topic'
+    if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
+      error_message = 'Invalid value for "hub.verify": %s' % verify_type
+    if not verify_token:
+      error_message = 'Invalid parameter: hub.verify_token'
+    if mode not in ('subscribe', 'unsubscribe'):
+      error_message = 'Invalid value for "hub.mode": %s' % mode
 
-    # TODO: exception handling
-    if mode == 'subscribe':
-      if async.startswith('s'):
-        if Subscription.insert(callback, topic):
-          self.response.out.write('Sync: Created subscription.')
+    if error_message:
+      self.response.out.write(error_message)
+      return self.response.set_status(500)
+
+    try:
+      # Retrieve any existing subscription for this callback.
+      sub = Subscription.get_by_key_name(
+          Subscription.create_key_name(callback, topic))
+
+      # Deletions for non-existant subscriptions will be ignored.
+      if mode == 'unsubscribe' and not sub:
+        return self.response.set_status(204)
+
+      # Enqueue a background verification task, or immediately confirm.
+      # We prefer synchronous confirmation.
+      if verify_type.startswith('sync'):
+        if ConfirmSubscription(mode, topic, callback, verify_token):
+          return self.response.set_status(204)
         else:
-          self.response.out.write('Sync: Subscription exists.')
+          self.response.out.write('Could not confirm subscription')
+          return self.response.set_status(500)
       else:
-        if Subscription.request_insert(callback, topic):
-          self.response.out.write('Async: Created subscribe request.')
+        if mode == 'subscribe':
+          Subscription.request_insert(callback, topic, verify_token)
         else:
-          self.response.out.write('Async: Subscribe request unnecessary.')
+          Subscription.request_remove(callback, topic, verify_token)
+        logging.info('Queued %s request for callback %s on '
+                     'topic %s with verify_token = "%s"',
+                     mode, callback, topic, verify_token)
+        return self.response.set_status(202)
+
+    except (apiproxy_errors.Error, db.Error):
+      logging.exception('Could not verify subscription request')
+      self.response.headers['Retry-After'] = '120'
+      return self.response.set_status(503)
+
+
+class SubscriptionConfirmHandler(webapp.RequestHandler):
+  """Background worker for asynchronously confirming subscriptions."""
+
+  def get(self):
+    sub = Subscription.get_confirm_work()
+    if not sub:
+      logging.info('No subscriptions to confirm')
+      return
+    
+    if sub.subscription_state == Subscription.STATE_NOT_VERIFIED:
+      mode = 'subscribe'
     else:
-      if async.startswith('s'):
-        if Subscription.remove(callback, topic):
-          self.response.out.write('Sync: Removed subscription.')
-        else:
-          self.response.out.write('Sync: No subscription to remove.')
-      else:
-        if Subscription.request_remove(callback, topic):
-          self.response.out.write('Async: Created unsubscribe request.')
-        else:
-          self.response.out.write('Async: Unsubscribe request unnecessary.')
+      mode = 'unsubscribe'
 
+    if ConfirmSubscription(mode, sub.topic, sub.callback, sub.verify_token):
+      if mode == 'subscribe':
+        Subscription.insert(sub.callback, sub.topic)
+      else:
+        Subscription.remove(sub.callback, sub.topic)
+    else:
+      # TODO: Add retry behavior on confirmation failure.
+      return self.response.set_status(500)
 
 ################################################################################
 # Publishing handlers and workers
@@ -707,7 +808,9 @@ class PullFeedHandler(webapp.RequestHandler):
     # the number of retries that we'll do after subsequent failures?
     logging.info('Fetching topic %s', work.topic)
     try:
-      response = urlfetch.fetch(work.topic)
+      # Specifically follow redirects here. Many feeds are often just redirects
+      # to the actual feed contents or a distribution server.
+      response = urlfetch.fetch(work.topic, follow_redirects=True)
     except (apiproxy_errors.Error, urlfetch.Error):
       logging.exception('Failed to fetch feed')
       return
@@ -803,6 +906,7 @@ class PushEventHandler(webapp.RequestHandler):
       return lambda *args: callback(sub, *args)
 
     for sub in subscription_list:
+      # TODO: Add better error handling here.
       urlfetch_async.fetch(sub.callback,
                            method='POST',
                            headers={'content-type': 'application/atom+xml'},
@@ -826,6 +930,7 @@ def main():
     (r'/', HomepageHandler),
     (r'/subscribe', SubscribeHandler),
     (r'/publish', PublishHandler),
+    (r'/work/subscriptions', SubscriptionConfirmHandler),
     (r'/work/pull_feeds', PullFeedHandler),
     (r'/work/push_events', PushEventHandler),
   ], debug=DEBUG)

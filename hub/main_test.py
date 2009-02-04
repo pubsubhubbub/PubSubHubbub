@@ -145,8 +145,10 @@ class SubscriptionTest(unittest.TestCase):
         Subscription.create_key_name(self.callback, self.topic))
 
   def testRequestInsert_defaults(self):
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
-    self.assertFalse(Subscription.request_insert(self.callback, self.topic))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
+    self.assertFalse(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
     self.assertEquals(Subscription.STATE_NOT_VERIFIED,
                       self.get_subscription().subscription_state)
   
@@ -158,7 +160,8 @@ class SubscriptionTest(unittest.TestCase):
 
   def testInsert_override(self):
     """Tests that insert will override the existing subscription state."""
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
     self.assertEquals(Subscription.STATE_NOT_VERIFIED,
                       self.get_subscription().subscription_state)
     self.assertFalse(Subscription.insert(self.callback, self.topic))
@@ -167,22 +170,28 @@ class SubscriptionTest(unittest.TestCase):
   
   def testRemove(self):
     self.assertFalse(Subscription.remove(self.callback, self.topic))
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
     self.assertTrue(Subscription.remove(self.callback, self.topic))
     self.assertFalse(Subscription.remove(self.callback, self.topic))
   
   def testRequestRemove(self):
-    self.assertFalse(Subscription.request_remove(self.callback, self.topic))
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
-    self.assertTrue(Subscription.request_remove(self.callback, self.topic))
+    self.assertFalse(Subscription.request_remove(
+        self.callback, self.topic, 'token'))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
+    self.assertTrue(Subscription.request_remove(
+        self.callback, self.topic, 'token'))
     self.assertEquals(Subscription.STATE_TO_DELETE,
                       self.get_subscription().subscription_state)
-    self.assertFalse(Subscription.request_remove(self.callback, self.topic))
+    self.assertFalse(Subscription.request_remove(
+        self.callback, self.topic, 'token'))
 
   def testHasSubscribers_unverified(self):
     """Tests that unverified subscribers do not make the subscription active."""
     self.assertFalse(Subscription.has_subscribers(self.topic))
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
     self.assertFalse(Subscription.has_subscribers(self.topic))
 
   def testHasSubscribers_verified(self):
@@ -194,9 +203,12 @@ class SubscriptionTest(unittest.TestCase):
   def testGetSubscribers_unverified(self):
     """Tests that unverified subscribers will not be retrieved."""
     self.assertEquals([], Subscription.get_subscribers(self.topic, 10))
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
-    self.assertTrue(Subscription.request_insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.request_insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
+    self.assertTrue(Subscription.request_insert(
+        self.callback2, self.topic, 'token'))
+    self.assertTrue(Subscription.request_insert(
+        self.callback3, self.topic, 'token'))
     self.assertEquals([], Subscription.get_subscribers(self.topic, 10))
 
   def testGetSubscribers_verified(self):
@@ -260,10 +272,12 @@ class SubscriptionTest(unittest.TestCase):
 
   def testGetConfirmWork(self):
     """Verifies that we can retrieve subscription confirmation work."""
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic))
+    self.assertTrue(Subscription.request_insert(self.callback, self.topic,
+                                                'token'))
     self.assertTrue(Subscription.insert(self.callback2, self.topic))
     self.assertTrue(Subscription.insert(self.callback3, self.topic))
-    self.assertTrue(Subscription.request_remove(self.callback3, self.topic))
+    self.assertTrue(Subscription.request_remove(self.callback3, self.topic,
+                                                'token'))
     work1 = Subscription.get_confirm_work()
     work2 = Subscription.get_confirm_work()
     self.assertNotEquals(work1.key(), work2.key())
@@ -633,6 +647,210 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
     self.assertEquals([self.callback1, self.callback3, self.callback2],
                       callback_list)
+
+################################################################################
+
+class SubscribeHandlerTest(testutil.HandlerTestBase):
+
+  handler_class = main.SubscribeHandler
+
+  def setUp(self):
+    """Tests up the test harness."""
+    testutil.HandlerTestBase.setUp(self)
+    self.callback = 'http://example.com/good-callback'
+    self.topic = 'http://example.com/the-topic'
+    self.verify_callback_querystring_template = (
+        self.callback +
+        '?hub.verify_token=the_token&'
+        'hub.topic=http%3A%2F%2Fexample.com%2Fthe-topic'
+        '&hub.mode=')
+
+  def testDebugFormRenders(self):
+    self.handle('get')
+    self.assertTrue('<html>' in self.response_body())
+  
+  def testValidation(self):
+    """Tests form validation."""
+    # Bad mode
+    self.handle('post',
+        ('hub.mode', 'bad'),
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'my-opaque-token12345'))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.mode' in self.response_body())
+
+    # Bad callback
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', ''),
+        ('hub.topic', self.topic),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'my-opaque-token12345'))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.callback' in self.response_body())
+
+    # Bad topic
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', self.callback),
+        ('hub.topic', ''),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'my-opaque-token12345'))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.topic' in self.response_body())
+
+    # Bad verify
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.verify', 'async,async'),
+        ('hub.verify_token', 'my-opaque-token12345'))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.verify' in self.response_body())
+
+    # Bad verify
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', ''))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.verify_token' in self.response_body())
+  
+  def testUnsubscribeMissingSubscription(self):
+    """Tests that deleting a non-existent subscription does nothing."""
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'unsubscribe'),
+        ('hub.verify_token', 'ignored'))
+    self.assertEquals(204, self.response_code())
+
+  def testSynchronous(self):
+    """Tests synchronous subscribe and unsubscribe."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'unsubscribe', 204, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'unsubscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', 'the_token'))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+  
+  def testAsynchronous(self):
+    """Tests sync and async subscriptions cause the correct state transitions.
+    
+    Also tests that synchronous subscribes and unsubscribes will overwrite
+    asynchronous requests.
+    """
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+    # Async subscription.
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+
+    # Sync subscription overwrites.
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+
+    # Async unsubscribe queues removal.
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'unsubscribe'),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+    
+    # Synch unsubscribe overwrites.
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'unsubscribe', 204, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'unsubscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', 'the_token'))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+  
+  def testResubscribe(self):
+    """Tests that subscribe requests will reset pending unsubscribes."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+    # Async subscription.
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+
+    # Async un-subscription.
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'unsubscribe'),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+    
+    # Synchronous subscription overwrites.
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', 'the_token'))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
 
 ################################################################################
 
