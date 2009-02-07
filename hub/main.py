@@ -17,6 +17,9 @@
 
 """Publish-subscribe hub implementation built on Google App Engine."""
 
+# Bigger TODOS:
+# - Support RSS in addition to Atom
+
 import datetime
 import hashlib
 import logging
@@ -56,6 +59,12 @@ LEASE_PERIOD_SECONDS = 15
 
 # How many subscribers to contact at a time when delivering events.
 EVENT_SUBSCRIBER_CHUNK_SIZE = 10
+
+# Maximum number of times to attempt a subscription retry.
+MAX_SUBSCRIPTION_CONFIRM_FAILURES = 10
+
+# Period to use for exponential backoff on subscription confirm retries.
+SUBSCRIPTION_RETRY_PERIOD = 300 # seconds
 
 ################################################################################
 # Helper functions
@@ -162,6 +171,8 @@ class Subscription(db.Model):
   created_time = db.DateTimeProperty(auto_now_add=True)
   last_modified = db.DateTimeProperty(auto_now=True)
   expiration_time = db.DateTimeProperty(required=True)
+  eta = db.DateTimeProperty(auto_now_add=True)
+  confirm_failures = db.IntegerProperty(default=0)
   verify_token = db.TextProperty()
   subscription_state = db.StringProperty(default=STATE_NOT_VERIFIED,
                                          choices=STATES)
@@ -337,6 +348,25 @@ class Subscription(db.Model):
     query.order('callback_hash')
 
     return query.fetch(count)
+
+  def confirm_failed(self, max_failures=MAX_SUBSCRIPTION_CONFIRM_FAILURES,
+                     retry_period=SUBSCRIPTION_RETRY_PERIOD):
+    """Reports that an asynchronous confirmation request has failed.
+    
+    This will delete this entity if the maximum number of failures has been
+    exceeded.
+    
+    Args:
+      max_failures: Maximum failures to allow before giving up.
+      retry_period: Initial period for doing exponential (base-2) backoff.
+    """
+    if self.confirm_failures == max_failures:
+      self.delete()
+    else:
+      retry_delay = retry_period * (2 ** self.confirm_failures)
+      self.eta += datetime.timedelta(seconds=retry_delay)
+      self.confirm_failures += 1
+      self.put()
   
   @classmethod
   def get_confirm_work(cls):
@@ -348,10 +378,9 @@ class Subscription(db.Model):
       is still desired by the callback URL.
     """
     return query_and_own(cls,
-        'WHERE subscription_state IN :valid_states ORDER BY last_modified ASC',
+        'WHERE subscription_state IN :valid_states ORDER BY eta ASC',
         LEASE_PERIOD_SECONDS,
         valid_states=[cls.STATE_NOT_VERIFIED, cls.STATE_TO_DELETE])
-        
 
 
 class FeedToFetch(db.Model):
@@ -554,7 +583,6 @@ class EventToDeliver(db.Model):
     Returns:
       A new EventToDeliver instance that has not been stored.
     """
-    # TODO: Make this work for both RSS and Atom
     close_index = header_footer.rfind('</feed>')
     assert close_index != -1, 'Could not find </feed> in header/footer data'
     payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
@@ -686,11 +714,11 @@ class SubscribeHandler(webapp.RequestHandler):
     if not topic:
       error_message = 'Invalid parameter: hub.topic'
     if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
-      error_message = 'Invalid value for "hub.verify": %s' % verify_type
+      error_message = 'Invalid value for hub.verify: %s' % verify_type
     if not verify_token:
       error_message = 'Invalid parameter: hub.verify_token'
     if mode not in ('subscribe', 'unsubscribe'):
-      error_message = 'Invalid value for "hub.mode": %s' % mode
+      error_message = 'Invalid value for hub.mode: %s' % mode
 
     if error_message:
       self.response.out.write(error_message)
@@ -711,8 +739,8 @@ class SubscribeHandler(webapp.RequestHandler):
         if self.confirm_subscription(mode, topic, callback, verify_token):
           return self.response.set_status(204)
         else:
-          self.response.out.write('Could not confirm subscription')
-          return self.response.set_status(500)
+          self.response.out.write('Error trying to confirm subscription')
+          return self.response.set_status(409)
       else:
         if mode == 'subscribe':
           Subscription.request_insert(callback, topic, verify_token)
@@ -749,7 +777,7 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
       else:
         Subscription.remove(sub.callback, sub.topic)
     else:
-      # TODO: Add retry behavior on confirmation failure.
+      sub.confirm_failed()
       return self.response.set_status(500)
 
 ################################################################################

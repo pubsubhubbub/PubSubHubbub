@@ -17,6 +17,7 @@
 
 """Tests for the main module."""
 
+import datetime
 import logging
 logging.basicConfig(format='%(levelname)-8s %(filename)s] %(message)s')
 import os
@@ -283,6 +284,23 @@ class SubscriptionTest(unittest.TestCase):
     self.assertNotEquals(work1.key(), work2.key())
     work3 = Subscription.get_confirm_work()
     self.assertTrue(work3 is None)
+  
+  def testConfirmFailed(self):
+    """Tests retry delay periods when a subscription confirmation fails."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.insert(self.callback, self.topic))
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertEquals(0, sub.confirm_failures)
+    for delay in (5, 10, 20, 40, 80):
+      eta_before = sub.eta
+      sub.confirm_failed(max_failures=5, retry_period=5)
+      eta_after = sub.eta
+      self.assertEquals(datetime.timedelta(seconds=delay),
+                        eta_after - eta_before)
+    # It will be deleted on the last try.
+    sub.confirm_failed(max_failures=5, retry_period=5)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
 
 ################################################################################
 
@@ -744,6 +762,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(204, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
@@ -756,6 +775,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(204, self.response_code())
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
   
   def testAsynchronous(self):
@@ -774,6 +794,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(202, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -787,6 +808,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(204, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
@@ -798,6 +820,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(202, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
@@ -811,6 +834,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(204, self.response_code())
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
   
   def testResubscribe(self):
@@ -825,6 +849,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(202, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -836,6 +861,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(202, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
@@ -849,10 +875,38 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
+    self.assertEquals(204, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
   
+  def testSynchronousConfirmFailure(self):
+    """Tests when synchronous confirmations fail."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe', 500, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertEquals(409, self.response_code())
+    
+    Subscription.insert(self.callback, self.topic)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'unsubscribe', 500, '')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'unsubscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is not None)
+    self.assertEquals(409, self.response_code())
+
   def testDbError(self):
     """Tests when a DB error occurs."""
     # TODO: write this test
@@ -898,8 +952,9 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'subscribe', 500, '')
     self.handle('get')
-    self.assertEquals(Subscription.STATE_NOT_VERIFIED,
-                      Subscription.get_by_key_name(sub_key).subscription_state)
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+    self.assertEquals(1, sub.confirm_failures)
 
   def testUnsubscribeSuccessful(self):
     sub_key = Subscription.create_key_name(self.callback, self.topic)
@@ -920,8 +975,9 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'unsubscribe', 500, '')
     self.handle('get')
-    self.assertEquals(Subscription.STATE_TO_DELETE,
-                      Subscription.get_by_key_name(sub_key).subscription_state)
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+    self.assertEquals(1, sub.confirm_failures)
 
 ################################################################################
 
