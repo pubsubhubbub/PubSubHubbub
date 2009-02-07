@@ -114,6 +114,8 @@ class HandlerTestBase(unittest.TestCase):
     handler = self.handler_class()
     handler.initialize(self.req, self.resp)
     getattr(handler, method.lower())()
+    logging.info('%r returned status %d: %s', self.handler_class,
+                 self.response_code(), self.response_body())
 
   def response_body(self):
     """Returns the response body after the request is handled."""

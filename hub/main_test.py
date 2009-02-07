@@ -659,6 +659,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.callback = 'http://example.com/good-callback'
     self.topic = 'http://example.com/the-topic'
+    self.verify_token = 'the_token'
     self.verify_callback_querystring_template = (
         self.callback +
         '?hub.verify_token=the_token&'
@@ -677,7 +678,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'my-opaque-token12345'))
+        ('hub.verify_token', self.verify_token))
     self.assertEquals(500, self.response_code())
     self.assertTrue('hub.mode' in self.response_body())
 
@@ -687,7 +688,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.callback', ''),
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'my-opaque-token12345'))
+        ('hub.verify_token', self.verify_token))
     self.assertEquals(500, self.response_code())
     self.assertTrue('hub.callback' in self.response_body())
 
@@ -697,7 +698,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.callback', self.callback),
         ('hub.topic', ''),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'my-opaque-token12345'))
+        ('hub.verify_token', self.verify_token))
     self.assertEquals(500, self.response_code())
     self.assertTrue('hub.topic' in self.response_body())
 
@@ -707,7 +708,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
         ('hub.verify', 'async,async'),
-        ('hub.verify_token', 'my-opaque-token12345'))
+        ('hub.verify_token', self.verify_token))
     self.assertEquals(500, self.response_code())
     self.assertTrue('hub.verify' in self.response_body())
 
@@ -727,7 +728,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
         ('hub.mode', 'unsubscribe'),
-        ('hub.verify_token', 'ignored'))
+        ('hub.verify_token', self.verify_token))
     self.assertEquals(204, self.response_code())
 
   def testSynchronous(self):
@@ -742,7 +743,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
@@ -754,7 +755,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'sync'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
   
   def testAsynchronous(self):
@@ -772,7 +773,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -785,7 +786,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
@@ -796,7 +797,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
@@ -809,7 +810,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'sync'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
   
   def testResubscribe(self):
@@ -823,7 +824,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -834,7 +835,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'unsubscribe'),
         ('hub.verify', 'async'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
@@ -847,10 +848,80 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
-        ('hub.verify_token', 'the_token'))
+        ('hub.verify_token', self.verify_token))
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+  
+  def testDbError(self):
+    """Tests when a DB error occurs."""
+    # TODO: write this test
+
+################################################################################
+
+class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
+
+  handler_class = main.SubscriptionConfirmHandler
+  
+  def setUp(self):
+    """Sets up the test fixture."""
+    testutil.HandlerTestBase.setUp(self)
+    self.callback = 'http://example.com/good-callback'
+    self.topic = 'http://example.com/the-topic'
+    self.verify_token = 'the_token'
+    self.verify_callback_querystring_template = (
+        self.callback +
+        '?hub.verify_token=the_token&'
+        'hub.topic=http%3A%2F%2Fexample.com%2Fthe-topic'
+        '&hub.mode=')
+  
+  def tearDown(self):
+    """Verify that all URL fetches occurred."""
+    urlfetch_test_stub.instance.verify_and_reset()
+
+  def testNoWork(self):
+    self.handle('get')
+  
+  def testSubscribeSuccessful(self):
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    self.handle('get')
+    self.assertTrue(Subscription.get_confirm_work() is None)
+
+  def testSubscribeFailed(self):
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe', 500, '')
+    self.handle('get')
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED,
+                      Subscription.get_by_key_name(sub_key).subscription_state)
+
+  def testUnsubscribeSuccessful(self):
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    Subscription.insert(self.callback, self.topic)
+    Subscription.request_remove(self.callback, self.topic, self.verify_token)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'unsubscribe', 204, '')
+    self.handle('get')
+    self.assertTrue(Subscription.get_confirm_work() is None)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+  def testUnsubscribeFailed(self):
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    Subscription.insert(self.callback, self.topic)
+    Subscription.request_remove(self.callback, self.topic, self.verify_token)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'unsubscribe', 500, '')
+    self.handle('get')
+    self.assertEquals(Subscription.STATE_TO_DELETE,
+                      Subscription.get_by_key_name(sub_key).subscription_state)
 
 ################################################################################
 

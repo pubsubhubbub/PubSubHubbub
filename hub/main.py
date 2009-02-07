@@ -662,7 +662,12 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
 
 class SubscribeHandler(webapp.RequestHandler):
   """End-user accessible handler for Subscribe and Unsubscribe events."""
-  
+
+  def __init__(self, confirm_subscription=ConfirmSubscription):
+    """Initializer."""
+    webapp.RequestHandler.__init__(self)
+    self.confirm_subscription = confirm_subscription
+
   def get(self):
     self.response.out.write(template.render('subscribe_debug.html', {}))
 
@@ -703,7 +708,7 @@ class SubscribeHandler(webapp.RequestHandler):
       # Enqueue a background verification task, or immediately confirm.
       # We prefer synchronous confirmation.
       if verify_type.startswith('sync'):
-        if ConfirmSubscription(mode, topic, callback, verify_token):
+        if self.confirm_subscription(mode, topic, callback, verify_token):
           return self.response.set_status(204)
         else:
           self.response.out.write('Could not confirm subscription')

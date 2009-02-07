@@ -19,6 +19,7 @@
 
 import logging
 
+from google.appengine import runtime
 from google.appengine.api import apiproxy_stub
 from google.appengine.api import urlfetch_service_pb
 from google.appengine.api import urlfetch_stub
@@ -40,7 +41,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     self._expectations.clear()
   
   def expect(self, method, url, response_code, response_data,
-             request_payload='', urlfetch_error=False, apiproxy_error=False):
+             request_payload='', urlfetch_error=False, apiproxy_error=False,
+             deadline_error=False):
     """Expects a certain request and response.
     
     Overrides any existing expectations for this stub.
@@ -55,13 +57,17 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
         urlfetch_errors.Error exception when made.
       apiproxy_error: Set to True if this call should raise an
         apiproxy_errors.Error exception when made.
+      deadline_error: Set to True if this call should raise a
+        google.appengine.runtime.DeadlineExceededError error.
     """
     error_instance = None
     if urlfetch_error:
       error_instance = apiproxy_errors.ApplicationError(
           urlfetch_service_pb.URLFetchServiceError.FETCH_ERROR, 'mock error')
     elif apiproxy_error:
-      error_class = apiproxy_errors.OverQuotaError()
+      error_instance = apiproxy_errors.OverQuotaError()
+    elif deadline_error:
+      error_instance = runtime.DeadlineExceededError()
 
     self._expectations[(method.lower(), url)] = (
         request_payload, response_code, response_data, error_instance)
