@@ -325,6 +325,12 @@ http://hub.com/hubpoint
 
         hub.mode=subverify &
         hub.topic=whatever
+  
+   NOTE: Maybe this should be a GET to the callback URL instead of a POST, since
+   it represents a steady state for the subscriber? We should probably be rigid
+   about the 204 here, if possible; otherwise it's really hard to differentiate
+   between a callback success and just pointing at a random good page on the
+   web that will return a 200 no matter what you throw at it.
 
    3. Subr says, "yes, I really do want this topic":
 
@@ -333,6 +339,8 @@ http://hub.com/hubpoint
    4. Hub responds to Subr with "okay".  Either 204 if the
       subscription(s) were verified and created, or 202 if the
       subscriptions were enqueued to be verified later.
+
+TODO: Somewhere in here we should require the subscriber to re-confirm their subscription after a certain amount of time. We need to convey to them what the expiration period of their subscription will be.
 
 If verification is being done asynchronously, steps 2 and 3 above are
 skipped and Hub's 2xx response in step 4 is really just saying,
@@ -352,6 +360,10 @@ S - fetch succeed --> 204 (no content; success!)
 S - fetch failed --> 5xx
 A - server supports --> 202 (accepted) best effort later
 A - server doesn't support --> 501 (not implemented)
+
+TODO: 5xx on fetch failure isn't clear enough. Maybe we should use 409 ("Conflict") to indicate when a synchronous subscription request tries to confirm and fails. Then it's clearly the requestor's fault and not a server error.
+
+In the case of temporary server error, the server should return 503.
 
 ============================================================================-
 >> Subscribe Protocol
