@@ -30,6 +30,10 @@ import xml.sax.saxutils
 DEBUG = False
 
 
+class Error(Exception):
+  """Exception for errors in this module."""
+
+
 class FeedContentHandler(xml.sax.handler.ContentHandler):
   """Sax content handler for quickly parsing Atom feeds."""
 
@@ -94,8 +98,11 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.emit(content)
     self.emit(['</', name, '>'])
 
-    if event == (1, 'feed'):
-      self.header_footer = ''.join(self.pop())
+    if event[0] == 1:
+      if event[1] != 'feed':
+        raise Error('Enclosing tag is not <feed></feed>')
+      else:
+        self.header_footer = ''.join(self.pop())
     elif event == (2, 'entry'):
       if self.last_updated < self.updated_cutoff:
         if DEBUG: logging.debug('Not saving content due to update cutoff')
@@ -140,13 +147,22 @@ def filter(updated_cutoff, data):
         was updated, and content is a string containing the entry XML data.
 
   Raises:
-    xml.sax.SAXException on error.
+    xml.sax.SAXException on parse errors. feed_diff.Error if the diff could not
+    be derived due to bad content (e.g., a good XML doc that is not Atom) or
+    any of the Atom entries are missing required fields.
   """
   data_stream = cStringIO.StringIO(data)
   parser = xml.sax.make_parser()
   handler = FeedContentHandler(parser, updated_cutoff)
   parser.setContentHandler(handler)
   parser.parse(data_stream)
+  
+  for entry_id, (updated, content) in handler.entries_map.iteritems():
+    if not entry_id:
+      raise Error('<entry> element missing Id: %s' % content)
+    if not updated:
+      raise Error('<entry> element missing updated: %s' % content)
+
   return handler.header_footer, handler.entries_map
 
 

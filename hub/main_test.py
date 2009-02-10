@@ -27,9 +27,12 @@ import unittest
 import testutil
 testutil.fix_path()
 
+
+from google.appengine import runtime
 from google.appengine.api import memcache
 from google.appengine.ext import db
 from google.appengine.ext import webapp
+from google.appengine.runtime import apiproxy_errors
 
 import main
 import urlfetch_test_stub
@@ -287,20 +290,63 @@ class SubscriptionTest(unittest.TestCase):
   
   def testConfirmFailed(self):
     """Tests retry delay periods when a subscription confirmation fails."""
+    start = datetime.datetime.utcnow()
+    def now():
+      return start
+
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.assertTrue(Subscription.insert(self.callback, self.topic))
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     sub = Subscription.get_by_key_name(sub_key)
     self.assertEquals(0, sub.confirm_failures)
     for delay in (5, 10, 20, 40, 80):
-      eta_before = sub.eta
-      sub.confirm_failed(max_failures=5, retry_period=5)
-      eta_after = sub.eta
-      self.assertEquals(datetime.timedelta(seconds=delay),
-                        eta_after - eta_before)
+      sub.confirm_failed(max_failures=5, retry_period=5, now=now)
+      self.assertEquals(sub.eta, start + datetime.timedelta(seconds=delay))
     # It will be deleted on the last try.
     sub.confirm_failed(max_failures=5, retry_period=5)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+################################################################################
+
+FeedToFetch = main.FeedToFetch
+
+class FeedToFetchTest(unittest.TestCase):
+  
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.setup_for_testing()
+    self.topic = 'http://example.com/topic-one'
+    self.topic2 = 'http://example.com/topic-two'
+    self.topic3 = 'http://example.com/topic-three'
+  
+  def testInsertAndGet(self):
+    """Tests inserting and getting work."""
+    all_topics = [self.topic, self.topic2, self.topic3]
+    self.assertTrue(FeedToFetch.get_work() is None)
+    FeedToFetch.insert(all_topics)
+    found_topics = set()
+    for i in xrange(len(all_topics)):
+      feed = FeedToFetch.get_work()
+      found_topics.add(feed.topic)
+    self.assertEquals(set(all_topics), found_topics)
+    self.assertTrue(FeedToFetch.get_work() is None)
+
+  def testFetchFailed(self):
+    start = datetime.datetime.utcnow()
+    def now():
+      return start
+    
+    FeedToFetch.insert([self.topic])
+    feed = FeedToFetch.get_work()
+    for delay in (5, 10, 20, 40, 80):
+      feed.fetch_failed(max_failures=5, retry_period=5, now=now)
+      self.assertEquals(feed.eta, start + datetime.timedelta(seconds=delay))
+      self.assertEquals(False, feed.totally_failed)
+
+    feed.fetch_failed(max_failures=5, retry_period=5, now=now)
+    self.assertEquals(True, feed.totally_failed)
+    memcache.delete(str(feed.key()))
+    self.assertTrue(FeedToFetch.get_work() is None)
 
 ################################################################################
 
@@ -399,8 +445,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
 
 ################################################################################
 
-FeedToFetch = main.FeedToFetch
-
 
 class PublishHandlerTest(testutil.HandlerTestBase):
 
@@ -428,6 +472,7 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                 ('hub.url', 'http://example.com/first-url'),
                 ('hub.url', 'http://example.com/second-url'),
                 ('hub.url', 'http://example.com/third-url'))
+    self.assertEquals(204, self.response_code())
     work1 = FeedToFetch.get_work()
     work2 = FeedToFetch.get_work()
     work3 = FeedToFetch.get_work()
@@ -436,6 +481,25 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                          'http://example.com/second-url',
                          'http://example.com/third-url'])
     self.assertEquals(expected_urls, inserted_urls)
+  
+  def testInsertFailure(self):
+    """Tests when a publish event fails insertion."""
+    old_insert = FeedToFetch.insert
+    try:
+      for exception in (db.Error(), apiproxy_errors.Error(),
+                        runtime.DeadlineExceededError()):
+        @classmethod
+        def new_insert(cls, *args):
+          raise exception
+        FeedToFetch.insert = new_insert
+        self.handle('post',
+                    ('hub.mode', 'PuBLisH'),
+                    ('hub.url', 'http://example.com/first-url'),
+                    ('hub.url', 'http://example.com/second-url'),
+                    ('hub.url', 'http://example.com/third-url'))
+        self.assertEquals(503, self.response_code())
+    finally:
+      FeedToFetch.insert = old_insert
 
 ################################################################################
 
@@ -548,8 +612,68 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue('newcontent1' in work.payload)
   
   def testPullError(self):
-    """Tests when URLFetch raises an error."""
-    # TODO: Write this test.
+    """Tests when URLFetch raises an exception."""
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response, urlfetch_error=True)
+    self.handle('get')
+    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    self.assertEquals(1, feed.fetching_failures)
+
+  def testPullBadStatusCode(self):
+    """Tests when the response status is bad."""
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 500, self.expected_response)
+    self.handle('get')
+    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    self.assertEquals(1, feed.fetching_failures)
+
+  def testApiProxyError(self):
+    """Tests when the APIProxy raises an error."""
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response, apiproxy_error=True)
+    self.handle('get')
+    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    self.assertEquals(1, feed.fetching_failures)
+
+
+class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
+  
+  handler_class = main.PullFeedHandler
+
+  def testPullBadContent(self):
+    """Tests when the content doesn't parse correctly."""
+    topic = 'http://example.com/my-topic'
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect(
+        'get', topic, 200, 'this does not parse')
+    self.handle('get')
+    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
+    self.assertTrue(feed is None)
+  
+  def testPullBadFeed(self):
+    """Tests when the content parses, but is not a good Atom document."""
+    data = ('<?xml version="1.0" encoding="utf-8"?>\n'
+            '<meep><entry>wooh</entry></meep>')
+    topic = 'http://example.com/my-topic'
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect('get', topic, 200, data)
+    self.handle('get')
+    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
+    self.assertTrue(feed is None)
+  
+  def testPullGoodContent(self):
+    """Tests when the XML can parse just fine."""
+    data = ('<?xml version="1.0" encoding="utf-8"?>\n<feed><my header="data"/>'
+            '<entry><id>1</id><updated>123</updated>wooh</entry></feed>')
+    topic = 'http://example.com/my-topic'
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect('get', topic, 200, data)
+    self.handle('get')
+    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
+    self.assertTrue(feed is None)
 
 ################################################################################
 
@@ -882,6 +1006,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
   
   def testSynchronousConfirmFailure(self):
     """Tests when synchronous confirmations fail."""
+    # Subscribe
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     urlfetch_test_stub.instance.expect('get',
@@ -895,6 +1020,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     self.assertEquals(409, self.response_code())
     
+    # Unsubscribe
     Subscription.insert(self.callback, self.topic)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'unsubscribe', 500, '')
@@ -907,9 +1033,63 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.get_by_key_name(sub_key) is not None)
     self.assertEquals(409, self.response_code())
 
-  def testDbError(self):
-    """Tests when a DB error occurs."""
-    # TODO: write this test
+  def testAfterSubscriptionError(self):
+    """Tests when an exception occurs after subscription."""
+    old_confirm = main.ConfirmSubscription
+    try:
+      for exception in (runtime.DeadlineExceededError(), db.Error(),
+                        apiproxy_errors.Error()):
+        def new_confirm(*args):
+          raise exception
+        main.ConfirmSubscription = new_confirm
+        self.handle('post',
+            ('hub.callback', self.callback),
+            ('hub.topic', self.topic),
+            ('hub.mode', 'subscribe'),
+            ('hub.verify', 'sync'),
+            ('hub.verify_token', self.verify_token))
+        self.assertEquals(503, self.response_code())
+    finally:
+      main.ConfirmSubscription = old_confirm
+  
+  def testSubscriptionError(self):
+    """Tests when errors occurs during subscription."""
+    # URLFetch errors are probably the subscriber's fault, so we'll serve these
+    # as a conflict.
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe',
+        None, '', urlfetch_error=True)
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertEquals(409, self.response_code())
+    
+    # An apiproxy error or deadline error will fall through and serve a 503,
+    # since that means there's something wrong with our service.
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe',
+        None, '', apiproxy_error=True)
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertEquals(503, self.response_code())
+
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template + 'subscribe',
+        None, '', deadline_error=True)
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertEquals(503, self.response_code())
 
 ################################################################################
 
@@ -978,6 +1158,24 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
     self.assertEquals(1, sub.confirm_failures)
+  
+  def testConfirmError(self):
+    """Tests when an exception is raised while confirming a subscription."""
+    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    # All exceptions should just fall through.
+    old_confirm = main.ConfirmSubscription
+    try:
+      def new_confirm(*args):
+        raise db.Error()
+      main.ConfirmSubscription = new_confirm
+      try:
+        self.handle('get')
+      except db.Error:
+        pass
+      else:
+        self.fail()
+    finally:
+      main.ConfirmSubscription = old_confirm
 
 ################################################################################
 

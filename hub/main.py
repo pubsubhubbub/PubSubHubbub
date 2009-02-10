@@ -17,8 +17,35 @@
 
 """Publish-subscribe hub implementation built on Google App Engine."""
 
-# Bigger TODOS:
+# Bigger TODOs:
+#
 # - Support RSS in addition to Atom
+#
+# - Add subscription counting to PushEventHandler so we can deliver a header
+#   with the number of subscribers the feed has. This will simply just keep
+#   count of the subscribers seen so far and then when the pushing is done it
+#   will save that total back on the FeedRecord instance.
+#
+# - Add Feed auto-pulling to bootstrap the event-driven approach to feeds.
+#   Do this by adding new fields to FeedRecord and a new background worker to
+#   consume them. Start with a daily pull schedule. Maybe increase frequency
+#   based on the subscriber count.
+#
+# - Add Subscription delivery diagnostics, so subscribers can understand what
+#   error the hub has been seeing when we try to deliver a feed to them.
+#
+# - Add Publisher diagnostics, so they can see the last time their feed was
+#   pulled, see any errors that were encountered while pulling the feed, see
+#   when the next retry will be.
+#
+# - Add Publisher rate-limiting.
+#
+# - Add maximum subscription count per callback domain.
+#
+# - Add more intelligent Feed difference calculations. Maybe mark all updated
+#   time changes as interesting? Maybe mark an event as updated if only the
+#   content has changed. Maybe digest an Entry's content to quickly figure out
+#   when the content changes?
 
 import datetime
 import hashlib
@@ -27,7 +54,9 @@ import random
 import urllib
 import urlparse
 import wsgiref.handlers
+import xml.sax
 
+from google.appengine import runtime
 from google.appengine.api import datastore_types
 from google.appengine.api import memcache
 from google.appengine.api import urlfetch
@@ -65,6 +94,12 @@ MAX_SUBSCRIPTION_CONFIRM_FAILURES = 10
 
 # Period to use for exponential backoff on subscription confirm retries.
 SUBSCRIPTION_RETRY_PERIOD = 300 # seconds
+
+# Maximum number of times to attempt to pull a feed.
+MAX_FEED_PULL_FAILURES = 10
+
+# Period to use for exponential backoff on feed pulling.
+FEED_PULL_RETRY_PERIOD = 60 # seconds
 
 ################################################################################
 # Helper functions
@@ -350,7 +385,8 @@ class Subscription(db.Model):
     return query.fetch(count)
 
   def confirm_failed(self, max_failures=MAX_SUBSCRIPTION_CONFIRM_FAILURES,
-                     retry_period=SUBSCRIPTION_RETRY_PERIOD):
+                     retry_period=SUBSCRIPTION_RETRY_PERIOD,
+                     now=datetime.datetime.utcnow):
     """Reports that an asynchronous confirmation request has failed.
     
     This will delete this entity if the maximum number of failures has been
@@ -359,12 +395,13 @@ class Subscription(db.Model):
     Args:
       max_failures: Maximum failures to allow before giving up.
       retry_period: Initial period for doing exponential (base-2) backoff.
+      now: Returns the current time as a UTC datetime.
     """
     if self.confirm_failures == max_failures:
       self.delete()
     else:
       retry_delay = retry_period * (2 ** self.confirm_failures)
-      self.eta += datetime.timedelta(seconds=retry_delay)
+      self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.confirm_failures += 1
       self.put()
   
@@ -391,7 +428,9 @@ class FeedToFetch(db.Model):
   """
 
   topic = db.TextProperty(required=True)
-  update_time = db.DateTimeProperty(auto_now=True)
+  eta = db.DateTimeProperty(auto_now_add=True)
+  fetching_failures = db.IntegerProperty(default=0)
+  totally_failed = db.BooleanProperty(default=False)
 
   @classmethod
   def insert(cls, topic_list):
@@ -406,6 +445,28 @@ class FeedToFetch(db.Model):
                  for topic in topic_list]
     db.put(feed_list)
 
+  def fetch_failed(self, max_failures=MAX_FEED_PULL_FAILURES,
+                   retry_period=FEED_PULL_RETRY_PERIOD,
+                   now=datetime.datetime.utcnow):
+    """Reports that feed fetching failed.
+    
+    This will mark this feed as failing to fetch. This feed will not be
+    refetched until insert() is called again.
+    
+    Args:
+      max_failures: Maximum failures to allow before giving up.
+      retry_period: Initial period for doing exponential (base-2) backoff.
+      now: Returns the current time as a UTC datetime.
+    """
+    if self.fetching_failures == max_failures:
+      self.totally_failed = True
+      self.put()
+    else:
+      retry_delay = retry_period * (2 ** self.fetching_failures)
+      self.eta = now() + datetime.timedelta(seconds=retry_delay)
+      self.fetching_failures += 1
+      self.put()
+
   @classmethod
   def get_work(cls):
     """Retrieves a feed to fetch and owns it by acquiring a temporary lock.
@@ -415,7 +476,8 @@ class FeedToFetch(db.Model):
       no work to do. Callers should invoke delete() on the entity once the
       work has been completed.
     """
-    return query_and_own(cls, 'ORDER BY update_time ASC', LEASE_PERIOD_SECONDS)
+    return query_and_own(cls, 'WHERE totally_failed = False ORDER BY eta ASC',
+                         LEASE_PERIOD_SECONDS)
 
 
 class FeedRecord(db.Model):
@@ -670,7 +732,7 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
   try:
     response = urlfetch.fetch(adjusted_url, method='get',
                               follow_redirects=False)
-  except (apiproxy_errors.Error, urlfetch_errors.Error):
+  except urlfetch_errors.Error:
     logging.exception('Error encountered while confirming subscription')
     return False
 
@@ -690,11 +752,6 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
 
 class SubscribeHandler(webapp.RequestHandler):
   """End-user accessible handler for Subscribe and Unsubscribe events."""
-
-  def __init__(self, confirm_subscription=ConfirmSubscription):
-    """Initializer."""
-    webapp.RequestHandler.__init__(self)
-    self.confirm_subscription = confirm_subscription
 
   def get(self):
     self.response.out.write(template.render('subscribe_debug.html', {}))
@@ -736,7 +793,7 @@ class SubscribeHandler(webapp.RequestHandler):
       # Enqueue a background verification task, or immediately confirm.
       # We prefer synchronous confirmation.
       if verify_type.startswith('sync'):
-        if self.confirm_subscription(mode, topic, callback, verify_token):
+        if ConfirmSubscription(mode, topic, callback, verify_token):
           return self.response.set_status(204)
         else:
           self.response.out.write('Error trying to confirm subscription')
@@ -751,7 +808,7 @@ class SubscribeHandler(webapp.RequestHandler):
                      mode, callback, topic, verify_token)
         return self.response.set_status(202)
 
-    except (apiproxy_errors.Error, db.Error):
+    except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
       logging.exception('Could not verify subscription request')
       self.response.headers['Retry-After'] = '120'
       return self.response.set_status(503)
@@ -812,7 +869,7 @@ class PublishHandler(webapp.RequestHandler):
     # skip any unused feeds.
     try:
       FeedToFetch.insert(urls)
-    except (apiproxy_errors.Error, db.Error):
+    except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
       logging.exception('Failed to insert FeedToFetch records')
       self.response.headers['Retry-After'] = '120'
       self.response.set_status(503)
@@ -835,10 +892,6 @@ class PullFeedHandler(webapp.RequestHandler):
       logging.info('No feeds to fetch.')
       return
 
-    # TODO: correctly handle when feed fetching fails. have a maximum number
-    # of retries before we give up and mark the feed as bad (and put it on
-    # probation for some amount of time). Maybe have exponential back-off on
-    # the number of retries that we'll do after subsequent failures?
     logging.info('Fetching topic %s', work.topic)
     try:
       # Specifically follow redirects here. Many feeds are often just redirects
@@ -846,14 +899,22 @@ class PullFeedHandler(webapp.RequestHandler):
       response = urlfetch.fetch(work.topic, follow_redirects=True)
     except (apiproxy_errors.Error, urlfetch.Error):
       logging.exception('Failed to fetch feed')
+      work.fetch_failed()
       return
 
     if response.status_code != 200:
       logging.error('Received bad status_code=%s', response.status_code)
+      work.fetch_failed()
       return
 
-    # Parse the feed.
-    header_footer, entries_map = self.filter_feed('', response.content)
+    # Parse the feed. If this fails we will give up immediately.
+    try:
+      header_footer, entries_map = self.filter_feed('', response.content)
+    except (xml.sax.SAXException, feed_diff.Error):
+      logging.exception('Could not get entries for content of %d bytes: %s',
+                        len(response.content), response.content)
+      work.delete()
+      return
 
     # Find the new entries we've never seen before, and any entries that we
     # knew about that have been updated.
@@ -870,10 +931,6 @@ class PullFeedHandler(webapp.RequestHandler):
       try:
         old_updated, old_content = existing_dict[entry_id]
         # Only mark the entry as new if the update time is newer.
-        # TODO: Maybe we want to mark all updated time changes as interesting?
-        # TODO: Maybe mark it as updated even if the only change is the content?
-        # TODO: Maybe keep track of a digest of the entry_payload so we can
-        # figure out when the content changes easier?
         if old_updated >= new_updated:
           continue
       except KeyError:
@@ -893,10 +950,10 @@ class PullFeedHandler(webapp.RequestHandler):
                             reverse=True)
 
       # Batch put all of this data and complete the work.
-      # TODO: Better error handling. Maybe have EventToDeliver have a unique
-      # key name so any failure at this point is idempotent. Only the
-      # FeedToFetch instances will need an update time to help set the key
-      # of the EventToDeliver?
+      # NOTE: This put will not happen at the same time as the subsequent
+      # delete, but that's okay. The worst thing that could happen here is
+      # a refetch of the same feed, which then finds that all feed entries
+      # are already present and no event needs to be delivered.
       entities_to_save.append(EventToDeliver.create_event_for_topic(
           work.topic, header_footer, entities_to_save))
       entities_to_save.append(FeedRecord.create_record(

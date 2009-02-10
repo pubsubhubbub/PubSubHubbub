@@ -86,7 +86,41 @@ class FeedDiffTest(unittest.TestCase):
     entity_id, (updated, content) = entries.items()[0]
     self.assertTrue('&amp;nbsp;' in content)
 
-  # TODO: Add more tests, of course...
+  def testInvalidFeed(self):
+    """Tests when the feed is not a valid Atom document."""
+    data = open(os.path.join(self.testdata, 'bad_atom_feed.xml')).read()
+    try:
+      feed_diff.filter('', data)
+    except feed_diff.Error, e:
+      self.assertTrue('Enclosing tag is not <feed></feed>' in str(e))
+    else:
+      self.fail()
+  
+  def testNoXmlHeader(self):
+    """Tests that feeds with no XML header are accepted."""
+    data = open(os.path.join(self.testdata, 'no_xml_header.xml')).read()
+    header_footer, entries = feed_diff.filter('', data)
+    self.assertEquals(1, len(entries))
+
+  def testMissingId(self):
+    """Tests when an Atom entry is missing its ID field."""
+    data = open(os.path.join(self.testdata, 'missing_entry_id.xml')).read()
+    try:
+      feed_diff.filter('', data)
+    except feed_diff.Error, e:
+      self.assertTrue('<entry> element missing Id' in str(e))
+    else:
+      self.fail()
+
+  def testMissingUpdated(self):
+    """Tests when an Atom entry is missing its updated field."""
+    data = open(os.path.join(self.testdata, 'missing_entry_updated.xml')).read()
+    try:
+      feed_diff.filter('', data)
+    except feed_diff.Error, e:
+      self.assertTrue('<entry> element missing updated' in str(e))
+    else:
+      self.fail()
 
 
 if __name__ == '__main__':
