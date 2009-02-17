@@ -34,6 +34,7 @@ from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.runtime import apiproxy_errors
 
+import async_apiproxy
 import main
 import urlfetch_test_stub
 
@@ -651,7 +652,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
         'get', topic, 200, 'this does not parse')
     self.handle('get')
     feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
-    self.assertTrue(feed is None)
+    self.assertEquals(1, feed.fetching_failures)
   
   def testPullBadFeed(self):
     """Tests when the content parses, but is not a good Atom document."""
@@ -662,7 +663,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
     self.handle('get')
     feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
-    self.assertTrue(feed is None)
+    self.assertEquals(1, feed.fetching_failures)
   
   def testPullGoodContent(self):
     """Tests when the XML can parse just fine."""
@@ -789,6 +790,31 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
     self.assertEquals([self.callback1, self.callback3, self.callback2],
                       callback_list)
+  
+  def testDeadlineError(self):
+    """Tests that callbacks in flight at deadline will be marked as failed."""
+    try:
+      def deadline():
+        raise runtime.DeadlineExceededError()
+      main.async_proxy.wait = deadline
+      
+      self.assertTrue(Subscription.insert(self.callback1, self.topic))
+      self.assertTrue(Subscription.insert(self.callback2, self.topic))
+      self.assertTrue(Subscription.insert(self.callback3, self.topic))
+      main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
+      EventToDeliver.create_event_for_topic(
+          self.topic, self.header_footer, self.test_entries).put()
+      self.handle('get')
+      
+      # All events should be marked as failed even though no urlfetches
+      # were made.
+      work = EventToDeliver.get_work()
+      sub_list = Subscription.get(work.failed_callbacks)
+      callback_list = [sub.callback for sub in sub_list]
+      self.assertEquals([self.callback1, self.callback3], callback_list)
+
+    finally:
+      main.async_proxy = async_apiproxy.AsyncAPIProxy()
 
 ################################################################################
 

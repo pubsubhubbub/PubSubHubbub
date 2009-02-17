@@ -463,6 +463,7 @@ class FeedToFetch(db.Model):
       self.put()
     else:
       retry_delay = retry_period * (2 ** self.fetching_failures)
+      logging.info('Will retry in %s seconds', retry_delay)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.fetching_failures += 1
       self.put()
@@ -625,7 +626,7 @@ class EventToDeliver(db.Model):
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
   payload = db.TextProperty(required=True)
-  last_callback = db.TextProperty(default="")  # For paging Subscriptions
+  last_callback = db.TextProperty(default='')  # For paging Subscriptions
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
   delivery_mode = db.StringProperty(default=NORMAL, choices=DELIVERY_MODES)
   retry_attempts = db.IntegerProperty(default=0)
@@ -913,7 +914,7 @@ class PullFeedHandler(webapp.RequestHandler):
     except (xml.sax.SAXException, feed_diff.Error):
       logging.exception('Could not get entries for content of %d bytes: %s',
                         len(response.content), response.content)
-      work.delete()
+      work.fetch_failed()
       return
 
     # Find the new entries we've never seen before, and any entries that we
@@ -983,20 +984,23 @@ class PushEventHandler(webapp.RequestHandler):
     logging.info('%d more subscribers to contact for topic %s',
                  len(subscriber_list), work.topic)
 
-    # Keep track of broken callbacks for try later.
-    broken_callbacks = []
+    # Keep track of successful callbacks. Do this instead of tracking broken
+    # callbacks because the asynchronous API calls could be interrupted by a
+    # deadline error. If that happens we'll want to mark all outstanding
+    # callback urls as still pending.
+    failed_callbacks = set(subscription_list)
     def callback(sub, result, exception):
       if exception or result.status_code not in (200, 204):
         logging.warning('Could not deliver to target url %s: '
                         'Exception = %r, status_code = %s',
                         sub.callback, exception, result.status_code)
-        broken_callbacks.append(sub)
+      else:
+        failed_callbacks.remove(sub)
 
     def create_callback(sub):
       return lambda *args: callback(sub, *args)
 
     for sub in subscription_list:
-      # TODO: Add better error handling here.
       urlfetch_async.fetch(sub.callback,
                            method='POST',
                            headers={'content-type': 'application/atom+xml'},
@@ -1004,8 +1008,13 @@ class PushEventHandler(webapp.RequestHandler):
                            async_proxy=async_proxy,
                            callback=create_callback(sub))
 
-    async_proxy.wait()
-    work.update(more_subscribers, last_callback, broken_callbacks)
+    try:
+      async_proxy.wait()
+    except runtime.DeadlineExceededError:
+      logging.error('Could not finish all callbacks due to deadline. '
+                    'Remaining are: %r', [s.callback for s in failed_callbacks])
+
+    work.update(more_subscribers, last_callback, failed_callbacks)
 
 ################################################################################
 

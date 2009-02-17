@@ -1,20 +1,42 @@
 <html>
 <head>
-  <title>Publish -- pubsubhubbub demo</title>
+  <title>Publisher</title>
+  <style type="text/css">
+    input, textarea { margin-bottom: 2em }
+    .message { margin-bottom: 1em; }
+  </style>
 </head>
 <body>
-<h1>Publish</h1>
+
+<h1>Publisher page</h1>
+
 <form action="/" method="post">
   <div>
-    <div>Title</div>
-    <input type="text" name="title"/>
+    <div>Title:</div>
+    <input style="width: 300px" type="text" name="title"/>
   </div>
   <div>
-    <div>Message</div>
-    <textarea name="content" cols="40" rows="20"></textarea>
+    <div>Message:</div>
+    <textarea style="width: 300px" name="content" rows="20"></textarea>
+  </div>
+  <div>
+    <div>Hub URL:</div>
+    <div><input style="width: 300px" type="text" name="hub"/></div>
   </div>
   <div><input type="submit" value="Submit"></div>
 </form>
+
+<h3>Previous messages</h3>
+
+{% for message in messages %}
+<div class="message">
+  <div><strong>{{message.title}}</strong></div>
+  <div>
+    Published at {{message.get_zulu_time}}, ID: {{message.key.id_or_name}}
+  </div>
+  <div>{{message.content}}</div>
+</div>
+{% endfor %}
 
 </body>
 </html>

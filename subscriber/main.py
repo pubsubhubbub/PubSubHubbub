@@ -1,4 +1,4 @@
- #!/usr/bin/env python
+#!/usr/bin/env python
 #
 # Copyright 2008 Google Inc.
 #
@@ -15,56 +15,62 @@
 # limitations under the License.
 #
 
+"""Simple subscriber that aggregates all feeds together."""
+
+import hashlib
 import logging
 import random
 import wsgiref.handlers
-from google.appengine.ext import webapp
 from google.appengine.ext import db
+from google.appengine.ext import webapp
+from google.appengine.ext.webapp import template
 
 import feedparser
 import simplejson
 
+
 class SomeUpdate(db.Model):
-  """Some topic update."""
+  """Some topic update.
+  
+  Key name will be a hash of the feed source and item ID.
+  """
   title = db.TextProperty(required=True)
   content = db.TextProperty(required=True)
-  updated = db.StringProperty(required=True)  # ISO 8601
+  updated = db.StringProperty(required=True)  # ISO 8601 date
+  source = db.TextProperty(required=True)
 
 
 class InputHandler(webapp.RequestHandler):
-  """Handles feed input."""
+  """Handles feed input and subscription"""
 
   def get(self):
-    self.response.set_status(200)
-    self.response.out.write("""
-        <html>
-        <head>
-           <script src='/static/agg.js'></script>
-        </head>
-        <body>
-           <h1>Subscriber's Aggregator Page:</h1>
-           <div id='content'></div>
-        </body>
-        </html>
-    """)
+    # Just subscribe to everything.
+    self.response.set_status(204)
 
   def post(self):
-    content = unicode(self.request.get('content')).encode('utf-8')
-    data = feedparser.parse(content)
+    data = feedparser.parse(self.request.body)
     if data.bozo:
       logging.error('Bozo feed data on line %d, message %s',
                      data.bozo_exception.getLineNumber(),
                      data.bozo_exception.getMessage())
-      return
+      return self.response.set_status(500)
+
+    source = None
+    for link in data.feed.links:
+      if link.rel == 'self' and 'atom' in link.type:
+        source = link.href
+        break
+    if not source:
+      logging.error('Could not find feed source link: %s', data.links)
 
     update_list = []
     for entry in data.entries:
-      # TODO: Do something smarter than use the update time as the key name.
       update_list.append(SomeUpdate(
-          key_name='key_' + entry.updated,
+          key_name='key_' + hashlib.sha1(source + '\n' + entry.id).hexdigest(),
           title=entry.title,
           content=entry.content[0].value,
-          updated=entry.updated))
+          updated=entry.updated,
+          source=source))
     db.put(update_list)
     self.response.set_status(200)
     self.response.out.write("Aight.  Saved.");
@@ -74,16 +80,24 @@ class DebugHandler(webapp.RequestHandler):
   """Debug handler for simulating events."""
   def get(self):
     self.response.out.write("""
-      <html>
-      <body>
-      <form action="/" method="post">
-        <div>Simulate feed:</div>
-        <textarea name="content" cols="40" rows="40"></textarea>
-        <div><input type="submit" value="submit"></div>
-      </form>
-      </body>
-      </html>
-      """)
+<html>
+<body>
+<form action="/" method="post">
+  <div>Simulate feed:</div>
+  <textarea name="content" cols="40" rows="40"></textarea>
+  <div><input type="submit" value="submit"></div>
+</form>
+</body>
+</html>
+""")
+
+
+class ViewHandler(webapp.RequestHandler):
+  """Shows the items to anyone as HTML."""
+
+  def get(self):
+    context = dict(entries=SomeUpdate.gql('ORDER BY updated DESC').fetch(50))
+    self.response.out.write(template.render('subscriber.html', context))
 
 
 class ItemsHandler(webapp.RequestHandler):
@@ -95,7 +109,8 @@ class ItemsHandler(webapp.RequestHandler):
     for update in SomeUpdate.gql('ORDER BY updated DESC').fetch(50):
       stuff.append({'time': update.updated,
                     'title': update.title,
-                    'content': update.content})
+                    'content': update.content,
+                    'source': update.source})
     self.response.out.write(encoder.encode(stuff))
 
 
@@ -103,7 +118,8 @@ application = webapp.WSGIApplication(
   [
     (r'/items', ItemsHandler),
     (r'/debug', DebugHandler),
-    (r'/.*', InputHandler),
+    (r'/subscriber', InputHandler),
+    (r'/', ViewHandler),
   ],
   debug=True)
 

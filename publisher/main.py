@@ -15,19 +15,20 @@
 # limitations under the License.
 #
 
+"""Simple publisher example that pings the hub after publishing."""
+
 import logging
 import urllib
 import wsgiref.handlers
+
 from google.appengine.api import urlfetch
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
 from google.appengine.ext import db
 
 
-HUB = 'http://localhost:8083/publish'
-
-
 class Message(db.Model):
+  """A message to publish."""
   title = db.TextProperty(required=True)
   content = db.TextProperty(required=True)
   when = db.DateTimeProperty(auto_now_add=True)
@@ -37,10 +38,14 @@ class Message(db.Model):
 
 
 class MainHandler(webapp.RequestHandler):
+  """Allows users to publish new entries."""
+
   def get(self):
-    self.response.out.write(template.render('input.html', {}))
+    context = dict(messages=Message.gql('ORDER BY when DESC').fetch(20))
+    self.response.out.write(template.render('input.html', context))
 
   def post(self):
+    hub_url = self.request.get('hub')
     message = Message(title=self.request.get('title'),
                       content=self.request.get('content'))
     message.put()
@@ -51,18 +56,24 @@ class MainHandler(webapp.RequestHandler):
       'hub.url': self.request.host_url + '/feed',
     }
     payload = urllib.urlencode(post_params)
-    response = urlfetch.fetch(HUB, method='POST', payload=payload)
-    logging.info('URL fetch status_code=%d, content="%s"',
-                 response.status_code, response.content)
-
+    try:
+      response = urlfetch.fetch(hub_url, method='POST', payload=payload)
+    except urlfetch.Error:
+      logging.exception('Failed to deliver publishing message to %s', hub_url)
+    else:
+      logging.info('URL fetch status_code=%d, content="%s"',
+                   response.status_code, response.content)
     self.redirect('/')
 
 
 class FeedHandler(webapp.RequestHandler):
+  """Renders an Atom feed of published entries."""
+
   def get(self):
     messages = Message.gql('ORDER BY when DESC').fetch(20)
     context = {
-      'messages': messages
+      'messages': messages,
+      'source': self.request.host_url + '/feed',
     }
     if messages:
       context['first_message'] = messages[0]

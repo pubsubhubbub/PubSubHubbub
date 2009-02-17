@@ -9,3 +9,22 @@ indexes:
 # manually, move them above the marker line.  The index.yaml file is
 # automatically uploaded to the admin console when you next deploy
 # your application using appcfg.py.
+
+# Unused in query history -- copied from input.
+- kind: FeedToFetch
+  properties:
+  - name: totally_failed
+  - name: eta
+
+# Used 2 times in query history.
+- kind: Subscription
+  properties:
+  - name: subscription_state
+  - name: eta
+
+# Unused in query history -- copied from input.
+- kind: Subscription
+  properties:
+  - name: subscription_state
+  - name: topic_hash
+  - name: callback_hash

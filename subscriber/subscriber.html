@@ -1,0 +1,33 @@
+<html>
+<head>
+  <title>Subscriber</title>
+  <style type="text/css">
+    .entry { margin-bottom: 1em; }
+  </style>
+  <script type="text/javascript" charset="utf-8" src="/static/agg.js"></script>
+</head>
+<body>
+
+<h1>Subscriber aggregation page</h1>
+
+<div id="content">
+{% if not entries %}
+Nothing yet.
+{% else %}
+{% for entry in entries %}
+<div class="entry">
+  <div>
+    <strong>{{entry.title}}</strong>
+    at <em>{{entry.updated}}</em>
+    <div>from <a href="{{entry.source}}">{{entry.source}}</a></div>
+  </div>
+  <div>
+    {{entry.content}}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+</div>
+
+</body>
+</html>
