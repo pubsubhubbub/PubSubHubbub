@@ -55,11 +55,12 @@ class InputHandler(webapp.RequestHandler):
                      data.bozo_exception.getMessage())
       return self.response.set_status(500)
 
-    source = None
-    for link in data.feed.links:
-      if link.rel == 'self' and 'atom' in link.type:
-        source = link.href
-        break
+    source = 'Source not supplied'
+    if hasattr(data.feed, 'links'):
+      for link in data.feed.links:
+        if link.rel == 'self' and 'atom' in link.type:
+          source = link.href
+          break
     if not source:
       logging.error('Could not find feed source link: %s', data.links)
 
