@@ -44,6 +44,7 @@ def fix_path():
 def setup_for_testing():
   """Sets up the stubs for testing."""
   from google.appengine.api import apiproxy_stub_map
+  from google.appengine.api import memcache
   from google.appengine.tools import dev_appserver
   import urlfetch_test_stub
   before_level = logging.getLogger().getEffectiveLevel()
@@ -57,6 +58,9 @@ def setup_for_testing():
         clear_datastore=False)
     apiproxy_stub_map.apiproxy._APIProxyStubMap__stub_map['urlfetch'] = \
         urlfetch_test_stub.instance
+    # Actually need to flush, even though we've reallocated. Maybe because the
+    # memcache stub's cache is at the module level, not the API stub?
+    memcache.flush_all()
   finally:
     logging.getLogger().setLevel(before_level)
 

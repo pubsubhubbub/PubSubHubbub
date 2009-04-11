@@ -361,9 +361,11 @@ class EventToDeliverTest(unittest.TestCase):
     """Sets up the test harness."""
     testutil.setup_for_testing()
     self.topic = 'http://example.com/my-topic'
+    # Order out of the datastore will be done by callback hash, not alphabetical
     self.callback = 'http://example.com/my-callback'
     self.callback2 = 'http://example.com/second-callback'
-    self.callback3 = 'http://example.com/third-callback'
+    self.callback3 = 'http://example.com/third-callback-123'
+    self.callback4 = 'http://example.com/fourth-callback-1205'
     self.header_footer = '<feed>\n<stuff>blah</stuff>\n<xmldata/></feed>'
     self.test_entries = [
         FeedEntryRecord.create_entry_for_topic(self.topic, '1', 'time1',
@@ -373,6 +375,32 @@ class EventToDeliverTest(unittest.TestCase):
         FeedEntryRecord.create_entry_for_topic(self.topic, '3', 'time3',
                                                '<entry>article3</entry>'),
     ]
+
+  def insert_subscriptions(self):
+    """Inserts Subscription instances and an EventToDeliver for testing.
+    
+    Returns:
+      Tuple (event, work_key, sub_list, sub_keys) where:
+        event: The EventToDeliver that was inserted.
+        work_key: Key for the 'event'
+        sub_list: List of Subscription instances that were created in order
+          of their callback hashes.
+        sub_keys: Key instances corresponding to the entries in 'sub_list'.
+    """
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, self.header_footer, self.test_entries)
+    event.put()
+    work_key = str(event.key())
+
+    Subscription.insert(self.callback, self.topic)
+    Subscription.insert(self.callback2, self.topic)
+    Subscription.insert(self.callback3, self.topic)
+    Subscription.insert(self.callback4, self.topic)
+    sub_list = Subscription.get_subscribers(self.topic, 10)
+    sub_keys = [s.key() for s in sub_list]
+    self.assertEquals(4, len(sub_list))
+
+    return (event, work_key, sub_list, sub_keys)
 
   def testCreateEventForTopic(self):
     """Tests that the payload of an event is properly formed."""
@@ -394,44 +422,199 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertRaises(AssertionError, EventToDeliver.create_event_for_topic,
         self.topic, '<feed>has no end tag', self.test_entries)
 
-  def testUpdate(self):
-    event = EventToDeliver.create_event_for_topic(
-        self.topic, self.header_footer, self.test_entries)
-    event.put()
-    work_key = str(event.key())
+  def testNormal_noFailures(self):
+    """Tests that event delivery with no failures will delete the event."""
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers()
+    event.update(more, [])
+    event = EventToDeliver.get(work_key)
+    self.assertTrue(event is None)
+
+  def testUpdate_failWithNoSubscribersLeft(self):
+    """Tests that failures are written correctly by EventToDeliver.update.
     
-    Subscription.insert(self.callback, self.topic)
-    Subscription.insert(self.callback2, self.topic)
-    Subscription.insert(self.callback3, self.topic)
-    sub_list = Subscription.get_subscribers(self.topic, 10)
-    self.assertEquals(3, len(sub_list))
+    This tests the common case of completing the failed callbacks list extending
+    when there are new Subscriptions that have been found in the latest work
+    queue query.
+    """
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
 
     # Assert that the callback offset is updated, the work lock is cleared, and
     # any failed callbacks are recorded.
     self.assertTrue(memcache.set(work_key, 'owned'))
-    event.update(True, self.callback, [sub_list[0]])
-    event = EventToDeliver.get(event.key())
-    self.assertEquals(self.callback, event.last_callback)
+    more, subs = event.get_next_subscribers(chunk_size=1)
+    event.update(more, [sub_list[0]])
+    event = EventToDeliver.get(event.key())    
+    self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
     self.assertEquals([sub_list[0].key()], event.failed_callbacks)
+    self.assertEquals(self.callback2, event.last_callback)
     self.assertTrue(memcache.get(work_key) is None)
 
     self.assertTrue(memcache.set(work_key, 'owned'))
-    event.update(True, self.callback2, sub_list[1:])
+    more, subs = event.get_next_subscribers(chunk_size=3)
+    event.update(more, sub_list[1:])
     event = EventToDeliver.get(event.key())
-    self.assertEquals(self.callback2, event.last_callback)
+    self.assertTrue(event is not None)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+    self.assertEquals('', event.last_callback)
+    
     self.assertEquals([s.key() for s in sub_list],
                       event.failed_callbacks)
     self.assertTrue(memcache.get(work_key) is None)
-
-    # Assert that the final call to update will NOT clear the event because
-    # it still has failures that remain.
-    event.update(False, '', [])
-    self.assertTrue(EventToDeliver.get(work_key) is not None)
   
-  def testUpdateWithFailures(self):
-    """Tests the update method when callback failures are encountered."""
-    # TODO: Tests that update failures are recorded property and eventually
-    # cleaned up.
+  def testUpdate_actuallyNoMoreCallbacks(self):
+    """Tests when the normal update delivery has no Subscriptions left.
+  
+    This tests the case where update is called with no Subscribers in the
+    list of Subscriptions. This can happen if a Subscription is deleted
+    between when an update happens and when the work queue is invoked again.
+    """
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
+
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=3)
+    event.update(more, subs)
+    event = EventToDeliver.get(event.key())
+    self.assertEquals(self.callback4, event.last_callback)
+    self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
+
+    # This final call to update will transition to retry properly.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    Subscription.remove(self.callback4, self.topic)
+    more, subs = event.get_next_subscribers(chunk_size=1)
+    event.update(more, [])
+    event = EventToDeliver.get(event.key())
+    self.assertEquals([], subs)
+    self.assertTrue(event is not None)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+
+  def testGetNextSubscribers_retriesFinallySuccessful(self):
+    """Tests retries until all subscribers are successful."""
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
+
+    # Simulate that callback 2 is successful and the rest fail.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    event.update(more, sub_list[:1])
+    event = EventToDeliver.get(event.key())
+    self.assertTrue(more)
+    self.assertEquals(self.callback3, event.last_callback)
+    self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
+
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    event.update(more, sub_list[2:])
+    event = EventToDeliver.get(event.key())
+    self.assertEquals('', event.last_callback)
+    self.assertFalse(more)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+
+    # Now getting the next subscribers will returned the failed ones.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    expected = sub_keys[:1] + sub_keys[2:3]
+    self.assertEquals(expected, [s.key() for s in subs])
+    event.update(more, subs)
+    event = EventToDeliver.get(event.key())
+    self.assertTrue(more)
+    self.assertEquals(self.callback, event.last_callback)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+
+    # This will get the last of the failed subscribers but *not* include the
+    # sentinel value of event.last_callback, since that marks the end of this
+    # attempt.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    expected = sub_keys[3:]
+    self.assertEquals(expected, [s.key() for s in subs])
+    event.update(more, subs)
+    event = EventToDeliver.get(event.key())
+    self.assertFalse(more)
+    self.assertEquals('', event.last_callback)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+    self.assertEquals(sub_keys[:1] + sub_keys[2:], event.failed_callbacks)
+
+    # Now simulate all retries being successful one chunk at a time.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    expected = sub_keys[:1] + sub_keys[2:3]
+    self.assertEquals(expected, [s.key() for s in subs])
+    event.update(more, [])
+    event = EventToDeliver.get(event.key())
+    self.assertTrue(more)
+    self.assertEquals(self.callback, event.last_callback)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+    self.assertEquals(sub_keys[3:], event.failed_callbacks)
+
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    expected = sub_keys[3:]
+    self.assertEquals(expected, [s.key() for s in subs])
+    event.update(more, [])
+    self.assertFalse(more)
+    self.assertTrue(EventToDeliver.get(work_key) is None)
+
+  def testGetNextSubscribers_failedFewerThanChunkSize(self):
+    """Tests when there are fewer failed callbacks than the chunk size.
+
+    Ensures that we step through retry attempts when there is only a single
+    chunk to go through on each retry iteration.
+    """
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
+
+    # Simulate that callback 2 is successful and the rest fail.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    event.update(more, sub_list[:1])
+    event = EventToDeliver.get(event.key())
+    self.assertTrue(more)
+    self.assertEquals(self.callback3, event.last_callback)
+    self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
+
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=2)
+    event.update(more, sub_list[2:])
+    event = EventToDeliver.get(event.key())
+    self.assertEquals('', event.last_callback)
+    self.assertFalse(more)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
+    self.assertEquals(1, event.retry_attempts)
+
+    # Now attempt a retry with a chunk size equal to the number of callbacks.
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=3)
+    event.update(more, subs)
+    event = EventToDeliver.get(event.key())
+    self.assertFalse(more)
+    self.assertEquals(2, event.retry_attempts)
+
+  def testGetNextSubscribers_giveUp(self):
+    """Tests retry delay amounts until we finally give up on event delivery.
+    
+    Verifies retry delay logic works properly.
+    """
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
+
+    start = datetime.datetime.utcnow()
+    def now():
+      return start
+
+    for i, delay in enumerate((5, 10, 20, 40, 80, 160, 320, 640)):
+      self.assertTrue(memcache.set(work_key, 'owned'))
+      more, subs = event.get_next_subscribers(chunk_size=4)
+      event.update(more, subs, retry_period=5, now=now)
+      event = EventToDeliver.get(event.key())
+      self.assertEquals(i+1, event.retry_attempts)
+      self.assertEquals(event.last_modified,
+                        start + datetime.timedelta(seconds=delay))
+      self.assertFalse(event.totally_failed)
+
+    self.assertTrue(memcache.set(work_key, 'owned'))
+    more, subs = event.get_next_subscribers(chunk_size=4)
+    event.update(more, subs)
+    event = EventToDeliver.get(event.key())
+    self.assertTrue(event.totally_failed)
 
   def testGetWork(self):
     event1 = EventToDeliver.create_event_for_topic(
@@ -445,7 +628,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertTrue(work3 is None)
 
 ################################################################################
-
 
 class PublishHandlerTest(testutil.HandlerTestBase):
 
@@ -687,9 +869,13 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.chunk_size = main.EVENT_SUBSCRIBER_CHUNK_SIZE
     self.topic = 'http://example.com/hamster-topic'
+    # Order of these URL fetches is determined by the ordering of the hashes
+    # of the callback URLs, so we need random extra strings here to get
+    # alphabetical hash order.
     self.callback1 = 'http://example.com/hamster-callback1'
     self.callback2 = 'http://example.com/hamster-callback2'
-    self.callback3 = 'http://example.com/hamster-callback3'
+    self.callback3 = 'http://example.com/hamster-callback3-12345'
+    self.callback4 = 'http://example.com/hamster-callback4-12345'
     self.header_footer = '<feed>\n<stuff>blah</stuff>\n<xmldata/></feed>'
     self.test_entries = [
         FeedEntryRecord.create_entry_for_topic(self.topic, '1', 'time1',
@@ -743,28 +929,25 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 1
     EventToDeliver.create_event_for_topic(
         self.topic, self.header_footer, self.test_entries).put()
-    
-    # Order of these URL fetches is determined by the ordering of the hashes
-    # of the callback URLs, so it's kind of random here (which is why 1 and 3
-    # come before 2).
+
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 204, '', request_payload=self.expected_payload)
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
 
     urlfetch_test_stub.instance.expect(
-        'post', self.callback3, 200, '', request_payload=self.expected_payload)
+        'post', self.callback2, 200, '', request_payload=self.expected_payload)
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
     
     urlfetch_test_stub.instance.expect(
-        'post', self.callback2, 204, '', request_payload=self.expected_payload)
+        'post', self.callback3, 204, '', request_payload=self.expected_payload)
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
     self.assertTrue(EventToDeliver.get_work() is None)
 
   def testBrokenCallbacks(self):
-    """Tests when callbacks return errors and are saved for later."""
+    """Tests that when callbacks return errors and are saved for later."""
     self.assertTrue(Subscription.insert(self.callback1, self.topic))
     self.assertTrue(Subscription.insert(self.callback2, self.topic))
     self.assertTrue(Subscription.insert(self.callback3, self.topic))
@@ -775,12 +958,12 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 302, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
-        'post', self.callback3, 404, '', request_payload=self.expected_payload)
+        'post', self.callback2, 404, '', request_payload=self.expected_payload)
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
 
     urlfetch_test_stub.instance.expect(
-        'post', self.callback2, 500, '', request_payload=self.expected_payload)
+        'post', self.callback3, 500, '', request_payload=self.expected_payload)
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
     
@@ -788,9 +971,9 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     sub_list = Subscription.get(work.failed_callbacks)
     callback_list = [sub.callback for sub in sub_list]
 
-    self.assertEquals([self.callback1, self.callback3, self.callback2],
+    self.assertEquals([self.callback1, self.callback2, self.callback3],
                       callback_list)
-  
+
   def testDeadlineError(self):
     """Tests that callbacks in flight at deadline will be marked as failed."""
     try:
@@ -805,16 +988,70 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
       EventToDeliver.create_event_for_topic(
           self.topic, self.header_footer, self.test_entries).put()
       self.handle('get')
-      
+
       # All events should be marked as failed even though no urlfetches
       # were made.
       work = EventToDeliver.get_work()
       sub_list = Subscription.get(work.failed_callbacks)
       callback_list = [sub.callback for sub in sub_list]
-      self.assertEquals([self.callback1, self.callback3], callback_list)
+      self.assertEquals([self.callback1, self.callback2], callback_list)
 
     finally:
       main.async_proxy = async_apiproxy.AsyncAPIProxy()
+
+  def testRetryLogic(self):
+    """Tests that failed urls will be retried after subsequent failures.
+    
+    This is an end-to-end test for push delivery failures and retries. We'll
+    simulate multiple times through the failure list.
+    """
+    self.assertTrue(Subscription.insert(self.callback1, self.topic))
+    self.assertTrue(Subscription.insert(self.callback2, self.topic))
+    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(self.callback4, self.topic))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, self.header_footer, self.test_entries)
+    event.put()
+    event_key = event.key()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 404, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback2, 204, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 302, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback4, 500, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 404, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 302, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback4, 500, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 204, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 302, '', request_payload=self.expected_payload)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback4, 200, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 204, '', request_payload=self.expected_payload)
+    self.handle('get')
+    urlfetch_test_stub.instance.verify_and_reset()
+    self.assertTrue(db.get(event_key) is None)
 
 ################################################################################
 

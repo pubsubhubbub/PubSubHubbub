@@ -67,7 +67,11 @@ class AsyncAPIProxy(object):
                    lambda: user_callback(pbresponse, None))
     setattr(rpc, 'user_callback', user_callback) # TODO make this pretty
     self.enqueued.append(rpc)
-    logging.debug('Making call for RPC(%s, %s, .., ..)', rpc.package, rpc.call)
+    show_request = '...'
+    if rpc.package == 'urlfetch':
+      show_request = pbrequest.url()
+    logging.debug('Making call for RPC(%s, %s, %s, ..)',
+                  rpc.package, rpc.call, show_request)
     rpc.MakeCall()
 
   def rpcs_outstanding(self):

@@ -96,10 +96,16 @@ MAX_SUBSCRIPTION_CONFIRM_FAILURES = 10
 SUBSCRIPTION_RETRY_PERIOD = 300 # seconds
 
 # Maximum number of times to attempt to pull a feed.
-MAX_FEED_PULL_FAILURES = 10
+MAX_FEED_PULL_FAILURES = 9
 
 # Period to use for exponential backoff on feed pulling.
 FEED_PULL_RETRY_PERIOD = 60 # seconds
+
+# Maximum number of times to attempt to deliver a feed event.
+MAX_DELIVERY_FAILURES = 8
+
+# Period to use for exponential backoff on feed event delivery.
+DELIVERY_RETRY_PERIOD = 60 # seconds
 
 ################################################################################
 # Helper functions
@@ -181,6 +187,7 @@ def query_and_own(model_class, gql_query, lease_period,
       return None
   else:
     return work
+  
 
 ################################################################################
 # Models
@@ -414,6 +421,10 @@ class Subscription(db.Model):
       instance needs to have its status updated by confirming the subscription
       is still desired by the callback URL.
     """
+    # TODO: Add a call to time.time here to ensure that we do not get any
+    # work that has an ETA after the present time.
+    # TODO Handle complete failure case where we will never try again after
+    # some upper-bound time interval.
     return query_and_own(cls,
         'WHERE subscription_state IN :valid_states ORDER BY eta ASC',
         LEASE_PERIOD_SECONDS,
@@ -477,6 +488,8 @@ class FeedToFetch(db.Model):
       no work to do. Callers should invoke delete() on the entity once the
       work has been completed.
     """
+    # TODO: Add a call to time.time here to ensure that we do not get any
+    # work that has an ETA after the present time.
     return query_and_own(cls, 'WHERE totally_failed = False ORDER BY eta ASC',
                          LEASE_PERIOD_SECONDS)
 
@@ -630,10 +643,12 @@ class EventToDeliver(db.Model):
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
   delivery_mode = db.StringProperty(default=NORMAL, choices=DELIVERY_MODES)
   retry_attempts = db.IntegerProperty(default=0)
-  last_modified = db.DateTimeProperty(auto_now=True)
+  last_modified = db.DateTimeProperty(required=True)
+  totally_failed = db.BooleanProperty(default=False)
 
   @classmethod
-  def create_event_for_topic(cls, topic, header_footer, entry_list):
+  def create_event_for_topic(cls, topic, header_footer, entry_list,
+                             now=datetime.datetime.utcnow):
     """Creates an event to deliver for a topic and set of published entries.
     
     Args:
@@ -642,6 +657,7 @@ class EventToDeliver(db.Model):
         the entry list will be spliced.
       entry_list: List of FeedEntryRecord entities to deliver in this event,
         in order of newest to oldest.
+      now: Returns the current time as a UTC datetime.
     
     Returns:
       A new EventToDeliver instance that has not been stored.
@@ -657,9 +673,77 @@ class EventToDeliver(db.Model):
 
     return cls(topic=topic,
                topic_hash=sha1_hash(topic),
-               payload=payload)
+               payload=payload,
+               last_modified=now())
 
-  def update(self, more_callbacks, last_callback, more_failed_callbacks):
+  def get_next_subscribers(self, chunk_size=None):
+    """Retrieve the next set of subscribers to attempt delivery for this event.
+
+    Args:
+      chunk_size: How many subscribers to retrieve at a time while delivering
+        the event. Defaults to EVENT_SUBSCRIBER_CHUNK_SIZE.
+    
+    Returns:
+      Tuple (more_subscribers, subscription_list) where:
+        more_subscribers: True if there are more subscribers to deliver to
+          after the returned 'subscription_list' has been contacted; this value
+          should be passed to update() after the delivery is attempted.
+        subscription_list: List of Subscription entities to attempt to contact
+          for this event.
+    """
+    if chunk_size is None:
+      chunk_size = EVENT_SUBSCRIBER_CHUNK_SIZE
+
+    if self.delivery_mode == EventToDeliver.NORMAL:
+      all_subscribers = Subscription.get_subscribers(
+          self.topic, chunk_size + 1, starting_at_callback=self.last_callback)
+      if all_subscribers:
+        self.last_callback = all_subscribers[-1].callback
+      else:
+        self.last_callback = ''
+
+      more_subscribers = len(all_subscribers) > chunk_size
+      subscription_list = all_subscribers[:chunk_size]
+    elif self.delivery_mode == EventToDeliver.RETRY:
+      next_chunk = self.failed_callbacks[:chunk_size]
+      more_subscribers = len(self.failed_callbacks) > len(next_chunk)
+
+      if self.last_callback:
+        # If the final index is present in the next chunk, that means we've
+        # wrapped back around to the beginning and will need to do more
+        # exponential backoff. This also requires updating the last_callback
+        # in the update() method, since we do not know which callbacks from
+        # the next chunk will end up failing.
+        final_subscription_key = datastore_types.Key.from_path(
+            Subscription.__name__,
+            Subscription.create_key_name(self.last_callback, self.topic))
+        try:
+          final_index = next_chunk.index(final_subscription_key)
+        except ValueError:
+          pass
+        else:
+          more_subscribers = False
+          next_chunk = next_chunk[:final_index]
+
+      subscription_list = [x for x in db.get(next_chunk) if x is not None]
+      if subscription_list and not self.last_callback:
+        # This must be the first time through the current iteration where we do
+        # not yet know a sentinal value in the list that represents the starting
+        # point.
+        self.last_callback = subscription_list[0].callback
+
+      # If the failed callbacks fail again, they will be added back to the
+      # end of the list.
+      self.failed_callbacks = self.failed_callbacks[len(next_chunk):]
+
+    return more_subscribers, subscription_list
+
+  def update(self,
+             more_callbacks,
+             more_failed_callbacks,
+             now=datetime.datetime.utcnow,
+             max_failures=MAX_DELIVERY_FAILURES,
+             retry_period=DELIVERY_RETRY_PERIOD):
     """Updates an event with work progress or deletes it if it's done.
     
     Also deletes the ownership memcache entry for this work item so it will
@@ -668,28 +752,46 @@ class EventToDeliver(db.Model):
     Args:
       more_callbacks: True if there are more callbacks to deliver, False if
         there are no more subscribers to deliver for this feed.
-      last_callback: The last callback to be contacted while going through the
-        work during the most recent iteration.
-      more_failed_callbacks: List of Subscription entities for this event that
-        failed to deliver.
+      more_failed_callbacks: Iterable of Subscription entities for this event
+        that failed to deliver.
+      max_failures: Maximum failures to allow before giving up.
+      retry_period: Initial period for doing exponential (base-2) backoff.
+      now: Returns the current time as a UTC datetime.
     """
+    self.last_modified = now()
+
+    # Ensure the list of failed callbacks is in sorted order so we keep track
+    # of the last callback seen in alphabetical order of callback URL hashes.
+    more_failed_callbacks = sorted(more_failed_callbacks,
+                                   key=lambda x: x.callback_hash)
+
+    self.failed_callbacks.extend(e.key() for e in more_failed_callbacks)
     if not more_callbacks and not self.failed_callbacks:
-      logging.info('EventToDeliver complete: topic = %s', self.topic)
+      logging.info('EventToDeliver complete: topic = %s, delivery_mode = %s',
+                   self.topic, self.delivery_mode)
       self.delete()
-    else:
-      self.failed_callbacks.extend(e.key() for e in more_failed_callbacks)
-      logging.info('Updating EventToDeliver: topic = %s, last_callback = %s',
-                   self.topic, last_callback)
-      if self.last_callback == last_callback:
+      return
+    elif not more_callbacks:
+      self.last_callback = ''
+      retry_delay = retry_period * (2 ** self.retry_attempts)
+      self.last_modified += datetime.timedelta(seconds=retry_delay)
+      self.retry_attempts += 1
+      if self.retry_attempts > max_failures:
+        self.totally_failed = True
+
+      if self.delivery_mode == EventToDeliver.NORMAL:
         logging.info('Normal delivery done; %d broken callbacks remain',
                      len(self.failed_callbacks))
-        self.last_callback = ''
         self.delivery_mode = EventToDeliver.RETRY
-        # TODO: Actually handle the retry mode.
-      else:
-        self.last_callback = last_callback
-      self.put()
-      memcache.delete(str(self.key()))
+      else:        
+        logging.info('End of attempt %d; topic = %s, subscribers = %d, '
+                     'waiting until %s or totally_failed = %s',
+                     self.retry_attempts, self.topic,
+                     len(self.failed_callbacks), self.last_modified,
+                     self.totally_failed)
+
+    self.put()
+    memcache.delete(str(self.key()))
 
   @classmethod
   def get_work(cls):
@@ -698,8 +800,9 @@ class EventToDeliver(db.Model):
     Returns:
       An EventToDeliver instance, or None if no work is available.
     """
-    return query_and_own(cls, 'ORDER BY last_modified ASC',
-                         LEASE_PERIOD_SECONDS)
+    return query_and_own(cls,
+        'WHERE totally_failed = False ORDER BY last_modified ASC',
+        LEASE_PERIOD_SECONDS)
 
 ################################################################################
 # Subscription handlers and workers
@@ -973,16 +1076,10 @@ class PushEventHandler(webapp.RequestHandler):
       return
 
     # Retrieve the first N + 1 subscribers; note if we have more to contact.
-    subscriber_list = Subscription.get_subscribers(
-        work.topic, EVENT_SUBSCRIBER_CHUNK_SIZE + 1,
-        starting_at_callback=work.last_callback)
-    more_subscribers = len(subscriber_list) > EVENT_SUBSCRIBER_CHUNK_SIZE
-    last_callback = ''
-    if subscriber_list:
-      last_callback = subscriber_list[-1].callback
-    subscription_list = subscriber_list[:EVENT_SUBSCRIBER_CHUNK_SIZE]
-    logging.info('%d more subscribers to contact for topic %s',
-                 len(subscriber_list), work.topic)
+    more_subscribers, subscription_list = work.get_next_subscribers()
+    logging.info('%d more subscribers to contact for: '
+                 'topic = %s, delivery_mode = %s',
+                 len(subscription_list), work.topic, work.delivery_mode)
 
     # Keep track of successful callbacks. Do this instead of tracking broken
     # callbacks because the asynchronous API calls could be interrupted by a
@@ -1014,7 +1111,7 @@ class PushEventHandler(webapp.RequestHandler):
       logging.error('Could not finish all callbacks due to deadline. '
                     'Remaining are: %r', [s.callback for s in failed_callbacks])
 
-    work.update(more_subscribers, last_callback, failed_callbacks)
+    work.update(more_subscribers, failed_callbacks)
 
 ################################################################################
 

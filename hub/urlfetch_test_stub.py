@@ -95,7 +95,11 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
         header_text, payload)
 
     key = (method.lower(), url)
-    expected = self._expectations.pop(key)
+    try:
+      expected = self._expectations.pop(key)
+    except:
+      assert False, 'Did not expect: %s %s' % key
+
     if expected[0]:
       assert payload == expected[0], (
         'Request payload: "%s" did not match expected: "%s"' %
