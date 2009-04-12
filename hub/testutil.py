@@ -79,10 +79,11 @@ def create_test_request(method, *params):
   from google.appengine.ext import webapp
   body = StringIO.StringIO()
   encoded_params = urllib.urlencode(params)
-  environ = {
+  environ = os.environ.copy()
+  environ.update({
     'QUERY_STRING': '',
     'wsgi.input': body,
-  }
+  })
   if method.lower() == 'get':
     environ['REQUEST_METHOD'] = method.upper()
     environ['QUERY_STRING'] = encoded_params
@@ -113,13 +114,19 @@ class HandlerTestBase(unittest.TestCase):
       *params: Passed to testutil.create_test_request
     """
     from google.appengine.ext import webapp
-    self.resp = webapp.Response()
-    self.req = create_test_request(method, *params)
-    handler = self.handler_class()
-    handler.initialize(self.req, self.resp)
-    getattr(handler, method.lower())()
-    logging.info('%r returned status %d: %s', self.handler_class,
-                 self.response_code(), self.response_body())
+    before_software = os.environ.get('SERVER_SOFTWARE')
+    try:
+      if not before_software:
+        os.environ['SERVER_SOFTWARE'] = 'Development/1.0'
+      self.resp = webapp.Response()
+      self.req = create_test_request(method, *params)
+      handler = self.handler_class()
+      handler.initialize(self.req, self.resp)
+      getattr(handler, method.lower())()
+      logging.info('%r returned status %d: %s', self.handler_class,
+                   self.response_code(), self.response_body())
+    finally:
+      del os.environ['SERVER_SOFTWARE']
 
   def response_body(self):
     """Returns the response body after the request is handled."""

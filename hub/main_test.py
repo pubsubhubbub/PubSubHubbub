@@ -647,6 +647,48 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     work3 = EventToDeliver.get_work()
     self.assertTrue(work3 is None)
 
+
+################################################################################
+
+class TestWorkQueueHandler(webapp.RequestHandler):
+  @main.work_queue_only
+  def get(self):
+    self.response.out.write('Pass')
+
+
+class WorkQueueOnlyTest(testutil.HandlerTestBase):
+  """Tests the @work_queue_only decorator."""
+
+  handler_class = TestWorkQueueHandler
+
+  def testNotAllowedHandler(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    self.handle('get')
+    self.assertEquals(401, self.response_code())
+
+  def testCronHeader(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['HTTP_X_APPENGINE_CRON'] = 'True'
+    try:
+      self.handle('get')
+      self.assertEquals('Pass', self.response_body())
+    finally:
+      del os.environ['HTTP_X_APPENGINE_CRON']
+
+  def testDevelopmentEnvironment(self):
+    os.environ['SERVER_SOFTWARE'] = 'Development/1.0'
+    self.handle('get')
+    self.assertEquals('Pass', self.response_body())
+
+  def testAdminUser(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['USER_IS_ADMIN'] = '1'
+    try:
+      self.handle('get')
+      self.assertEquals('Pass', self.response_body())
+    finally:
+      del os.environ['USER_IS_ADMIN']
+
 ################################################################################
 
 class PublishHandlerTest(testutil.HandlerTestBase):
@@ -729,6 +771,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
       return main.PullFeedHandler(filter_feed=my_filter)
     self.handler_class = create_handler    
     testutil.HandlerTestBase.setUp(self)
+    self.callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(self.callback, self.topic))
 
   def tearDown(self):
     """Tears down the test harness."""
@@ -841,6 +885,16 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
 
+  def testNoSubscribers(self):
+    """Tests that when a feed has no subscribers we do not pull it."""
+    self.assertTrue(Subscription.remove(self.callback, self.topic))
+    FeedToFetch.insert([self.topic])
+    self.handle('get')
+
+    # Verify that *no* feed entry records have been written.
+    self.assertEquals([], FeedEntryRecord.get_entries_for_topic(
+                               self.topic, self.entries_map.keys()))
+
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
   
@@ -849,6 +903,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
   def testPullBadContent(self):
     """Tests when the content doesn't parse correctly."""
     topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect(
         'get', topic, 200, 'this does not parse')
@@ -861,6 +917,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     data = ('<?xml version="1.0" encoding="utf-8"?>\n'
             '<meep><entry>wooh</entry></meep>')
     topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
     self.handle('get')
@@ -872,6 +930,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     data = ('<?xml version="1.0" encoding="utf-8"?>\n<feed><my header="data"/>'
             '<entry><id>1</id><updated>123</updated>wooh</entry></feed>')
     topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
     self.handle('get')

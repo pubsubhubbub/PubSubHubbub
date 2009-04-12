@@ -17,19 +17,19 @@
 
 """Publish-subscribe hub implementation built on Google App Engine."""
 
-# Bigger TODOs:
+# Bigger TODOs (now in priority order)
 #
-# - Support RSS in addition to Atom
-#
-# - Add subscription counting to PushEventHandler so we can deliver a header
-#   with the number of subscribers the feed has. This will simply just keep
-#   count of the subscribers seen so far and then when the pushing is done it
-#   will save that total back on the FeedRecord instance.
+# - Add timestamp checking for EventToDeliver and FeedRecord to ensure that we
+#   will only deliver data newer than a certain age after the first
+#   subscription. This will prevent new subscriptions from flooding users.
 #
 # - Add Feed auto-pulling to bootstrap the event-driven approach to feeds.
 #   Do this by adding new fields to FeedRecord and a new background worker to
 #   consume them. Start with a daily pull schedule. Maybe increase frequency
 #   based on the subscriber count.
+#
+# - Add Publisher rate-limiting (by IP of the publishing host and/or the
+#   target feed URL).
 #
 # - Add Subscription delivery diagnostics, so subscribers can understand what
 #   error the hub has been seeing when we try to deliver a feed to them.
@@ -38,7 +38,12 @@
 #   pulled, see any errors that were encountered while pulling the feed, see
 #   when the next retry will be.
 #
-# - Add Publisher rate-limiting.
+# - Add Subscription expiration cronjob to clean up expired subscriptions.
+#
+# - Add subscription counting to PushEventHandler so we can deliver a header
+#   with the number of subscribers the feed has. This will simply just keep
+#   count of the subscribers seen so far and then when the pushing is done it
+#   will save that total back on the FeedRecord instance.
 #
 # - Add maximum subscription count per callback domain.
 #
@@ -47,12 +52,13 @@
 #   content has changed. Maybe digest an Entry's content to quickly figure out
 #   when the content changes?
 #
-# - Add Subscription expiration cronjob to clean up expired subscriptions.
+# - Support RSS in addition to Atom?
 #
 
 import datetime
 import hashlib
 import logging
+import os
 import random
 import urllib
 import urlparse
@@ -64,6 +70,7 @@ from google.appengine.api import datastore_types
 from google.appengine.api import memcache
 from google.appengine.api import urlfetch
 from google.appengine.api import urlfetch_errors
+from google.appengine.api import users
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
@@ -408,13 +415,14 @@ class Subscription(db.Model):
       now: Returns the current time as a UTC datetime.
     """
     if self.confirm_failures >= max_failures:
+      logging.info('Max subscription failures exceeded, giving up.')
       self.delete()
     else:
       retry_delay = retry_period * (2 ** self.confirm_failures)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.confirm_failures += 1
       self.put()
-  
+
   @classmethod
   def get_confirm_work(cls, now=datetime.datetime.utcnow):
     """Retrieves a Subscription to verify or remove asynchronously.
@@ -473,7 +481,8 @@ class FeedToFetch(db.Model):
       retry_period: Initial period for doing exponential (base-2) backoff.
       now: Returns the current time as a UTC datetime.
     """
-    if self.fetching_failures == max_failures:
+    if self.fetching_failures >= max_failures:
+      logging.info('Max fetching failures exceeded, giving up.')
       self.totally_failed = True
       self.put()
     else:
@@ -817,6 +826,29 @@ class EventToDeliver(db.Model):
         now=now())
 
 ################################################################################
+
+def work_queue_only(func):
+  """Decorator that only allows a request if from cron job or an admin.
+  
+  Also allows access if running in development server environment.
+  
+  Args:
+    func: A webapp.RequestHandler method.
+  
+  Returns:
+    Function that will return a 401 error if not from an authorized source.
+  """
+  def decorated(myself, *args, **kwargs):
+    if not ('X-AppEngine-Cron' in myself.request.headers or
+            users.is_current_user_admin() or
+            'Dev' in os.environ['SERVER_SOFTWARE']):
+      myself.response.set_status(401)
+      myself.response.out.write('Handler only accessible for work queues')
+    else:
+      return func(myself, *args, **kwargs)
+  return decorated
+
+################################################################################
 # Subscription handlers and workers
 
 def ConfirmSubscription(mode, topic, callback, verify_token):
@@ -883,8 +915,10 @@ class SubscribeHandler(webapp.RequestHandler):
 
     error_message = None
     if not callback:
+      # TODO validate callback is a URL
       error_message = 'Invalid parameter: hub.callback'
     if not topic:
+      # TODO ensure topic is a URL
       error_message = 'Invalid parameter: hub.topic'
     if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
       error_message = 'Invalid value for hub.verify: %s' % verify_type
@@ -933,6 +967,7 @@ class SubscribeHandler(webapp.RequestHandler):
 class SubscriptionConfirmHandler(webapp.RequestHandler):
   """Background worker for asynchronously confirming subscriptions."""
 
+  @work_queue_only
   def get(self):
     sub = Subscription.get_confirm_work()
     if not sub:
@@ -977,6 +1012,8 @@ class PublishHandler(webapp.RequestHandler):
       self.response.out.write('MUST supply at least one hub.url parameter')
       return
     
+    # TODO: Validate all published URLs are valid
+
     # TODO: Possibly limit the number of URLs to publish at a time?
     logging.info('Publish event for URLs: %s', urls)
 
@@ -1002,10 +1039,17 @@ class PullFeedHandler(webapp.RequestHandler):
     webapp.RequestHandler.__init__(self)
     self.filter_feed = filter_feed
   
+  @work_queue_only
   def get(self):
     work = FeedToFetch.get_work()
     if not work:
       logging.info('No feeds to fetch.')
+      return
+
+    if not Subscription.has_subscribers(work.topic):
+      logging.info('Ignore event because there are no subscribers for topic %s',
+                   work.topic)
+      work.delete()
       return
 
     logging.info('Fetching topic %s', work.topic)
@@ -1087,6 +1131,7 @@ class PushEventHandler(webapp.RequestHandler):
     webapp.RequestHandler.__init__(self)
     self.now = now
 
+  @work_queue_only
   def get(self):
     work = EventToDeliver.get_work(now=self.now)
     if not work:

@@ -119,7 +119,8 @@ application = webapp.WSGIApplication(
   [
     (r'/items', ItemsHandler),
     (r'/debug', DebugHandler),
-    (r'/subscriber', InputHandler),
+    # Wildcard below so we can test multiple subscribers in a single app.
+    (r'/subscriber.*', InputHandler),
     (r'/', ViewHandler),
   ],
   debug=True)
