@@ -46,6 +46,9 @@
 #   time changes as interesting? Maybe mark an event as updated if only the
 #   content has changed. Maybe digest an Entry's content to quickly figure out
 #   when the content changes?
+#
+# - Add Subscription expiration cronjob to clean up expired subscriptions.
+#
 
 import datetime
 import hashlib
@@ -404,7 +407,7 @@ class Subscription(db.Model):
       retry_period: Initial period for doing exponential (base-2) backoff.
       now: Returns the current time as a UTC datetime.
     """
-    if self.confirm_failures == max_failures:
+    if self.confirm_failures >= max_failures:
       self.delete()
     else:
       retry_delay = retry_period * (2 ** self.confirm_failures)
@@ -413,21 +416,22 @@ class Subscription(db.Model):
       self.put()
   
   @classmethod
-  def get_confirm_work(cls):
+  def get_confirm_work(cls, now=datetime.datetime.utcnow):
     """Retrieves a Subscription to verify or remove asynchronously.
+
+    Args:
+      now: Returns the current time as a UTC datetime.
 
     Returns:
       A Subscription instance, or None if no work is available. The returned
       instance needs to have its status updated by confirming the subscription
       is still desired by the callback URL.
     """
-    # TODO: Add a call to time.time here to ensure that we do not get any
-    # work that has an ETA after the present time.
-    # TODO Handle complete failure case where we will never try again after
-    # some upper-bound time interval.
     return query_and_own(cls,
-        'WHERE subscription_state IN :valid_states ORDER BY eta ASC',
+        'WHERE eta <= :now AND subscription_state IN :valid_states '
+        'ORDER BY eta ASC',
         LEASE_PERIOD_SECONDS,
+        now=now(),
         valid_states=[cls.STATE_NOT_VERIFIED, cls.STATE_TO_DELETE])
 
 
@@ -480,18 +484,21 @@ class FeedToFetch(db.Model):
       self.put()
 
   @classmethod
-  def get_work(cls):
+  def get_work(cls, now=datetime.datetime.utcnow):
     """Retrieves a feed to fetch and owns it by acquiring a temporary lock.
+
+    Args:
+      now: Returns the current time as a UTC datetime.
 
     Returns:
       A FeedToFetch entity that has been owned, or None if there is currently
       no work to do. Callers should invoke delete() on the entity once the
       work has been completed.
     """
-    # TODO: Add a call to time.time here to ensure that we do not get any
-    # work that has an ETA after the present time.
-    return query_and_own(cls, 'WHERE totally_failed = False ORDER BY eta ASC',
-                         LEASE_PERIOD_SECONDS)
+    return query_and_own(cls,
+        'WHERE eta <= :now AND totally_failed = False ORDER BY eta ASC',
+        LEASE_PERIOD_SECONDS,
+        now=now())
 
 
 class FeedRecord(db.Model):
@@ -794,15 +801,20 @@ class EventToDeliver(db.Model):
     memcache.delete(str(self.key()))
 
   @classmethod
-  def get_work(cls):
+  def get_work(cls, now=datetime.datetime.utcnow):
     """Retrieves a pending event to deliver.
-    
+
+    Args:
+      now: Returns the current time as a UTC datetime.
+
     Returns:
       An EventToDeliver instance, or None if no work is available.
     """
     return query_and_own(cls,
-        'WHERE totally_failed = False ORDER BY last_modified ASC',
-        LEASE_PERIOD_SECONDS)
+        'WHERE last_modified <= :now AND totally_failed = False '
+        'ORDER BY last_modified ASC',
+        LEASE_PERIOD_SECONDS,
+        now=now())
 
 ################################################################################
 # Subscription handlers and workers
@@ -1069,8 +1081,14 @@ class PullFeedHandler(webapp.RequestHandler):
 ################################################################################
 
 class PushEventHandler(webapp.RequestHandler):
+
+  def __init__(self, now=datetime.datetime.utcnow):
+    """Initializer."""
+    webapp.RequestHandler.__init__(self)
+    self.now = now
+
   def get(self):
-    work = EventToDeliver.get_work()
+    work = EventToDeliver.get_work(now=self.now)
     if not work:
       logging.debug('No events to deliver.')
       return

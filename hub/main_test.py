@@ -288,7 +288,7 @@ class SubscriptionTest(unittest.TestCase):
     self.assertNotEquals(work1.key(), work2.key())
     work3 = Subscription.get_confirm_work()
     self.assertTrue(work3 is None)
-  
+
   def testConfirmFailed(self):
     """Tests retry delay periods when a subscription confirmation fails."""
     start = datetime.datetime.utcnow()
@@ -296,13 +296,23 @@ class SubscriptionTest(unittest.TestCase):
       return start
 
     sub_key = Subscription.create_key_name(self.callback, self.topic)
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, 'token'))
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     sub = Subscription.get_by_key_name(sub_key)
     self.assertEquals(0, sub.confirm_failures)
-    for delay in (5, 10, 20, 40, 80):
+
+    self.assertTrue(Subscription.get_confirm_work() is not None)
+    memcache.delete(str(sub.key()))
+
+    for i, delay in enumerate((5, 10, 20, 40, 80)):
       sub.confirm_failed(max_failures=5, retry_period=5, now=now)
       self.assertEquals(sub.eta, start + datetime.timedelta(seconds=delay))
+      self.assertEquals(i+1, sub.confirm_failures)
+      # Getting work will yield no subscriptions here, since the ETA is
+      # far into the future.
+      self.assertTrue(Subscription.get_confirm_work(now=now) is None)
+
     # It will be deleted on the last try.
     sub.confirm_failed(max_failures=5, retry_period=5)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
@@ -339,10 +349,14 @@ class FeedToFetchTest(unittest.TestCase):
     
     FeedToFetch.insert([self.topic])
     feed = FeedToFetch.get_work()
-    for delay in (5, 10, 20, 40, 80):
+    for i, delay in enumerate((5, 10, 20, 40, 80)):
       feed.fetch_failed(max_failures=5, retry_period=5, now=now)
       self.assertEquals(feed.eta, start + datetime.timedelta(seconds=delay))
+      self.assertEquals(i+1, feed.fetching_failures)
       self.assertEquals(False, feed.totally_failed)
+      # Getting work will yield no feeds here, since the ETA is
+      # far into the future.
+      self.assertTrue(FeedToFetch.get_work(now=now) is None)
 
     feed.fetch_failed(max_failures=5, retry_period=5, now=now)
     self.assertEquals(True, feed.totally_failed)
@@ -600,6 +614,9 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     def now():
       return start
 
+    self.assertTrue(EventToDeliver.get_work(now=now) is not None)
+    memcache.delete(str(event.key()))
+
     for i, delay in enumerate((5, 10, 20, 40, 80, 160, 320, 640)):
       self.assertTrue(memcache.set(work_key, 'owned'))
       more, subs = event.get_next_subscribers(chunk_size=4)
@@ -609,6 +626,9 @@ u"""<?xml version="1.0" encoding="utf-8"?>
       self.assertEquals(event.last_modified,
                         start + datetime.timedelta(seconds=delay))
       self.assertFalse(event.totally_failed)
+      # Getting work will yield no events here, since the ETA is
+      # far into the future.
+      self.assertTrue(EventToDeliver.get_work(now=now) is None)
 
     self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=4)
@@ -862,11 +882,14 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
 
 class PushEventHandlerTest(testutil.HandlerTestBase):
 
-  handler_class = main.PushEventHandler
-
   def setUp(self):
     """Sets up the test harness."""
+    self.now = [datetime.datetime.utcnow() + datetime.timedelta(seconds=120)]
+    def create_handler():
+      return main.PushEventHandler(now=lambda: self.now[0])
+    self.handler_class = create_handler
     testutil.HandlerTestBase.setUp(self)
+
     self.chunk_size = main.EVENT_SUBSCRIBER_CHUNK_SIZE
     self.topic = 'http://example.com/hamster-topic'
     # Order of these URL fetches is determined by the ordering of the hashes
@@ -895,6 +918,7 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         '<entry>article3</entry>\n'
         '</feed>'
     )
+    
 
   def tearDown(self):
     """Resets any external modules modified for testing."""
@@ -966,8 +990,10 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         'post', self.callback3, 500, '', request_payload=self.expected_payload)
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
-    
-    work = EventToDeliver.get_work()
+
+    # Force work retrieval to see the status of the event.
+    work = EventToDeliver.get_work(
+        now=lambda: datetime.datetime.now() + datetime.timedelta(hours=1))
     sub_list = Subscription.get(work.failed_callbacks)
     callback_list = [sub.callback for sub in sub_list]
 
@@ -1038,6 +1064,7 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.now[0] += datetime.timedelta(seconds=120)
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 204, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
@@ -1047,6 +1074,7 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.now[0] += datetime.timedelta(seconds=120)
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 204, '', request_payload=self.expected_payload)
     self.handle('get')
