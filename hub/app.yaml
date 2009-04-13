@@ -3,6 +3,31 @@ version: 1
 runtime: python
 api_version: 1
 
+skip_files:
+- ^(.*/)?app\.yaml
+- ^(.*/)?app\.yml
+- ^(.*/)?index\.yaml
+- ^(.*/)?index\.yml
+- ^(.*/)?#.*#
+- ^(.*/)?.*~
+- ^(.*/)?.*\.py[co].*
+- ^(.*/)?.*/RCS/.*
+- ^(.*/)?\..*
+- ^(.*/)?(main_test|remote_shell|testutil|urlfetch_test_stub|feed_diff_test)\.py
+- ^(.*/)?feed_diff_testdata
+
 handlers:
+- url: /
+  static_files: welcome.html
+  upload: welcome\.html
+
+- url: /base\.css
+  static_files: base.css
+  upload: base\.css
+
+- url: /remote_api
+  script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
+  login: admin
+
 - url: .*
   script: main.py

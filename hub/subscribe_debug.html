@@ -1,6 +1,7 @@
 <html>
 <head>
-  <title>Subscription debug</title>
+  <title>Hub - Subscription debug</title>
+  <link rel="stylesheet" href="/base.css" type="text/css">
 </head>
 <body>
 
@@ -8,12 +9,12 @@
 
 <form action="/subscribe" method="post" accept-charset="utf-8">
   <p>
-    <label for="callback">Callback:</label>
-    <input type="text" name="hub.callback" value="" size="50" id="callback">
+    <label for="callback">Callback: <em>(the subscriber URL)</em></label>
+    <input type="text" name="hub.callback" value="" id="callback">
   </p>
   <p>
-    <label for="topic">Topic:</label>
-    <input type="text" name="hub.topic" value="" size="50" id="topic">
+    <label for="topic">Topic: <em>(the feed URL)</em></label>
+    <input type="text" name="hub.topic" value="" id="topic">
   </p>
   <p>
     <label for="verify">Verify type:</label>
@@ -33,11 +34,11 @@
   </p>
   <p>
     <label for="verify_token">Verify token:</label>
-    <input type="text" name="hub.verify_token" id="verify_token" value="" size="50">
+    <input type="text" name="hub.verify_token" id="verify_token" value="">
   </p>
   <p><input type="submit" value="Do it"></p>
-  <small>Note that after submission you will only receive an HTTP 204 response to acknowledge.</small>
-</form>
+</form>  
+<em>Note: submission will result in a HTTP 204 response to acknowledge; in browsers this looks like a no-op</em>
 
 </body>
 </html>
