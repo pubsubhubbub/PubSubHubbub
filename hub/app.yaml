@@ -25,6 +25,10 @@ handlers:
   static_files: base.css
   upload: base\.css
 
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+
 - url: /remote_api
   script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
   login: admin

@@ -19,10 +19,6 @@
 
 # Bigger TODOs (now in priority order)
 #
-# - Add timestamp checking for EventToDeliver and FeedRecord to ensure that we
-#   will only deliver data newer than a certain age after the first
-#   subscription. This will prevent new subscriptions from flooding users.
-#
 # - Add Feed auto-pulling to bootstrap the event-driven approach to feeds.
 #   Do this by adding new fields to FeedRecord and a new background worker to
 #   consume them. Start with a daily pull schedule. Maybe increase frequency

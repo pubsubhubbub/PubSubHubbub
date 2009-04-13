@@ -1,0 +1,9 @@
+body, input, select {
+  font-family: "Trebuchet MS", "Helvetica", sans-serif;
+  font-size: 14px;
+}
+label { display: block; }
+input[type="text"] {
+  width: 400px;
+}
+em { font-size: 0.8em; }
