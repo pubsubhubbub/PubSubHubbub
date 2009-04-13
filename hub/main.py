@@ -19,20 +19,20 @@
 
 # Bigger TODOs (now in priority order)
 #
-# - Add Feed auto-pulling to bootstrap the event-driven approach to feeds.
-#   Do this by adding new fields to FeedRecord and a new background worker to
-#   consume them. Start with a daily pull schedule. Maybe increase frequency
-#   based on the subscriber count.
+# - Improve polling algorithm to keep stats on each feed.
+#
+# - Do not poll a feed if we've gotten an even from the publisher in less
+#   than the polling period.
+#
+# - Add Publisher diagnostics, so they can see the last time their feed was
+#   pulled, see any errors that were encountered while pulling the feed, see
+#   when the next retry will be.
 #
 # - Add Publisher rate-limiting (by IP of the publishing host and/or the
 #   target feed URL).
 #
 # - Add Subscription delivery diagnostics, so subscribers can understand what
 #   error the hub has been seeing when we try to deliver a feed to them.
-#
-# - Add Publisher diagnostics, so they can see the last time their feed was
-#   pulled, see any errors that were encountered while pulling the feed, see
-#   when the next retry will be.
 #
 # - Add Subscription expiration cronjob to clean up expired subscriptions.
 #
@@ -112,6 +112,12 @@ MAX_DELIVERY_FAILURES = 8
 
 # Period to use for exponential backoff on feed event delivery.
 DELIVERY_RETRY_PERIOD = 60 # seconds
+
+# Number of polling feeds to fetch from the Datastore at a time.
+BOOSTRAP_FEED_CHUNK_SIZE = 200
+
+# How often to poll feeds.
+POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
 
 ################################################################################
 # Helper functions
@@ -193,13 +199,55 @@ def query_and_own(model_class, gql_query, lease_period,
       return None
   else:
     return work
+
+
+def is_dev_env():
+  """Returns True if we're running in the development environment."""
+  return 'Dev' in os.environ.get('SERVER_SOFTWARE', '')
+
+
+def work_queue_only(func):
+  """Decorator that only allows a request if from cron job or an admin.
   
+  Also allows access if running in development server environment.
+  
+  Args:
+    func: A webapp.RequestHandler method.
+  
+  Returns:
+    Function that will return a 401 error if not from an authorized source.
+  """
+  def decorated(myself, *args, **kwargs):
+    if not ('X-AppEngine-Cron' in myself.request.headers or
+            users.is_current_user_admin() or is_dev_env()):
+      myself.response.set_status(401)
+      myself.response.out.write('Handler only accessible for work queues')
+    else:
+      return func(myself, *args, **kwargs)
+  return decorated
+
+
+def is_valid_url(url):
+  """Returns True if the URL is valid, False otherwise."""
+  split = urlparse.urlparse(url)
+  if not split.scheme in ('http', 'https'):
+    logging.info('URL scheme is invalid: %s', url)
+    return False
+
+  netloc, port = (split.netloc.split(':', 1) + [''])[:2]
+  if port and not is_dev_env() and port not in ('80', '443'):
+    logging.info('URL port is invalid: %s', url)
+    return False
+
+  if split.fragment:
+    logging.info('URL includes fragment: %s', url)
+    return False
+
+  return True
 
 ################################################################################
 # Models
 
-# TODO: Change the methods of this class to return entity instances or None
-# if they could not be found, instead of True/False.
 class Subscription(db.Model):
   """Represents a single subscription to a topic for a callback URL."""
 
@@ -450,6 +498,18 @@ class FeedToFetch(db.Model):
   eta = db.DateTimeProperty(auto_now_add=True)
   fetching_failures = db.IntegerProperty(default=0)
   totally_failed = db.BooleanProperty(default=False)
+
+  @classmethod
+  def get_by_topic(cls, topic):
+    """Retrives a FeedToFetch by the topic URL.
+
+    Args:
+      topic: The URL for the feed.
+
+    Returns:
+      The FeedToFetch or None if it does not exist.
+    """
+    return cls.get_by_key_name(get_hash_key_name(topic))
 
   @classmethod
   def insert(cls, topic_list):
@@ -821,28 +881,85 @@ class EventToDeliver(db.Model):
         LEASE_PERIOD_SECONDS,
         now=now())
 
-################################################################################
 
-def work_queue_only(func):
-  """Decorator that only allows a request if from cron job or an admin.
+class KnownFeed(db.Model):
+  """Represents a feed that we know exists.
   
-  Also allows access if running in development server environment.
-  
-  Args:
-    func: A webapp.RequestHandler method.
-  
-  Returns:
-    Function that will return a 401 error if not from an authorized source.
+  This entity will be overwritten anytime someone subscribes to this feed. The
+  benefit is we have a single entity per known feed, allowing us to quickly
+  iterate through all of them. This may have issues if the subscription rate
+  for a single feed is over one per second.
   """
-  def decorated(myself, *args, **kwargs):
-    if not ('X-AppEngine-Cron' in myself.request.headers or
-            users.is_current_user_admin() or
-            'Dev' in os.environ['SERVER_SOFTWARE']):
-      myself.response.set_status(401)
-      myself.response.out.write('Handler only accessible for work queues')
+
+  topic = db.TextProperty(required=True)
+
+  @classmethod
+  def create(cls, topic):
+    """Creates a new KnownFeed.
+
+    Args:
+      topic: The feed's topic URL.
+
+    Returns:
+      The KnownFeed instance that hasn't been added to the Datastore.
+    """
+    return cls(key_name=get_hash_key_name(topic), topic=topic)
+
+  @classmethod
+  def create_key(cls, topic):
+    """Creates a key for a KnownFeed.
+
+    Args:
+      topic: The feed's topic URL.
+    
+    Returns:
+      Key instance for this feed.
+    """
+    return datastore_types.Key.from_path(cls.__name__, get_hash_key_name(topic))
+
+
+class PollingMarker(db.Model):
+  """Keeps track of the current position in the bootstrap polling process."""
+
+  next_start = db.DateTimeProperty(required=True)
+  current_key = db.TextProperty()
+
+  @classmethod
+  def get(cls, now=datetime.datetime.utcnow):
+    """Returns the current PollingMarker, creating it if it doesn't exist.
+
+    Args:
+      now: Returns the current time as a UTC datetime.
+    """
+    key_name = 'The Mark'
+    the_mark = db.get(datastore_types.Key.from_path(cls.__name__, key_name))
+    if the_mark is None:
+      next_start = now() - datetime.timedelta(seconds=60)
+      the_mark = PollingMarker(key_name=key_name,
+                               next_start=next_start,
+                               current_key=None)
+    return the_mark
+
+  def should_progress(self,
+                     period=POLLING_BOOTSTRAP_PERIOD,
+                     now=datetime.datetime.utcnow):
+    """Returns True if the bootstrap polling should progress.
+
+    May modify this PollingMarker to when the next polling should start.
+
+    Args:
+      period: The poll period for bootstrapping.
+      now: Returns the current time as a UTC datetime.
+    """
+    now_time = now()
+    if self.next_start < now_time:
+      logging.info('Polling starting afresh!')
+      self.next_start = now_time + datetime.timedelta(seconds=period)
+      return True
+    elif self.current_key:
+      return True
     else:
-      return func(myself, *args, **kwargs)
-  return decorated
+      return False
 
 ################################################################################
 # Subscription handlers and workers
@@ -864,7 +981,7 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
                'callback = %s, verify_token = %s',
                mode, topic, callback, verify_token)
 
-  parsed_url = list(urlparse.urlparse(callback, allow_fragments=False))
+  parsed_url = list(urlparse.urlparse(callback))
   params = {
     'hub.mode': mode,
     'hub.topic': topic,
@@ -883,6 +1000,8 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
   if response.status_code == 204:
     if mode == 'subscribe':
       Subscription.insert(callback, topic)
+      # Blindly put the feed's record so we have a record of all feeds.
+      db.put(KnownFeed.create(topic))
     else:
       Subscription.remove(callback, topic)
     logging.info('Subscription action verified: %s', mode)
@@ -910,11 +1029,9 @@ class SubscribeHandler(webapp.RequestHandler):
     mode = self.request.get('hub.mode', '').lower()
 
     error_message = None
-    if not callback:
-      # TODO validate callback is a URL
+    if not callback or not is_valid_url(callback):
       error_message = 'Invalid parameter: hub.callback'
-    if not topic:
-      # TODO ensure topic is a URL
+    if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
     if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
       error_message = 'Invalid value for hub.verify: %s' % verify_type
@@ -967,7 +1084,7 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
   def get(self):
     sub = Subscription.get_confirm_work()
     if not sub:
-      logging.info('No subscriptions to confirm')
+      logging.debug('No subscriptions to confirm')
       return
     
     if sub.subscription_state == Subscription.STATE_NOT_VERIFIED:
@@ -1007,11 +1124,14 @@ class PublishHandler(webapp.RequestHandler):
       self.response.set_status(400)
       self.response.out.write('MUST supply at least one hub.url parameter')
       return
-    
-    # TODO: Validate all published URLs are valid
 
-    # TODO: Possibly limit the number of URLs to publish at a time?
     logging.info('Publish event for URLs: %s', urls)
+
+    for url in urls:
+      if not is_valid_url(url):
+        self.response.set_status(400)
+        self.response.out.write('hub.url invalid: %s' % url)
+        return
 
     # Record all FeedToFetch requests here. The background Pull worker will
     # verify if there are any subscribers that need event delivery and will
@@ -1039,13 +1159,15 @@ class PullFeedHandler(webapp.RequestHandler):
   def get(self):
     work = FeedToFetch.get_work()
     if not work:
-      logging.info('No feeds to fetch.')
+      logging.debug('No feeds to fetch.')
       return
 
     if not Subscription.has_subscribers(work.topic):
       logging.info('Ignore event because there are no subscribers for topic %s',
                    work.topic)
-      work.delete()
+      # If there are no subscribers then we should also delete the record of
+      # this being a known feed. This will clean up after the periodic polling.
+      db.delete([work, KnownFeed.create_key(work.topic)])
       return
 
     logging.info('Fetching topic %s', work.topic)
@@ -1174,11 +1296,40 @@ class PushEventHandler(webapp.RequestHandler):
 
 ################################################################################
 
+class PollBootstrapHandler(webapp.RequestHandler):
+  """Boostrap handler automatically polls feeds."""
+
+  @work_queue_only
+  def get(self):
+    the_mark = PollingMarker.get()
+    if not the_mark.should_progress():
+      return
+
+    query = KnownFeed.all()
+    if the_mark.current_key is not None:
+      query.filter('__key__ >', datastore_types.Key(the_mark.current_key))
+    known_feeds = query.fetch(BOOSTRAP_FEED_CHUNK_SIZE)
+
+    if known_feeds:
+      the_mark.current_key = str(known_feeds[-1].key())
+      logging.info('Found %s more feeds to poll, ended at %s',
+                   len(known_feeds), known_feeds[-1].topic)
+    else:
+      logging.info('Polling cycle complete; starting again at %s',
+                   the_mark.next_start)
+      the_mark.current_key = None
+
+    FeedToFetch.insert([k.topic for k in known_feeds])
+    db.put(the_mark)
+
+################################################################################
+
 def main():
   application = webapp.WSGIApplication([
     (r'/subscribe', SubscribeHandler),
     (r'/publish', PublishHandler),
     (r'/work/subscriptions', SubscriptionConfirmHandler),
+    (r'/work/poll_bootstrap', PollBootstrapHandler),
     (r'/work/pull_feeds', PullFeedHandler),
     (r'/work/push_events', PushEventHandler),
   ], debug=DEBUG)

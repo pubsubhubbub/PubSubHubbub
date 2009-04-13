@@ -85,7 +85,7 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.push()
     self.emit(['<', name])
     for key, value in attrs.items():
-      self.emit([' ', key, '="', value, '"'])
+      self.emit([' ', key, '=', xml.sax.saxutils.quoteattr(value)])
     self.emit('>')
 
     self.push()

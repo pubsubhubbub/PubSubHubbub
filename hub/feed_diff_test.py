@@ -86,6 +86,18 @@ class FeedDiffTest(unittest.TestCase):
     entity_id, (updated, content) = entries.items()[0]
     self.assertTrue('&amp;nbsp;' in content)
 
+  def testAttributeEscaping(self):
+    """Tests when certain external entities show up in an XML attribute.
+
+    Example: gd:foo="&quot;blah&quot;" will be converted to
+    gd:foo=""blah"" by the parser, which is not valid XML when reconstructing
+    the result.
+    """
+    data = open(os.path.join(self.testdata, 'attribute_escaping.xml')).read()
+    header_footer, entries = feed_diff.filter('', data)
+    print header_footer
+    self.assertTrue('foo:myattribute="&quot;\'foobar\'&quot;"' in header_footer)
+
   def testInvalidFeed(self):
     """Tests when the feed is not a valid Atom document."""
     data = open(os.path.join(self.testdata, 'bad_atom_feed.xml')).read()

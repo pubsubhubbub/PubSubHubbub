@@ -105,7 +105,11 @@ class HandlerTestBase(unittest.TestCase):
   def setUp(self):
     """Sets up the test harness."""
     setup_for_testing()
-  
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    pass
+
   def handle(self, method, *params):
     """Runs a test of a webapp.RequestHandler.
     

@@ -8,9 +8,6 @@ cron:
 - description: Confirm subscriptions 3
   url: /work/subscriptions?num=3
   schedule: every 1 minutes
-- description: Confirm subscriptions 4
-  url: /work/subscriptions?num=4
-  schedule: every 1 minutes
 
 - description: Pull feeds 1
   url: /work/pull_feeds?num=1
@@ -62,3 +59,6 @@ cron:
   url: /work/push_events?num=8
   schedule: every 1 minutes
 
+- description: Bootstrap polling
+  url: /work/poll_bootstrap
+  schedule: every 5 minutes

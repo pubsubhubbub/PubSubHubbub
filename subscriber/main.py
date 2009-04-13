@@ -48,11 +48,20 @@ class InputHandler(webapp.RequestHandler):
     self.response.set_status(204)
 
   def post(self):
+    body = self.request.body.decode('utf-8')
+    logging.info('Post body is %d characters', len(body))
+
     data = feedparser.parse(self.request.body)
     if data.bozo:
-      logging.error('Bozo feed data on line %d, message %s',
-                     data.bozo_exception.getLineNumber(),
-                     data.bozo_exception.getMessage())
+      logging.error('Bozo feed data. %s: %r',
+                     data.bozo_exception.__class__.__name__,
+                     data.bozo_exception)
+      if (hasattr(data.bozo_exception, 'getLineNumber') and
+          hasattr(data.bozo_exception, 'getMessage')):
+        line = data.bozo_exception.getLineNumber()
+        logging.error('Line %d: %s', line, data.bozo_exception.getMessage())
+        segment = self.request.body.split('\n')[line-1]
+        logging.info('Body segment with error: %r', segment.decode('utf-8'))
       return self.response.set_status(500)
 
     source = 'Source not supplied'

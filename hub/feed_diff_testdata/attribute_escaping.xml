@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" foo:myattribute="&quot;'foobar'&quot;">
+  <title>Foo Bar has a blog</title>
+  <link rel="self" type="application/atom+xml" href="http://www.foo.com/escaping.xml"/>
+  <updated>2008-10-01T06:57:56Z</updated>
+  <author>
+    <name>Foo Bar</name>
+  </author>
+  <id>http://www.foo.com/</id>
+
+  <entry>
+    <title>My feed</title>
+    <id>http://www.foo.com/1</id>
+    <updated>2008-10-01T06:57:56Z</updated>
+    <content type="html">
+      some detail here &amp;nbsp;
+    </content>
+  </entry>
+</feed>

@@ -55,6 +55,54 @@ class UtilityFunctionTest(unittest.TestCase):
     self.assertEquals('hash_54f6638eb67ad389b66bbc3fa65f7392b0c2d270',
                       main.get_hash_key_name('and now testing a key'))
 
+  def testIsValidUrl(self):
+    self.assertTrue(main.is_valid_url(
+        'https://example.com:443/path/to?handler=1&b=2'))
+    self.assertFalse(main.is_valid_url('httpm://example.com'))
+    self.assertFalse(main.is_valid_url('http://example.com:8080'))
+    self.assertFalse(main.is_valid_url('http://example.com/blah#bad'))
+
+################################################################################
+
+class TestWorkQueueHandler(webapp.RequestHandler):
+  @main.work_queue_only
+  def get(self):
+    self.response.out.write('Pass')
+
+
+class WorkQueueOnlyTest(testutil.HandlerTestBase):
+  """Tests the @work_queue_only decorator."""
+
+  handler_class = TestWorkQueueHandler
+
+  def testNotAllowedHandler(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    self.handle('get')
+    self.assertEquals(401, self.response_code())
+
+  def testCronHeader(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['HTTP_X_APPENGINE_CRON'] = 'True'
+    try:
+      self.handle('get')
+      self.assertEquals('Pass', self.response_body())
+    finally:
+      del os.environ['HTTP_X_APPENGINE_CRON']
+
+  def testDevelopmentEnvironment(self):
+    os.environ['SERVER_SOFTWARE'] = 'Development/1.0'
+    self.handle('get')
+    self.assertEquals('Pass', self.response_body())
+
+  def testAdminUser(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['USER_IS_ADMIN'] = '1'
+    try:
+      self.handle('get')
+      self.assertEquals('Pass', self.response_body())
+    finally:
+      del os.environ['USER_IS_ADMIN']
+
 ################################################################################
 
 class TestWork(db.Model):
@@ -123,6 +171,31 @@ class QueryAndOwnTest(unittest.TestCase):
     self.assertEquals(1, len(more_work))
     self.assertEquals(redo_work.key(), more_work[0].key())
     self.assertEquals('owned', memcache.get(redo_work_key))
+
+################################################################################
+
+KnownFeed = main.KnownFeed
+
+class KnownFeedTest(unittest.TestCase):
+  """Tests for the KnownFeed model class."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.setup_for_testing()
+
+  def testCreateAndDelete(self):
+    topic = 'http://example.com/my-topic'
+    known_feed = KnownFeed.create(topic)
+    self.assertEquals(topic, known_feed.topic)
+    db.put(known_feed)
+
+    found_feed = db.get(KnownFeed.create_key(topic))
+    self.assertEquals(found_feed.key(), known_feed.key())
+    self.assertEquals(found_feed.topic, known_feed.topic)
+
+    db.delete(KnownFeed.create_key(topic))
+    self.assertTrue(db.get(KnownFeed.create_key(topic)) is None)
+
 
 ################################################################################
 
@@ -647,48 +720,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     work3 = EventToDeliver.get_work()
     self.assertTrue(work3 is None)
 
-
-################################################################################
-
-class TestWorkQueueHandler(webapp.RequestHandler):
-  @main.work_queue_only
-  def get(self):
-    self.response.out.write('Pass')
-
-
-class WorkQueueOnlyTest(testutil.HandlerTestBase):
-  """Tests the @work_queue_only decorator."""
-
-  handler_class = TestWorkQueueHandler
-
-  def testNotAllowedHandler(self):
-    os.environ['SERVER_SOFTWARE'] = 'Production'
-    self.handle('get')
-    self.assertEquals(401, self.response_code())
-
-  def testCronHeader(self):
-    os.environ['SERVER_SOFTWARE'] = 'Production'
-    os.environ['HTTP_X_APPENGINE_CRON'] = 'True'
-    try:
-      self.handle('get')
-      self.assertEquals('Pass', self.response_body())
-    finally:
-      del os.environ['HTTP_X_APPENGINE_CRON']
-
-  def testDevelopmentEnvironment(self):
-    os.environ['SERVER_SOFTWARE'] = 'Development/1.0'
-    self.handle('get')
-    self.assertEquals('Pass', self.response_body())
-
-  def testAdminUser(self):
-    os.environ['SERVER_SOFTWARE'] = 'Production'
-    os.environ['USER_IS_ADMIN'] = '1'
-    try:
-      self.handle('get')
-      self.assertEquals('Pass', self.response_body())
-    finally:
-      del os.environ['USER_IS_ADMIN']
-
 ################################################################################
 
 class PublishHandlerTest(testutil.HandlerTestBase):
@@ -710,7 +741,14 @@ class PublishHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('hub.mode', 'publish'))
     self.assertEquals(400, self.response_code())
     self.assertTrue('hub.url' in self.response_body())
-  
+
+  def testBadUrls(self):
+    self.handle('post',
+                ('hub.mode', 'PuBLisH'),
+                ('hub.url', 'http://example.com/bad_url#fragment'))
+    self.assertEquals(400, self.response_code())
+    self.assertTrue('hub.url invalid' in self.response_body())
+
   def testInsertion(self):
     self.handle('post',
                 ('hub.mode', 'PuBLisH'),
@@ -888,12 +926,17 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
   def testNoSubscribers(self):
     """Tests that when a feed has no subscribers we do not pull it."""
     self.assertTrue(Subscription.remove(self.callback, self.topic))
+    db.put(KnownFeed.create(self.topic))
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
     FeedToFetch.insert([self.topic])
     self.handle('get')
 
     # Verify that *no* feed entry records have been written.
     self.assertEquals([], FeedEntryRecord.get_entries_for_topic(
                                self.topic, self.entries_map.keys()))
+
+    # And any KnownFeeds were deleted.
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
@@ -1175,7 +1218,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(500, self.response_code())
     self.assertTrue('hub.mode' in self.response_body())
 
-    # Bad callback
+    # Empty callback
     self.handle('post',
         ('hub.mode', 'subscribe'),
         ('hub.callback', ''),
@@ -1185,11 +1228,31 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(500, self.response_code())
     self.assertTrue('hub.callback' in self.response_body())
 
-    # Bad topic
+    # Bad callback URL
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', 'httpf://example.com'),
+        ('hub.topic', self.topic),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', self.verify_token))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.callback' in self.response_body())
+
+    # Empty topic
     self.handle('post',
         ('hub.mode', 'subscribe'),
         ('hub.callback', self.callback),
         ('hub.topic', ''),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', self.verify_token))
+    self.assertEquals(500, self.response_code())
+    self.assertTrue('hub.topic' in self.response_body())
+
+    # Bad topic URL
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', self.callback),
+        ('hub.topic', 'httpf://example.com'),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
     self.assertEquals(500, self.response_code())
@@ -1241,6 +1304,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'unsubscribe', 204, '')
@@ -1273,6 +1337,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
     # Sync subscription overwrites.
     urlfetch_test_stub.instance.expect('get',
@@ -1287,6 +1352,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
     # Async unsubscribe queues removal.
     self.handle('post',
@@ -1328,6 +1394,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
     # Async un-subscription.
     self.handle('post',
@@ -1354,6 +1421,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
   
   def testSynchronousConfirmFailure(self):
     """Tests when synchronous confirmations fail."""
@@ -1369,6 +1437,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
     self.assertEquals(409, self.response_code())
     
     # Unsubscribe
@@ -1469,12 +1538,14 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
   
   def testSubscribeSuccessful(self):
     sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     Subscription.request_insert(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'subscribe', 204, '')
     self.handle('get')
     self.assertTrue(Subscription.get_confirm_work() is None)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
   def testSubscribeFailed(self):
     sub_key = Subscription.create_key_name(self.callback, self.topic)
@@ -1527,6 +1598,68 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
         self.fail()
     finally:
       main.ConfirmSubscription = old_confirm
+
+################################################################################
+
+PollingMarker = main.PollingMarker
+
+
+class PollBootstrapHandlerTest(testutil.HandlerTestBase):
+
+  handler_class = main.PollBootstrapHandler
+
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.HandlerTestBase.setUp(self)
+    self.original_chunk_size = main.BOOSTRAP_FEED_CHUNK_SIZE
+    main.BOOSTRAP_FEED_CHUNK_SIZE = 2
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    testutil.HandlerTestBase.tearDown(self)
+    main.BOOSTRAP_FEED_CHUNK_SIZE = self.original_chunk_size
+
+  def testFullFlow(self):
+    """Tests a full flow through multiple chunks."""
+    topic = 'http://example.com/feed1'
+    topic2 = 'http://example.com/feed2'
+    topic3 = 'http://example.com/feed3-124'  # alphabetical on the hash of this
+    db.put([KnownFeed.create(topic), KnownFeed.create(topic2),
+            KnownFeed.create(topic3)])
+    self.assertTrue(FeedToFetch.get_by_topic(topic) is None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic2) is None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
+
+    self.handle('get')
+    self.assertTrue(FeedToFetch.get_by_topic(topic) is not None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
+
+    self.handle('get')
+    self.assertTrue(FeedToFetch.get_by_topic(topic) is not None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic3) is not None)
+    self.assertTrue(PollingMarker.get().current_key is not None)
+
+    self.handle('get')  # This completes the cycle.
+    the_mark = PollingMarker.get()
+    self.assertTrue(the_mark.current_key is None)
+
+    self.handle('get')  # This will do nothing.
+    the_mark = PollingMarker.get()
+    self.assertTrue(the_mark.current_key is None)
+    
+    # Resetting the next start time to before the present time will
+    # cause the iteration to start again.
+    the_mark.next_start = \
+        datetime.datetime.utcnow() - datetime.timedelta(seconds=60)
+    db.put(the_mark)
+
+    db.delete([FeedToFetch.get_by_topic(t) for t in (topic, topic2, topic3)])
+    self.handle('get')
+    self.assertTrue(FeedToFetch.get_by_topic(topic) is not None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
 
 ################################################################################
 
