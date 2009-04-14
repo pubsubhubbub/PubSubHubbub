@@ -1,0 +1,5 @@
+Building the spec HTML....
+
+$ sudo apt-get install rfc2xml
+$ xml2rfc pubsubhubbub-core-0.1.xml pubsubhubbub-core-0.1.html
+

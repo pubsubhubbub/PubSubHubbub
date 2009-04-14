@@ -1,0 +1,232 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en"><head><title>Final: PubSubHubBob Core 0.1 -- Working Draft</title>
+<meta http-equiv="Expires" content="Tue, 14 Apr 2009 00:25:31 +0000">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="description" content="PubSubHubBob Core 0.1 -- Working Draft">
+<meta name="generator" content="xml2rfc v1.30 (http://xml.resource.org/)">
+<style type='text/css'>
+<!--
+    body {
+        font-family: verdana, charcoal, helvetica, arial, sans-serif;
+        margin: 2em;
+        font-size: small ; color: #000000 ; background-color: #ffffff ; }
+    .title { color: #990000; font-size: x-large ;
+        font-weight: bold; text-align: right;
+        font-family: helvetica, monaco, "MS Sans Serif", arial, sans-serif;
+        background-color: transparent; }
+    .filename { color: #666666; font-size: 18px; line-height: 28px;
+        font-weight: bold; text-align: right;
+        font-family: helvetica, arial, sans-serif;
+        background-color: transparent; }
+    td.rfcbug { background-color: #000000 ; width: 30px ; height: 30px ;
+        text-align: justify; vertical-align: middle ; padding-top: 2px ; }
+    td.rfcbug span.RFC { color: #666666; font-weight: bold; text-decoration: none;
+        background-color: #000000 ;
+        font-family: monaco, charcoal, geneva, "MS Sans Serif", helvetica, verdana, sans-serif;
+        font-size: x-small ; }
+    td.rfcbug span.hotText { color: #ffffff; font-weight: normal; text-decoration: none;
+        text-align: center ;
+        font-family: charcoal, monaco, geneva, "MS Sans Serif", helvetica, verdana, sans-serif;
+        font-size: x-small ; background-color: #000000; }
+    /* info code from SantaKlauss at http://www.madaboutstyle.com/tooltip2.html */
+    div#counter{margin-top: 100px}
+
+    a.info{
+        position:relative; /*this is the key*/
+        z-index:24;
+        text-decoration:none}
+
+    a.info:hover{z-index:25; background-color:#990000 ; color: #ffffff ;}
+
+    a.info span{display: none}
+
+    a.info:hover span.info{ /*the span will display just on :hover state*/
+        display:block;
+        position:absolute;
+        font-size: smaller ;
+        top:2em; left:2em; width:15em;
+        padding: 2px ;
+        border:1px solid #333333;
+        background-color:#eeeeee; color:#990000;
+        text-align: left ;}
+
+     A { font-weight: bold; }
+     A:link { color: #990000; background-color: transparent ; }
+     A:visited { color: #333333; background-color: transparent ; }
+     A:active { color: #333333; background-color: transparent ; }
+
+    p { margin-left: 2em; margin-right: 2em; }
+    p.copyright { font-size: x-small ; }
+    p.toc { font-size: small ; font-weight: bold ; margin-left: 3em ;}
+    table.toc { margin: 0 0 0 3em; padding: 0; border: 0; vertical-align: text-top; }
+    td.toc { font-size: small; font-weight: bold; vertical-align: text-top; }
+
+    span.emph { font-style: italic; }
+    span.strong { font-weight: bold; }
+    span.verb, span.vbare { font-family: "Courier New", Courier, monospace ; }
+
+    span.vemph { font-style: italic; font-family: "Courier New", Courier, monospace ; }
+    span.vstrong { font-weight: bold; font-family: "Courier New", Courier, monospace ; }
+    span.vdeluxe { font-weight: bold; font-style: italic; font-family: "Courier New", Courier, monospace ; }
+
+    ol.text { margin-left: 2em; margin-right: 2em; }
+    ul.text { margin-left: 2em; margin-right: 2em; }
+    li { margin-left: 3em;  }
+
+    pre { margin-left: 3em; color: #333333;  background-color: transparent;
+        font-family: "Courier New", Courier, monospace ; font-size: small ;
+        text-align: left;
+        }
+
+    h3 { color: #333333; font-size: medium ;
+        font-family: helvetica, arial, sans-serif ;
+        background-color: transparent; }
+    h4 { font-size: small; font-family: helvetica, arial, sans-serif ; }
+
+    table.bug { width: 30px ; height: 15px ; }
+    td.bug { color: #ffffff ; background-color: #990000 ;
+        text-align: center ; width: 30px ; height: 15px ;
+         }
+    td.bug A.link2 { color: #ffffff ; font-weight: bold;
+        text-decoration: none;
+        font-family: monaco, charcoal, geneva, "MS Sans Serif", helvetica, sans-serif;
+        font-size: x-small ; background-color: transparent }
+
+    td.header { color: #ffffff; font-size: x-small ;
+        font-family: arial, helvetica, sans-serif; vertical-align: top;
+        background-color: #666666 ; width: 33% ; }
+    td.author { font-weight: bold; margin-left: 4em; font-size: x-small ; }
+    td.author-text { font-size: x-small; }
+    table.full { vertical-align: top ; border-collapse: collapse ;
+        border-style: solid solid solid solid ;
+        border-color: black black black black ;
+        font-size: small ; text-align: center ; }
+    table.headers, table.none { vertical-align: top ; border-collapse: collapse ;
+        border-style: none;
+        font-size: small ; text-align: center ; }
+    table.full th { font-weight: bold ;
+        border-style: solid ;
+        border-color: black black black black ; }
+    table.headers th { font-weight: bold ;
+        border-style: none none solid none;
+        border-color: black black black black ; }
+    table.none th { font-weight: bold ;
+        border-style: none; }
+    table.full td {
+        border-style: solid solid solid solid ;
+        border-color: #333333 #333333 #333333 #333333 ; }
+    table.headers td, table.none td { border-style: none; }
+
+    hr { height: 1px }
+-->
+</style>
+</head>
+<body>
+<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<table summary="layout" width="66%" border="0" cellpadding="0" cellspacing="0"><tr><td><table summary="layout" width="100%" border="0" cellpadding="2" cellspacing="1">
+<tr><td class="header">Final</td><td class="header"> PubSubHubBub</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">April 13, 2009</td></tr>
+</table></td></tr></table>
+<div align="right"><span class="title"><br />PubSubHubBob Core 0.1 -- Working Draft</span></div>
+
+<h3>Abstract</h3>
+
+<p>
+        The Pubsubhubbub protocol ....
+      
+</p><a name="toc"></a><br /><hr />
+<h3>Table of Contents</h3>
+<p class="toc">
+<a href="#anchor1">1.</a>&nbsp;
+Authors<br />
+<a href="#anchor2">2.</a>&nbsp;
+Notation and Conventions<br />
+<a href="#anchor3">3.</a>&nbsp;
+Definitions<br />
+<a href="#rfc.references1">4.</a>&nbsp;
+References<br />
+<a href="#rfc.authors">&#167;</a>&nbsp;
+Author's Address<br />
+</p>
+<br clear="all" />
+
+<a name="anchor1"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.1"></a><h3>1.&nbsp;Authors</h3>
+
+<p>
+        </p>
+<blockquote class="text">
+<p>Brad Fitzpatrick (brad@danga.com)
+</p>
+<p>Brett Slatkin (bslatkin@gmail.com)
+</p>
+</blockquote><p>
+      
+</p>
+<a name="anchor2"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.2"></a><h3>2.&nbsp;Notation and Conventions</h3>
+
+<p>
+        The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+        "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+        document are to be interpreted as described in <a class="info" href="#RFC2119">[RFC2119]<span> (</span><span class="info">Bradner, B., &ldquo;Key words for use in RFCs to Indicate Requirement Levels,&rdquo; .</span><span>)</span></a>.
+        Domain name examples use <a class="info" href="#RFC2606">[RFC2606]<span> (</span><span class="info">Eastlake, D. and A. Panitz, &ldquo;Reserved Top Level DNS Names,&rdquo; .</span><span>)</span></a>.
+      
+</p>
+<a name="anchor3"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.3"></a><h3>3.&nbsp;Definitions</h3>
+
+<p>
+        </p>
+<blockquote class="text"><dl>
+<dt>Term:</dt>
+<dd>
+            Definition.
+          
+</dd>
+<dt>Term:</dt>
+<dd>
+            Definition.
+          
+</dd>
+<dt>Term:</dt>
+<dd>
+            Definition.
+          
+</dd>
+</dl></blockquote><p>
+      
+</p>
+<a name="rfc.references1"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<h3>4.&nbsp;References</h3>
+<table width="99%" border="0">
+<tr><td class="author-text" valign="top"><a name="RFC2045">[RFC2045]</a></td>
+<td class="author-text">Freed, N. and N. Borenstein, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2045.txt">Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies</a>,&rdquo; RFC&nbsp;2045.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC2119">[RFC2119]</a></td>
+<td class="author-text">Bradner, B., &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2119.txt">Key words for use in RFCs to Indicate Requirement Levels</a>,&rdquo; RFC&nbsp;2119.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC2606">[RFC2606]</a></td>
+<td class="author-text">Eastlake, D. and A. Panitz, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2606.txt">Reserved Top Level DNS Names</a>,&rdquo; RFC&nbsp;2606.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC2616">[RFC2616]</a></td>
+<td class="author-text">Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2616.txt">Hypertext Transfer Protocol -- HTTP/1.1</a>,&rdquo; RFC&nbsp;2616.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC2617">[RFC2617]</a></td>
+<td class="author-text">Franks, J., Hallam-Baker, P., Hostetler, J., Lawrence, S., Leach, P., Luotonen, A., and L. Stewart, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2617.txt">HTTP Authentication: Basic and Digest Access Authentication</a>,&rdquo; RFC&nbsp;2617.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC3629">[RFC3629]</a></td>
+<td class="author-text">Yergeau, F., &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc3629.txt">UTF-8, a transformation format of Unicode and ISO 10646</a>,&rdquo; RFC&nbsp;3629.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC3986">[RFC3986]</a></td>
+<td class="author-text">Berners-Lee, T., &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc3986.txt">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
+</table>
+
+<a name="rfc.authors"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<h3>Author's Address</h3>
+<table width="99%" border="0" cellpadding="0" cellspacing="0">
+<tr><td class="author-text">&nbsp;</td>
+<td class="author-text">PubSubHubBub Team</td></tr>
+<tr><td class="author" align="right">Email:&nbsp;</td>
+<td class="author-text"><a href="mailto:pubsubhubbub@googlegroups.com">pubsubhubbub@googlegroups.com</a></td></tr>
+</table>
+</body></html>

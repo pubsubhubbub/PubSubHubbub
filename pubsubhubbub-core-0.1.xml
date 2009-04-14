@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type='text/xsl' href='http://xml.resource.org/authoring/rfc2629.xslt' ?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd">
+
+<rfc category="info" ipr="full3978" docName="pubsubhubbub-core-0.1.xml">
+
+  <?rfc toc="yes" ?>
+  <?rfc tocdepth="2" ?>
+  <?rfc symrefs="yes" ?>
+  <?rfc sortrefs="yes"?>
+  <?rfc strict="yes" ?>
+  <?rfc iprnotified="no" ?>
+  <?rfc private="Final" ?>
+
+  <front>
+    <title>PubSubHubBob Core 0.1 -- Working Draft</title>
+
+    <author initials="" surname="PubSubHubBub" fullname="PubSubHubBub Team">
+      <organization />
+      <address>
+        <email>pubsubhubbub@googlegroups.com</email>
+      </address>
+    </author>
+
+    <date day="13" month="April" year="2009"/>
+
+    <abstract>
+      <t>
+        The Pubsubhubbub protocol ....
+      </t>
+    </abstract>
+
+  </front>
+  <middle>
+
+    <section title="Authors">
+      <t>
+        <list style='empty'>
+          <t>Brad Fitzpatrick (brad@danga.com)</t>
+          <t>Brett Slatkin (bslatkin@gmail.com)</t>
+        </list>
+      </t>
+    </section>
+
+    <section title="Notation and Conventions">
+      <t>
+        The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+        "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+        document are to be interpreted as described in <xref target="RFC2119" />.
+        Domain name examples use <xref target="RFC2606" />.
+      </t>
+    </section>
+
+    <section title="Definitions">
+      <t>
+        <list style="hanging">
+          <t hangText="Term:">
+            Definition.
+          </t>
+          <t hangText="Term:">
+            Definition.
+          </t>
+          <t hangText="Term:">
+            Definition.
+          </t>
+        </list>
+      </t>
+    </section>
+
+  </middle>
+  <back>
+
+    <references title="References">
+
+      <reference anchor="RFC2606">
+        <front>
+          <title>Reserved Top Level DNS Names</title>
+          <author initials="D.E" surname="Eastlake" fullname="D. Eastlake">
+            <organization></organization>
+          </author>
+          <author initials="A.P" surname="Panitz" fullname="A. Panitz">
+            <organization></organization>
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="2606" />
+      </reference>
+
+      <reference anchor="RFC2119">
+        <front>
+          <title>
+            Key words for use in RFCs to Indicate Requirement Levels
+          </title>
+          <author initials="B.S" surname="Bradner" fullname="Scott Bradner">
+            <organization>Alis Technologies</organization>
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="2119" />
+      </reference>
+
+      <reference anchor="RFC2616">
+        <front>
+          <title>Hypertext Transfer Protocol -- HTTP/1.1</title>
+          <author initials="R.F" surname="Fielding" fullname="R. Fielding">
+            <organization>UC Irvine</organization>
+          </author>
+          <author initials="J.G" surname="Gettys" fullname="J. Gettys">
+            <organization>Compaq/W3C</organization>
+          </author>
+          <author initials="J.M" surname="Mogul" fullname="J. Mogul">
+            <organization>Compaq</organization>
+          </author>
+          <author initials="H.F" surname="Frystyk" fullname="H. Frystyk">
+            <organization>W3C/MIT</organization>
+          </author>
+          <author initials="L.M" surname="Masinter" fullname="L. Masinter">
+            <organization>Xerox</organization>
+          </author>
+          <author initials="P.L" surname="Leach" fullname="P. Leach">
+            <organization>Microsoft</organization>
+          </author>
+          <author initials="T.L" surname="Berners-Lee" fullname="T. Berners-Lee">
+            <organization>W3C/MIT</organization>
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="2616" />
+      </reference>
+
+      <reference anchor="RFC2617">
+        <front>
+          <title>
+            HTTP Authentication: Basic and Digest Access Authentication
+          </title>
+          <author initials="J.F" surname="Franks" fullname="J. Franks">
+            <organization />
+          </author>
+          <author initials="P.HB" surname="Hallam-Baker" fullname="P. Hallam-Baker">
+            <organization />
+          </author>
+          <author initials="J.H" surname="Hostetler" fullname="J. Hostetler">
+            <organization />
+          </author>
+          <author initials="S.L" surname="Lawrence" fullname="S. Lawrence">
+            <organization />
+          </author>
+          <author initials="P.L" surname="Leach" fullname="P. Leach">
+            <organization />
+          </author>
+          <author initials="A.L" surname="Luotonen" fullname="A. Luotonen">
+            <organization />
+          </author>
+          <author initials="L.S" surname="Stewart" fullname="L. Stewart">
+            <organization />
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="2617" />
+      </reference>
+
+      <reference anchor="RFC3629">
+        <front>
+          <title>
+            UTF-8, a transformation format of Unicode and ISO 10646
+          </title>
+          <author initials="F.Y" surname="Yergeau" fullname="Francois Yergeau">
+            <organization />
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="3629" />
+      </reference>
+
+      <reference anchor="RFC3986">
+        <front>
+          <title>Uniform Resource Identifiers (URI): Generic Syntax</title>
+          <author initials="T.L" surname="Berners-Lee" fullname="T. Berners-Lee">
+            <organization />
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="3986" />
+      </reference>
+
+      <reference anchor="RFC2045">
+        <front>
+          <title>Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies</title>
+          <author initials="N.F" surname="Freed" fullname="N. Freed">
+            <organization>Innosoft</organization>
+          </author>
+          <author initials="N.B" surname="Borenstein" fullname="N. Borenstein">
+            <organization>First Virtual</organization>
+          </author>
+        </front>
+        <seriesInfo name="RFC" value="2045" />
+      </reference>
+
+    </references>
+  </back>
+
+</rfc>
