@@ -38,7 +38,32 @@
 
     <abstract>
       <t>
-        The Pubsubhubbub protocol .... abstract abstract abstract abstract abstract abstract abstract abstract.
+        An open, simple web-scale pubsub protocol, along with an open
+        source reference implentation targetting Google App Engine.
+        Notably, however, nothing in the protocol is centralized, or
+        Google- or App Engine-specific.  Anybody can play.
+      </t>
+      <t>
+	As opposed to more developed (and more complex) pubsub specs
+	like XEP-0060, this spec's base profile (the barrier-to-entry
+	to speak it) is dead simple.  The fancy bits required for
+	high-volume publishers and subscribers are optional.  The base
+	profile is HTTP-based, as opposed to XMPP (see more on this
+	below).
+      </t>
+      <t>
+	To dramatically simplify the spec in several places where we had to
+	choose between supporting A or B, we took it upon ourselves to say
+	"only A", rather than making it an implementation decision.
+      </t>
+      <t>
+	We offer this spec in hopes that it fills a need or at least advances
+	the state of the discussion in the pubsub space.  Polling sucks.  We
+	think a decentralized pubsub layer is a fundamental, missing layer in
+	the Internet architecture today and its existence, more than just
+	enabling the obvious lower latency feed readers, would enable many
+	cool applications, most of which we can't even imagine.  But we're
+	looking forward to decentralized social networking.
       </t>
     </abstract>
 
@@ -66,15 +91,64 @@
     <section title="Definitions">
       <t>
         <list style="hanging">
-          <t hangText="Term:">
-            Definition.
+          <t hangText="Topic:">
+            an Atom feed URL.  The unit to which one can subscribe to
+	    changes.  RSS isn't supported for simplicity.  Further, the spec
+	    currently only addresses public (unauthenticated) Atom feed URLs.
           </t>
-          <t hangText="Term:">
-            Definition.
+          <t hangText="Pubsub Hub (&quot;the hub&quot;):">
+	    the server (URL) which implements both sides of this
+	    protocol.  We're currently implementing this and running
+	    at server at http://pubsubhubbub.appspot.com/ that's at
+	    least for now open for anybody to use, as either a
+	    publisher or subscriber.  Any hub is free to implement its
+	    own policies on who can use it.
           </t>
-          <t hangText="Term:">
-            Definition.
+          <t hangText="Publisher:">
+            an owner of a topic.  Notifies the pubsub hub when the
+	    topic (Atom feed) has been updated.  Just notifies that it
+	    _has_ been updated, but not how.  As in almost all pubsub
+	    systems, the publisher is unaware of the subscribers, if
+	    any.  Other pubsub systems might call the publisher the
+	    "source".
           </t>
+	  <t hangText="Subscriber:">
+	    an entity (person or program) that wants to be notified of
+	    changed on a topic.  The subscriber can be directly
+	    network-accessible or behind a NAT.
+	  </t>
+	  <t hangText="Subscription:">
+	    a tuple (Topic URL, Subscriber).  For network-accessible
+	    subscribers, the subscription's unique key is actually the
+	    tuple (Topic URL, Subscriber Callback URL).  For NAT'd
+	    subscribers, the unique key for a subscription is (Topic
+	    URL, SubscriberToken).  In both cases, subscriptions may
+	    (at the hub's decision) have expiration times akin to DHCP
+	    leases and then must be renewed.
+	  </t>
+	  <t hangText="Event:">
+	    an event that's visible to multiple topics.  For each
+	    event that happens (e.g. "Brad posted to the Linux
+	    Community."), multiple topics could be affected
+	    (e.g. "Brad posted." and "Linux community has new post").
+	    Publisher events update topics, and the hub looks up all
+	    subscriptions for all affected topics, sending out
+	    notifications to subscribers.
+	  </t>
+	  <t hangText="Notification:">
+	    a delta on a topic, computed by the hub and sent to all
+	    subscribers.  (TBD: format of this delta.  likely: an Atom
+	    feed itself with just the new or changed stuff, and
+	    gravestones for removed items?)  The notification can be
+	    the result of a publisher telling the hub of an update, or
+	    the hub proactively polling a topic feed, perhaps for a
+	    subscriber subscribing to a topic that's not pubsub-aware.
+	    Note also that a notification to a subscriber can be a
+	    payload consisting of updates for multiple topics.
+	    Publishers MAY choose to send multi-topic notifications as
+	    an optimization for heavy subscribers, but subscribers
+	    MUST understand them.
+	  </t>
         </list>
       </t>
     </section>
