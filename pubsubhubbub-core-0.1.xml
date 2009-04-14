@@ -25,9 +25,9 @@
   <?rfc private="Final" ?>
 
   <front>
-    <title>PubSubHubBub Core 0.1 -- Working Draft</title>
+    <title>PubSubHubbub Core 0.1 -- Working Draft</title>
 
-    <author initials="" surname="PubSubHubBub" fullname="PubSubHubBub Team">
+    <author initials="" surname="PubSubHubbub" fullname="PubSubHubbub Team">
       <organization />
       <address>
         <email>pubsubhubbub@googlegroups.com</email>
