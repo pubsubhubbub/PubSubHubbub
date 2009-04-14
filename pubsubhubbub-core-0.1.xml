@@ -2,6 +2,18 @@
 <?xml-stylesheet type='text/xsl' href='http://xml.resource.org/authoring/rfc2629.xslt' ?>
 <!DOCTYPE rfc SYSTEM "rfc2629.dtd">
 
+<!--
+  For editting this, see:
+
+  http://xml.resource.org/public/rfc/html/rfc2629.html
+
+  In a nutshell,
+
+  $ sudo apt-get install xml2rfc
+  $ xml2rfc pubsubhubbub-core-0.1.xml pubsubhubbub-core-0.1.html
+
+-->
+
 <rfc category="info" ipr="full3978" docName="pubsubhubbub-core-0.1.xml">
 
   <?rfc toc="yes" ?>
@@ -13,7 +25,7 @@
   <?rfc private="Final" ?>
 
   <front>
-    <title>PubSubHubBob Core 0.1 -- Working Draft</title>
+    <title>PubSubHubBub Core 0.1 -- Working Draft</title>
 
     <author initials="" surname="PubSubHubBub" fullname="PubSubHubBub Team">
       <organization />
@@ -26,7 +38,7 @@
 
     <abstract>
       <t>
-        The Pubsubhubbub protocol ....
+        The Pubsubhubbub protocol .... abstract abstract abstract abstract abstract abstract abstract abstract.
       </t>
     </abstract>
 
