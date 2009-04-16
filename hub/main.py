@@ -181,7 +181,7 @@ def query_and_own(model_class, gql_query, lease_period,
   try_lock_map = dict((k, 'owned') for k in work_map)
   not_set_keys = set(memcache.add_multi(try_lock_map, time=lease_period))
   if len(not_set_keys) == len(try_lock_map):
-    logging.warning(
+    logging.debug(
         'Conflict; failed to acquire any locks for model %s. Tried: %s',
         model_class.kind(), not_set_keys)
   
