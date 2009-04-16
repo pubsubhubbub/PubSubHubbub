@@ -1041,6 +1041,9 @@ class SubscribeHandler(webapp.RequestHandler):
       error_message = 'Invalid value for hub.mode: %s' % mode
 
     if error_message:
+      logging.info('Bad request for mode = %s, topic = %s, '
+                   'callback = %s, verify_token = %s: %s',
+                   mode, topic, callback, verify_token, error_message)
       self.response.out.write(error_message)
       return self.response.set_status(500)
 
