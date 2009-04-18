@@ -328,7 +328,12 @@
     </section>
 
     <section title="Publishing">
-      <t></t>
+      <t>
+	TODO.  (this section hasn't been moved from the text file to XML yet)
+      </t>
+      <t>
+	For now, see <eref target="http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt">the original design document</eref> text file.
+      </t>
     </section>
   </middle>
 
