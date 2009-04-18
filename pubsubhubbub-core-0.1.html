@@ -1,317 +1,550 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Final: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Tue, 14 Apr 2009 16:23:24 +0000">
+<meta http-equiv="Expires" content="Sat, 18 Apr 2009 15:57:52 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
-<meta name="generator" content="xml2rfc v1.30 (http://xml.resource.org/)">
-<style type='text/css'>
-<!--
-    body {
-        font-family: verdana, charcoal, helvetica, arial, sans-serif;
-        margin: 2em;
-        font-size: small ; color: #000000 ; background-color: #ffffff ; }
-    .title { color: #990000; font-size: x-large ;
-        font-weight: bold; text-align: right;
-        font-family: helvetica, monaco, "MS Sans Serif", arial, sans-serif;
-        background-color: transparent; }
-    .filename { color: #666666; font-size: 18px; line-height: 28px;
-        font-weight: bold; text-align: right;
-        font-family: helvetica, arial, sans-serif;
-        background-color: transparent; }
-    td.rfcbug { background-color: #000000 ; width: 30px ; height: 30px ;
-        text-align: justify; vertical-align: middle ; padding-top: 2px ; }
-    td.rfcbug span.RFC { color: #666666; font-weight: bold; text-decoration: none;
-        background-color: #000000 ;
-        font-family: monaco, charcoal, geneva, "MS Sans Serif", helvetica, verdana, sans-serif;
-        font-size: x-small ; }
-    td.rfcbug span.hotText { color: #ffffff; font-weight: normal; text-decoration: none;
-        text-align: center ;
-        font-family: charcoal, monaco, geneva, "MS Sans Serif", helvetica, verdana, sans-serif;
-        font-size: x-small ; background-color: #000000; }
-    /* info code from SantaKlauss at http://www.madaboutstyle.com/tooltip2.html */
-    div#counter{margin-top: 100px}
+<meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
+<style type='text/css'><!--
+        body {
+                font-family: verdana, charcoal, helvetica, arial, sans-serif;
+                font-size: small; color: #000; background-color: #FFF;
+                margin: 2em;
+        }
+        h1, h2, h3, h4, h5, h6 {
+                font-family: helvetica, monaco, "MS Sans Serif", arial, sans-serif;
+                font-weight: bold; font-style: normal;
+        }
+        h1 { color: #900; background-color: transparent; text-align: right; }
+        h3 { color: #333; background-color: transparent; }
 
-    a.info{
-        position:relative; /*this is the key*/
-        z-index:24;
-        text-decoration:none}
-
-    a.info:hover{z-index:25; background-color:#990000 ; color: #ffffff ;}
-
-    a.info span{display: none}
-
-    a.info:hover span.info{ /*the span will display just on :hover state*/
-        display:block;
-        position:absolute;
-        font-size: smaller ;
-        top:2em; left:2em; width:15em;
-        padding: 2px ;
-        border:1px solid #333333;
-        background-color:#eeeeee; color:#990000;
-        text-align: left ;}
-
-     A { font-weight: bold; }
-     A:link { color: #990000; background-color: transparent ; }
-     A:visited { color: #333333; background-color: transparent ; }
-     A:active { color: #333333; background-color: transparent ; }
-
-    p { margin-left: 2em; margin-right: 2em; }
-    p.copyright { font-size: x-small ; }
-    p.toc { font-size: small ; font-weight: bold ; margin-left: 3em ;}
-    table.toc { margin: 0 0 0 3em; padding: 0; border: 0; vertical-align: text-top; }
-    td.toc { font-size: small; font-weight: bold; vertical-align: text-top; }
-
-    span.emph { font-style: italic; }
-    span.strong { font-weight: bold; }
-    span.verb, span.vbare { font-family: "Courier New", Courier, monospace ; }
-
-    span.vemph { font-style: italic; font-family: "Courier New", Courier, monospace ; }
-    span.vstrong { font-weight: bold; font-family: "Courier New", Courier, monospace ; }
-    span.vdeluxe { font-weight: bold; font-style: italic; font-family: "Courier New", Courier, monospace ; }
-
-    ol.text { margin-left: 2em; margin-right: 2em; }
-    ul.text { margin-left: 2em; margin-right: 2em; }
-    li { margin-left: 3em;  }
-
-    pre { margin-left: 3em; color: #333333;  background-color: transparent;
-        font-family: "Courier New", Courier, monospace ; font-size: small ;
-        text-align: left;
+        td.RFCbug {
+                font-size: x-small; text-decoration: none;
+                width: 30px; height: 30px; padding-top: 2px;
+                text-align: justify; vertical-align: middle;
+                background-color: #000;
+        }
+        td.RFCbug span.RFC {
+                font-family: monaco, charcoal, geneva, "MS Sans Serif", helvetica, verdana, sans-serif;
+                font-weight: bold; color: #666;
+        }
+        td.RFCbug span.hotText {
+                font-family: charcoal, monaco, geneva, "MS Sans Serif", helvetica, verdana, sans-serif;
+                font-weight: normal; text-align: center; color: #FFF;
         }
 
-    h3 { color: #333333; font-size: medium ;
-        font-family: helvetica, arial, sans-serif ;
-        background-color: transparent; }
-    h4 { font-size: small; font-family: helvetica, arial, sans-serif ; }
+        table.TOCbug { width: 30px; height: 15px; }
+        td.TOCbug {
+                text-align: center; width: 30px; height: 15px;
+                color: #FFF; background-color: #900;
+        }
+        td.TOCbug a {
+                font-family: monaco, charcoal, geneva, "MS Sans Serif", helvetica, sans-serif;
+                font-weight: bold; font-size: x-small; text-decoration: none;
+                color: #FFF; background-color: transparent;
+        }
 
-    table.bug { width: 30px ; height: 15px ; }
-    td.bug { color: #ffffff ; background-color: #990000 ;
-        text-align: center ; width: 30px ; height: 15px ;
-         }
-    td.bug A.link2 { color: #ffffff ; font-weight: bold;
-        text-decoration: none;
-        font-family: monaco, charcoal, geneva, "MS Sans Serif", helvetica, sans-serif;
-        font-size: x-small ; background-color: transparent }
+        td.header {
+                font-family: arial, helvetica, sans-serif; font-size: x-small;
+                vertical-align: top; width: 33%;
+                color: #FFF; background-color: #666;
+        }
+        td.author { font-weight: bold; font-size: x-small; margin-left: 4em; }
+        td.author-text { font-size: x-small; }
 
-    td.header { color: #ffffff; font-size: x-small ;
-        font-family: arial, helvetica, sans-serif; vertical-align: top;
-        background-color: #666666 ; width: 33% ; }
-    td.author { font-weight: bold; margin-left: 4em; font-size: x-small ; }
-    td.author-text { font-size: x-small; }
-    table.full { vertical-align: top ; border-collapse: collapse ;
-        border-style: solid solid solid solid ;
-        border-color: black black black black ;
-        font-size: small ; text-align: center ; }
-    table.headers, table.none { vertical-align: top ; border-collapse: collapse ;
-        border-style: none;
-        font-size: small ; text-align: center ; }
-    table.full th { font-weight: bold ;
-        border-style: solid ;
-        border-color: black black black black ; }
-    table.headers th { font-weight: bold ;
-        border-style: none none solid none;
-        border-color: black black black black ; }
-    table.none th { font-weight: bold ;
-        border-style: none; }
-    table.full td {
-        border-style: solid solid solid solid ;
-        border-color: #333333 #333333 #333333 #333333 ; }
-    table.headers td, table.none td { border-style: none; }
+        /* info code from SantaKlauss at http://www.madaboutstyle.com/tooltip2.html */
+        a.info {
+                /* This is the key. */
+                position: relative;
+                z-index: 24;
+                text-decoration: none;
+        }
+        a.info:hover {
+                z-index: 25;
+                color: #FFF; background-color: #900;
+        }
+        a.info span { display: none; }
+        a.info:hover span.info {
+                /* The span will display just on :hover state. */
+                display: block;
+                position: absolute;
+                font-size: smaller;
+                top: 2em; left: -5em; width: 15em;
+                padding: 2px; border: 1px solid #333;
+                color: #900; background-color: #EEE;
+                text-align: left;
+        }
 
-    hr { height: 1px }
--->
-</style>
+        a { font-weight: bold; }
+        a:link    { color: #900; background-color: transparent; }
+        a:visited { color: #633; background-color: transparent; }
+        a:active  { color: #633; background-color: transparent; }
+
+        p { margin-left: 2em; margin-right: 2em; }
+        p.copyright { font-size: x-small; }
+        p.toc { font-size: small; font-weight: bold; margin-left: 3em; }
+        table.toc { margin: 0 0 0 3em; padding: 0; border: 0; vertical-align: text-top; }
+        td.toc { font-size: small; font-weight: bold; vertical-align: text-top; }
+
+        ol.text { margin-left: 2em; margin-right: 2em; }
+        ul.text { margin-left: 2em; margin-right: 2em; }
+        li      { margin-left: 3em; }
+
+        /* RFC-2629 <spanx>s and <artwork>s. */
+        em     { font-style: italic; }
+        strong { font-weight: bold; }
+        dfn    { font-weight: bold; font-style: normal; }
+        cite   { font-weight: normal; font-style: normal; }
+        tt     { color: #036; }
+        tt, pre, pre dfn, pre em, pre cite, pre span {
+                font-family: "Courier New", Courier, monospace; font-size: small;
+        }
+        pre {
+                text-align: left; padding: 4px;
+                color: #000; background-color: #CCC;
+        }
+        pre dfn  { color: #900; }
+        pre em   { color: #66F; background-color: #FFC; font-weight: normal; }
+        pre .key { color: #33C; font-weight: bold; }
+        pre .id  { color: #900; }
+        pre .str { color: #000; background-color: #CFF; }
+        pre .val { color: #066; }
+        pre .rep { color: #909; }
+        pre .oth { color: #000; background-color: #FCF; }
+        pre .err { background-color: #FCC; }
+
+        /* RFC-2629 <texttable>s. */
+        table.all, table.full, table.headers, table.none {
+                font-size: small; text-align: center; border-width: 2px;
+                vertical-align: top; border-collapse: collapse;
+        }
+        table.all, table.full { border-style: solid; border-color: black; }
+        table.headers, table.none { border-style: none; }
+        th {
+                font-weight: bold; border-color: black;
+                border-width: 2px 2px 3px 2px;
+        }
+        table.all th, table.full th { border-style: solid; }
+        table.headers th { border-style: none none solid none; }
+        table.none th { border-style: none; }
+        table.all td {
+                border-style: solid; border-color: #333;
+                border-width: 1px 2px;
+        }
+        table.full td, table.headers td, table.none td { border-style: none; }
+
+        hr { height: 1px; }
+        hr.insert {
+                width: 80%; border-style: none; border-width: 0;
+                color: #CCC; background-color: #CCC;
+        }
+--></style>
 </head>
 <body>
-<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <table summary="layout" width="66%" border="0" cellpadding="0" cellspacing="0"><tr><td><table summary="layout" width="100%" border="0" cellpadding="2" cellspacing="1">
-<tr><td class="header">Final</td><td class="header"> PubSubHubbub</td></tr>
+<tr><td class="header">Final</td><td class="header">B. Fitzpatrick</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">B. Slatkin</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">Google, Inc</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">M. Atkins</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">Six Apart Ltd.</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">April 13, 2009</td></tr>
 </table></td></tr></table>
-<div align="right"><span class="title"><br />PubSubHubbub Core 0.1 -- Working Draft</span></div>
+<h1><br />PubSubHubbub Core 0.1 -- Working Draft</h1>
 
 <h3>Abstract</h3>
 
-<p>
-        An open, simple web-scale pubsub protocol, along with an open
-        source reference implentation targetting Google App Engine.
-        Notably, however, nothing in the protocol is centralized, or
-        Google- or App Engine-specific.  Anybody can play.
-      
+<p>An open, simple web-scale pubsub protocol, along with an open source
+      reference implentation targetting Google App Engine. Notably, however,
+      nothing in the protocol is centralized, or Google- or App
+      Engine-specific. Anybody can play.
 </p>
-<p>
-	As opposed to more developed (and more complex) pubsub specs
-	like XEP-0060, this spec's base profile (the barrier-to-entry
-	to speak it) is dead simple.  The fancy bits required for
-	high-volume publishers and subscribers are optional.  The base
-	profile is HTTP-based, as opposed to XMPP (see more on this
-	below).
-      
+<p>As opposed to more developed (and more complex) pubsub specs like
+      XEP-0060, this spec's base profile (the barrier-to-entry to speak it) is
+      dead simple. The fancy bits required for high-volume publishers and
+      subscribers are optional. The base profile is HTTP-based, as opposed to
+      XMPP (see more on this below).
 </p>
-<p>
-	To dramatically simplify the spec in several places where we had to
-	choose between supporting A or B, we took it upon ourselves to say
-	"only A", rather than making it an implementation decision.
-      
+<p>To dramatically simplify the spec in several places where we had to
+      choose between supporting A or B, we took it upon ourselves to say "only
+      A", rather than making it an implementation decision.
 </p>
-<p>
-	We offer this spec in hopes that it fills a need or at least advances
-	the state of the discussion in the pubsub space.  Polling sucks.  We
-	think a decentralized pubsub layer is a fundamental, missing layer in
-	the Internet architecture today and its existence, more than just
-	enabling the obvious lower latency feed readers, would enable many
-	cool applications, most of which we can't even imagine.  But we're
-	looking forward to decentralized social networking.
-      
+<p>We offer this spec in hopes that it fills a need or at least advances
+      the state of the discussion in the pubsub space. Polling sucks. We think
+      a decentralized pubsub layer is a fundamental, missing layer in the
+      Internet architecture today and its existence, more than just enabling
+      the obvious lower latency feed readers, would enable many cool
+      applications, most of which we can't even imagine. But we're looking
+      forward to decentralized social networking.
 </p><a name="toc"></a><br /><hr />
 <h3>Table of Contents</h3>
 <p class="toc">
 <a href="#anchor1">1.</a>&nbsp;
-Authors<br />
-<a href="#anchor2">2.</a>&nbsp;
 Notation and Conventions<br />
-<a href="#anchor3">3.</a>&nbsp;
+<a href="#anchor2">2.</a>&nbsp;
 Definitions<br />
-<a href="#rfc.references1">4.</a>&nbsp;
+<a href="#anchor3">3.</a>&nbsp;
+High-level protocol flow<br />
+<a href="#anchor4">4.</a>&nbsp;
+Atom Details<br />
+<a href="#anchor5">5.</a>&nbsp;
+Subscribing<br />
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">5.1.</a>&nbsp;
+Subscriber Sends Subscription Request<br />
+<a href="#anchor7">6.</a>&nbsp;
+Publishing<br />
+<a href="#rfc.references1">7.</a>&nbsp;
 References<br />
+<a href="#anchor9">Appendix&nbsp;A.</a>&nbsp;
+Specification Feedback<br />
 <a href="#rfc.authors">&#167;</a>&nbsp;
-Author's Address<br />
+Authors' Addresses<br />
 </p>
 <br clear="all" />
 
 <a name="anchor1"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.1"></a><h3>1.&nbsp;Authors</h3>
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.1"></a><h3>1.&nbsp;
+Notation and Conventions</h3>
 
-<p>
-        </p>
-<blockquote class="text">
-<p>Brad Fitzpatrick (brad@danga.com)
-</p>
-<p>Brett Slatkin (bslatkin@gmail.com)
-</p>
-</blockquote><p>
-      
+<p>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+      "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+      document are to be interpreted as described in <a class='info' href='#RFC2119'>[RFC2119]<span> (</span><span class='info'>Bradner, B., &ldquo;Key words for use in RFCs to Indicate Requirement           Levels,&rdquo; .</span><span>)</span></a>. Domain name examples use <a class='info' href='#RFC2606'>[RFC2606]<span> (</span><span class='info'>Eastlake, D. and A. Panitz, &ldquo;Reserved Top Level DNS Names,&rdquo; .</span><span>)</span></a>.
 </p>
 <a name="anchor2"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.2"></a><h3>2.&nbsp;Notation and Conventions</h3>
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.2"></a><h3>2.&nbsp;
+Definitions</h3>
 
-<p>
-        The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-        "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-        document are to be interpreted as described in <a class="info" href="#RFC2119">[RFC2119]<span> (</span><span class="info">Bradner, B., &ldquo;Key words for use in RFCs to Indicate Requirement Levels,&rdquo; .</span><span>)</span></a>.
-        Domain name examples use <a class="info" href="#RFC2606">[RFC2606]<span> (</span><span class="info">Eastlake, D. and A. Panitz, &ldquo;Reserved Top Level DNS Names,&rdquo; .</span><span>)</span></a>.
-      
-</p>
-<a name="anchor3"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.3"></a><h3>3.&nbsp;Definitions</h3>
-
-<p>
-        </p>
+<p></p>
 <blockquote class="text"><dl>
 <dt>Topic:</dt>
-<dd>
-            an Atom feed URL.  The unit to which one can subscribe to
-	    changes.  RSS isn't supported for simplicity.  Further, the spec
-	    currently only addresses public (unauthenticated) Atom feed URLs.
-          
+<dd>an Atom feed URL. The unit to which one can
+          subscribe to changes. RSS isn't supported for simplicity. Further,
+          the spec currently only addresses public (unauthenticated) Atom feed
+          URLs.
 </dd>
 <dt>Pubsub Hub (&quot;the hub&quot;):</dt>
-<dd>
-	    the server (URL) which implements both sides of this
-	    protocol.  We're currently implementing this and running
-	    at server at http://pubsubhubbub.appspot.com/ that's at
-	    least for now open for anybody to use, as either a
-	    publisher or subscriber.  Any hub is free to implement its
-	    own policies on who can use it.
-          
+<dd>the server (URL)
+          which implements both sides of this protocol. We're currently
+          implementing this and running at server at
+          http://pubsubhubbub.appspot.com/ that's at least for now open for
+          anybody to use, as either a publisher or subscriber. Any hub is free
+          to implement its own policies on who can use it.
 </dd>
 <dt>Publisher:</dt>
-<dd>
-            an owner of a topic.  Notifies the pubsub hub when the
-	    topic (Atom feed) has been updated.  Just notifies that it
-	    _has_ been updated, but not how.  As in almost all pubsub
-	    systems, the publisher is unaware of the subscribers, if
-	    any.  Other pubsub systems might call the publisher the
-	    "source".
-          
+<dd>an owner of a topic. Notifies the pubsub
+          hub when the topic (Atom feed) has been updated. Just notifies that
+          it _has_ been updated, but not how. As in almost all pubsub systems,
+          the publisher is unaware of the subscribers, if any. Other pubsub
+          systems might call the publisher the "source".
 </dd>
 <dt>Subscriber:</dt>
-<dd>
-	    an entity (person or program) that wants to be notified of
-	    changed on a topic.  The subscriber can be directly
-	    network-accessible or behind a NAT.
-	  
+<dd>an entity (person or program) that wants
+          to be notified of changed on a topic. The subscriber must be
+          directly network-accessible, and is identified by Subscriber
+          Callback URL.
 </dd>
 <dt>Subscription:</dt>
-<dd>
-	    a tuple (Topic URL, Subscriber).  For network-accessible
-	    subscribers, the subscription's unique key is actually the
-	    tuple (Topic URL, Subscriber Callback URL).  For NAT'd
-	    subscribers, the unique key for a subscription is (Topic
-	    URL, SubscriberToken).  In both cases, subscriptions may
-	    (at the hub's decision) have expiration times akin to DHCP
-	    leases and then must be renewed.
-	  
+<dd>a tuple (Topic URL, Subscriber). The
+          subscription's unique key is actually the tuple (Topic URL,
+          Subscriber Callback URL). ubscriptions may (at the hub's decision)
+          have expiration times akin to DHCP leases and then must be
+          renewed.
+</dd>
+<dt>Subscriber Callback URL:</dt>
+<dd>The URL at which a subscriber
+          wishes to recieve notifications.
 </dd>
 <dt>Event:</dt>
-<dd>
-	    an event that's visible to multiple topics.  For each
-	    event that happens (e.g. "Brad posted to the Linux
-	    Community."), multiple topics could be affected
-	    (e.g. "Brad posted." and "Linux community has new post").
-	    Publisher events update topics, and the hub looks up all
-	    subscriptions for all affected topics, sending out
-	    notifications to subscribers.
-	  
+<dd>an event that's visible to multiple topics. For
+          each event that happens (e.g. "Brad posted to the Linux
+          Community."), multiple topics could be affected (e.g. "Brad posted."
+          and "Linux community has new post"). Publisher events update topics,
+          and the hub looks up all subscriptions for all affected topics,
+          sending out notifications to subscribers.
 </dd>
 <dt>Notification:</dt>
-<dd>
-	    a delta on a topic, computed by the hub and sent to all
-	    subscribers.  (TBD: format of this delta.  likely: an Atom
-	    feed itself with just the new or changed stuff, and
-	    gravestones for removed items?)  The notification can be
-	    the result of a publisher telling the hub of an update, or
-	    the hub proactively polling a topic feed, perhaps for a
-	    subscriber subscribing to a topic that's not pubsub-aware.
-	    Note also that a notification to a subscriber can be a
-	    payload consisting of updates for multiple topics.
-	    Publishers MAY choose to send multi-topic notifications as
-	    an optimization for heavy subscribers, but subscribers
-	    MUST understand them.
-	  
+<dd>a delta on a topic, computed by the hub
+          and sent to all subscribers. (TBD: format of this delta. likely: an
+          Atom feed itself with just the new or changed stuff, and gravestones
+          for removed items?) The notification can be the result of a
+          publisher telling the hub of an update, or the hub proactively
+          polling a topic feed, perhaps for a subscriber subscribing to a
+          topic that's not pubsub-aware. Note also that a notification to a
+          subscriber can be a payload consisting of updates for multiple
+          topics. Publishers MAY choose to send multi-topic notifications as
+          an optimization for heavy subscribers, but subscribers MUST
+          understand them.
 </dd>
-</dl></blockquote><p>
-      
+</dl></blockquote>
+
+<a name="anchor3"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.3"></a><h3>3.&nbsp;
+High-level protocol flow</h3>
+
+<p>(This section is non-normative.)
+</p>
+<p></p>
+<ul class="text">
+<li>Publishers POST a ping to their hub(s) URLs when their topic(s)
+          change.
+</li>
+<li>Subscribers POST to one or more of the advertised hubs for a
+          topic they're interested in. Alternatively, some hubs may offer
+          auto-polling capability, to let {their,any} subscribers subscribe to
+          topics which don't advertise a hub.
+</li>
+<li>The hub caches minimal metadata (id, data, entry digest) about
+          each topic's previous state. When the hub refetches a topic feed (on
+          its own initiative or as a result of a publisher's ping) and finds a
+          delta, it enqueues a notification to all registered subscribers.
+          Subscribers can be notified of topic deltas in a variety of
+          ways:
+</li>
+</ul>
+
+<a name="anchor4"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.4"></a><h3>4.&nbsp;
+Atom Details</h3>
+
+<p>Notification and source formats will be Atom. More detail follows
+      this example.
+</p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>  &lt;atom:feed&gt;
+    # ... source, title, etc ...
+
+    &lt;link rel="hub.subscribe" href="http://myhub.com/subscribe" /&gt;
+    &lt;link rel="self" href="http://publisher.com/happycats.xml" /&gt;
+    &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
+
+    # Example of a full entry.
+    &lt;entry&gt;
+      &lt;title&gt;Heathcliff&lt;/title&gt;
+      &lt;link href="http://publisher.com/happycat25.xml" /&gt;
+      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
+      &lt;content&gt;
+        What a happy cat. Full content goes here.
+      &lt;/content&gt;
+    &lt;/entry&gt;
+
+    # Example of an entity that isn't full/is truncated. This is implied
+    # by the lack of a &lt;content&gt; element and a &lt;summary&gt; element instead.
+    &lt;entry &gt;
+      &lt;title&gt;Heathcliff&lt;/title&gt;
+      &lt;link href="http://publisher.com/happycat25.xml" /&gt;
+      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
+      &lt;summary&gt;
+        What a happy cat!
+      &lt;/summary&gt;
+    &lt;/entry&gt;
+
+    # Meta-data only; implied by the lack of &lt;content&gt; and &lt;summary&gt; elements.
+    &lt;entry&gt;
+      &lt;title&gt;Garfield&lt;/title&gt;
+      &lt;link rel="alternate" href="http://publisher.com/happycat24.xml" /&gt;
+      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
+    &lt;/entry&gt;
+
+    # Context entry that's meta-data only and not new. Implied because the
+    # update time on this entry is before the //atom:feed/updated time.
+    &lt;entry&gt;
+      &lt;title&gt;Nermal&lt;/title&gt;
+      &lt;link rel="alternate" href="http://publisher.com/happycat23s.xml" /&gt;
+      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;updated&gt;2008-07-10T12:28:13Z&lt;/updated&gt;
+    &lt;/entry&gt;
+
+  &lt;/atom:feed&gt;
+</pre></div>
+<p>Publisher makes the decision as to include full body, truncated body,
+      or meta data of most recent event(s). One of:
+</p>
+<p></p>
+<ul class="text">
+<li>URL + metadata
+</li>
+<li>URL + metadata + truncated
+</li>
+<li>URL + metadata + full
+</li>
+</ul>
+
+<p>The trade-off between including all content in outgoing notifications
+      or having the thundering herd (by clients who fetch the
+      //atom:feed/entry/link in response to a notification) is up to the
+      publisher.
+</p>
+<p>Entries of most recent 10 events (for recipient to know whether or
+      not they'd missed any recent items... like TCP SACK) will be provided as
+      context. This is implied by the difference between the
+      //atom:feed/updated field and the //atom:feed/entry/updated fields. The
+      //atom:feed/updated field will be set to the time of the *oldest*
+      &lt;entry&gt; in the list that is new. All &lt;entry&gt; items with
+      &lt;updated&gt; times before then are context; all with times equal to
+      or after are new. This also lets subscribers know how long it has been
+      from when the notification was first sent by the publisher to when they
+      actually received it from the hub.
+</p>
+<p>The //atom:feed/link[@rel="self"] element will indicate the original
+      URL for the entire event stream with no truncation (if available).
+</p>
+<p>The //atom:feed/link[@rel="hub.delegate"] element indicates the URL
+      that the hub should use for retrieving new notifications from a
+      publisher. The publisher can make this delegate URL contain a meta-data
+      only or truncated view of the feed. If a hub.delegate is not provided,
+      then the 'self' URL is used as both the source of notifications and the
+      source for the topic URL feed.
+</p>
+<p>Topic URLs must be unique, but multiple topics may use the same
+      hub.delegate. In this situation, the delegate URL may serve a
+      &lt;OLD_INFO&gt;MIME multipart response, each part of which will contain
+      a separate Atom document for an individual topic&lt;/OLD_INFO&gt;. The
+      hub must understand this delegation. Once it has fetched the topic URL
+      once to see this delegation is present, it will use the delegation url
+      to pull the feed. This allows the publisher to be more efficient at
+      publishing across many topics at once with a single fetch from the
+      hub.
+</p>
+<p>TODO: How do you indicate to the hub that you no longer want to have
+      a delegate URL?
+</p>
+<p>Requirement is that topic URLs and delegate URLs can never
+      overlap!
+</p>
+<a name="anchor5"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.5"></a><h3>5.&nbsp;
+Subscribing</h3>
+
+<p>
+</p>
+<a name="anchor6"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.5.1"></a><h3>5.1.&nbsp;
+Subscriber Sends Subscription Request</h3>
+
+<p>Subscription is initiated by the subscriber making a POST request
+        to the Hub URL. This request has a Content-type of <tt>application/x-www-form-urlencoded</tt> and the
+        following parameters in its body:
+</p>
+<p></p>
+<blockquote class="text"><dl>
+<dt>hub.mode</dt>
+<dd>REQUIRED. The literal string
+            "subscribe"
+</dd>
+<dt>hub.callback</dt>
+<dd>REQUIRED. The subscriber's callback
+            URL.
+</dd>
+<dt>hub.topic</dt>
+<dd>REQUIRED. The topic URL that the
+            subscriber wishes to subscribe to.
+</dd>
+<dt>hub.verify</dt>
+<dd>REQUIRED. Comma-separated list of
+            keywords describing verification modes supported by this
+            subscriber, as described below.
+</dd>
+<dt>hub.verify_token</dt>
+<dd>A subscriber-provided opaque token
+            that will be echoed back in the verification request to assist the
+            subscriber in identifying which subscription request is being
+            verified. If this is not included, no token will be included in
+            the verification request.
+</dd>
+</dl></blockquote>
+
+<p>The following keywords are supported for hub.verify:
+</p>
+<p></p>
+<blockquote class="text"><dl>
+<dt>sync</dt>
+<dd>The subscriber supports synchronous
+            verification, where the verification request must occur before the
+            subscription request returns.
+</dd>
+<dt>async</dt>
+<dd>The subscriber supports asynchronous
+            verification, where the verification request may occur at a later
+            point after the subscription request has returned.
+</dd>
+</dl></blockquote>
+
+<p>Where multiple keywords are used, their order indicates the
+        subscriber's order of preference. Hubs MUST ignore verify mode
+        keywords that they do not understand. Subscribers MUST use at least
+        one of the modes indicated in the list above, but MAY include
+        additional keywords defined by extension specifications.
+</p>
+<a name="anchor7"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.6"></a><h3>6.&nbsp;
+Publishing</h3>
+
+<p>
 </p>
 <a name="rfc.references1"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
-<h3>4.&nbsp;References</h3>
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<h3>7.&nbsp;References</h3>
 <table width="99%" border="0">
 <tr><td class="author-text" valign="top"><a name="RFC2045">[RFC2045]</a></td>
-<td class="author-text">Freed, N. and N. Borenstein, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2045.txt">Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies</a>,&rdquo; RFC&nbsp;2045.</td></tr>
+<td class="author-text">Freed, N. and N. Borenstein, &ldquo;<a href="http://tools.ietf.org/html/rfc2045">Multipurpose Internet Mail Extensions (MIME) Part One: Format
+          of Internet Message Bodies</a>,&rdquo; RFC&nbsp;2045.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC2119">[RFC2119]</a></td>
-<td class="author-text">Bradner, B., &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2119.txt">Key words for use in RFCs to Indicate Requirement Levels</a>,&rdquo; RFC&nbsp;2119.</td></tr>
+<td class="author-text">Bradner, B., &ldquo;<a href="http://tools.ietf.org/html/rfc2119">Key words for use in RFCs to Indicate Requirement
+          Levels</a>,&rdquo; RFC&nbsp;2119.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC2606">[RFC2606]</a></td>
-<td class="author-text">Eastlake, D. and A. Panitz, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2606.txt">Reserved Top Level DNS Names</a>,&rdquo; RFC&nbsp;2606.</td></tr>
+<td class="author-text">Eastlake, D. and A. Panitz, &ldquo;<a href="http://tools.ietf.org/html/rfc2606">Reserved Top Level DNS Names</a>,&rdquo; RFC&nbsp;2606.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC2616">[RFC2616]</a></td>
-<td class="author-text">Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2616.txt">Hypertext Transfer Protocol -- HTTP/1.1</a>,&rdquo; RFC&nbsp;2616.</td></tr>
+<td class="author-text">Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;<a href="http://tools.ietf.org/html/rfc2616">Hypertext Transfer Protocol -- HTTP/1.1</a>,&rdquo; RFC&nbsp;2616.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC2617">[RFC2617]</a></td>
-<td class="author-text">Franks, J., Hallam-Baker, P., Hostetler, J., Lawrence, S., Leach, P., Luotonen, A., and L. Stewart, &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc2617.txt">HTTP Authentication: Basic and Digest Access Authentication</a>,&rdquo; RFC&nbsp;2617.</td></tr>
+<td class="author-text">Franks, J., Hallam-Baker, P., Hostetler, J., Lawrence, S., Leach, P., Luotonen, A., and L. Stewart, &ldquo;<a href="http://tools.ietf.org/html/rfc2617">HTTP Authentication: Basic and Digest Access
+          Authentication</a>,&rdquo; RFC&nbsp;2617.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC3629">[RFC3629]</a></td>
-<td class="author-text">Yergeau, F., &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc3629.txt">UTF-8, a transformation format of Unicode and ISO 10646</a>,&rdquo; RFC&nbsp;3629.</td></tr>
+<td class="author-text">Yergeau, F., &ldquo;<a href="http://tools.ietf.org/html/rfc3629">UTF-8, a transformation format of Unicode and ISO
+          10646</a>,&rdquo; RFC&nbsp;3629.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC3986">[RFC3986]</a></td>
-<td class="author-text">Berners-Lee, T., &ldquo;<a href="ftp://ftp.isi.edu/in-notes/rfc3986.txt">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
+<td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
 </table>
 
+<a name="anchor9"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.A"></a><h3>Appendix A.&nbsp;
+Specification Feedback</h3>
+
+<p>Feedback on this specification is welcomed via the pubsubhubbub
+      mailing list, pubsubhubbub@googlegroups.com. For more information, see
+      <a href='http://pubsubhubbub.googlegroups.com/'>the PubSubHubbub
+      group on Google Groups</a>.
+</p>
 <a name="rfc.authors"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="bug" align="right"><tr><td class="bug"><a href="#toc" class="link2">&nbsp;TOC&nbsp;</a></td></tr></table>
-<h3>Author's Address</h3>
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<h3>Authors' Addresses</h3>
 <table width="99%" border="0" cellpadding="0" cellspacing="0">
 <tr><td class="author-text">&nbsp;</td>
-<td class="author-text">PubSubHubbub Team</td></tr>
+<td class="author-text">Brad Fitzpatrick</td></tr>
+<tr><td class="author-text">&nbsp;</td>
+<td class="author-text">Google, Inc</td></tr>
 <tr><td class="author" align="right">Email:&nbsp;</td>
-<td class="author-text"><a href="mailto:pubsubhubbub@googlegroups.com">pubsubhubbub@googlegroups.com</a></td></tr>
+<td class="author-text"><a href="mailto:brad@danga.com">brad@danga.com</a></td></tr>
+<tr cellpadding="3"><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td class="author-text">&nbsp;</td>
+<td class="author-text">Brett Slatkin</td></tr>
+<tr><td class="author-text">&nbsp;</td>
+<td class="author-text">Google, Inc</td></tr>
+<tr><td class="author" align="right">Email:&nbsp;</td>
+<td class="author-text"><a href="mailto:bslatkin@gmail.com">bslatkin@gmail.com</a></td></tr>
+<tr cellpadding="3"><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td class="author-text">&nbsp;</td>
+<td class="author-text">Martin Atkins</td></tr>
+<tr><td class="author-text">&nbsp;</td>
+<td class="author-text">Six Apart Ltd.</td></tr>
+<tr><td class="author" align="right">Email:&nbsp;</td>
+<td class="author-text"><a href="mailto:mart@degeneration.co.uk">mart@degeneration.co.uk</a></td></tr>
 </table>
 </body></html>
