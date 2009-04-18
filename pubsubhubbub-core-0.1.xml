@@ -30,11 +30,27 @@
   <front>
     <title>PubSubHubbub Core 0.1 -- Working Draft</title>
 
-    <author fullname="PubSubHubbub Team" initials="" surname="PubSubHubbub">
-      <organization></organization>
+    <author fullname="Brad Fitzpatrick" initials="B." surname="Fitzpatrick">
+      <organization>Google, Inc</organization>
 
       <address>
-        <email>pubsubhubbub@googlegroups.com</email>
+        <email>brad@danga.com</email>
+      </address>
+    </author>
+
+    <author fullname="Brett Slatkin" initials="B." surname="Slatkin">
+      <organization>Google, Inc</organization>
+
+      <address>
+        <email>bslatkin@gmail.com</email>
+      </address>
+    </author>
+
+    <author fullname="Martin Atkins" initials="M." surname="Atkins">
+      <organization>Six Apart Ltd.</organization>
+
+      <address>
+        <email>mart@degeneration.co.uk</email>
       </address>
     </author>
 
@@ -67,14 +83,6 @@
   </front>
 
   <middle>
-    <section title="Authors">
-      <t><list style="empty">
-          <t>Brad Fitzpatrick (brad@danga.com)</t>
-
-          <t>Brett Slatkin (bslatkin@gmail.com)</t>
-        </list></t>
-    </section>
-
     <section title="Notation and Conventions">
       <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
       "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
@@ -473,5 +481,12 @@
         <seriesInfo name="RFC" value="2045" />
       </reference>
     </references>
+
+    <section title="Specification Feedback">
+      <t>Feedback on this specification is welcomed via the pubsubhubbub
+      mailing list, pubsubhubbub@googlegroups.com. For more information, see
+      <eref target="http://pubsubhubbub.googlegroups.com/">the PubSubHubbub
+      group on Google Groups</eref>.</t>
+    </section>
   </back>
 </rfc>
