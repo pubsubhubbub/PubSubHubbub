@@ -288,7 +288,7 @@
 
         <t><list style="hanging">
             <t hangText="hub.mode">REQUIRED. The literal string
-            "subscribe"</t>
+            "subscribe".</t>
 
             <t hangText="hub.callback">REQUIRED. The subscriber's callback
             URL.</t>
@@ -325,15 +325,45 @@
         one of the modes indicated in the list above, but MAY include
         additional keywords defined by extension specifications.</t>
       </section>
+
+      <section title="Hub Verifies Intent to Subscribe">
+        <t>In order to prevent an attacker from creating unwanted
+        subscriptions on behalf of a subscriber, a hub must ensure that the
+        subscriber did indeed send the subscription request.</t>
+
+        <t>The hub verifies a subscription request by sending a GET request to
+        the subscriber's callback URL as given in the subscription request.
+        This request has the following query string arguments appended: (TODO:
+        Define how to append query string arguments)</t>
+
+        <t><list style="hanging">
+            <t hangText="hub.mode">REQUIRED. The literal string
+            "subverify".</t>
+
+            <t hangText="hub.topic">REQUIRED. The topic URL given in the
+            corresponding subscription request.</t>
+
+            <t hangText="hub.verify_token">The subscriber-provided opaque
+            token from the corresponding subscription request, if one was
+            provided.</t>
+          </list></t>
+
+        <t>The subscriber MUST verify that the topic and verify_token
+        correspond to a pending subscription. If so, the subscriber MUST
+        respond with a HTTP success (2xx) response. If not, the subscriber
+        MUST respond with a 404 Not Found response. The hub MUST consider
+        other client and server error response codes (4xx and 5xx) to mean
+        that the subscription is <spanx style="emph">not</spanx> verified.</t>
+      </section>
     </section>
 
     <section title="Publishing">
-      <t>
-	TODO.  (this section hasn't been moved from the text file to XML yet)
-      </t>
-      <t>
-	For now, see <eref target="http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt">the original design document</eref> text file.
-      </t>
+      <t>TODO. (this section hasn't been moved from the text file to XML
+      yet)</t>
+
+      <t>For now, see <eref
+      target="http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt">the
+      original design document</eref> text file.</t>
     </section>
   </middle>
 

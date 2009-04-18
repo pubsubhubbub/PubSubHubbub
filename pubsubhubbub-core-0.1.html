@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Final: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Sat, 18 Apr 2009 16:57:57 +0000">
+<meta http-equiv="Expires" content="Sat, 18 Apr 2009 17:55:34 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -190,11 +190,13 @@ Atom Details<br />
 Subscribing<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">5.1.</a>&nbsp;
 Subscriber Sends Subscription Request<br />
-<a href="#anchor7">6.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor7">5.2.</a>&nbsp;
+Hub Verifies Intent to Subscribe<br />
+<a href="#anchor8">6.</a>&nbsp;
 Publishing<br />
 <a href="#rfc.references1">7.</a>&nbsp;
 References<br />
-<a href="#anchor9">Appendix&nbsp;A.</a>&nbsp;
+<a href="#anchor10">Appendix&nbsp;A.</a>&nbsp;
 Specification Feedback<br />
 <a href="#rfc.authors">&#167;</a>&nbsp;
 Authors' Addresses<br />
@@ -435,7 +437,7 @@ Subscriber Sends Subscription Request</h3>
 <blockquote class="text"><dl>
 <dt>hub.mode</dt>
 <dd>REQUIRED. The literal string
-            "subscribe"
+            "subscribe".
 </dd>
 <dt>hub.callback</dt>
 <dd>REQUIRED. The subscriber's callback
@@ -483,16 +485,52 @@ Subscriber Sends Subscription Request</h3>
 </p>
 <a name="anchor7"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.5.2"></a><h3>5.2.&nbsp;
+Hub Verifies Intent to Subscribe</h3>
+
+<p>In order to prevent an attacker from creating unwanted
+        subscriptions on behalf of a subscriber, a hub must ensure that the
+        subscriber did indeed send the subscription request.
+</p>
+<p>The hub verifies a subscription request by sending a GET request to
+        the subscriber's callback URL as given in the subscription request.
+        This request has the following query string arguments appended: (TODO:
+        Define how to append query string arguments)
+</p>
+<p></p>
+<blockquote class="text"><dl>
+<dt>hub.mode</dt>
+<dd>REQUIRED. The literal string
+            "subverify".
+</dd>
+<dt>hub.topic</dt>
+<dd>REQUIRED. The topic URL given in the
+            corresponding subscription request.
+</dd>
+<dt>hub.verify_token</dt>
+<dd>The subscriber-provided opaque
+            token from the corresponding subscription request, if one was
+            provided.
+</dd>
+</dl></blockquote>
+
+<p>The subscriber MUST verify that the topic and verify_token
+        correspond to a pending subscription. If so, the subscriber MUST
+        respond with a HTTP success (2xx) response. If not, the subscriber
+        MUST respond with a 404 Not Found response. The hub MUST consider
+        other client and server error response codes (4xx and 5xx) to mean
+        that the subscription is <em>not</em> verified.
+</p>
+<a name="anchor8"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.6"></a><h3>6.&nbsp;
 Publishing</h3>
 
-<p>
-	TODO.  (this section hasn't been moved from the text file to XML yet)
-      
+<p>TODO. (this section hasn't been moved from the text file to XML
+      yet)
 </p>
-<p>
-	For now, see <a href='http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt'>the original design document</a> text file.
-      
+<p>For now, see <a href='http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt'>the
+      original design document</a> text file.
 </p>
 <a name="rfc.references1"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
@@ -518,7 +556,7 @@ Publishing</h3>
 <td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
 </table>
 
-<a name="anchor9"></a><br /><hr />
+<a name="anchor10"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.A"></a><h3>Appendix A.&nbsp;
 Specification Feedback</h3>
