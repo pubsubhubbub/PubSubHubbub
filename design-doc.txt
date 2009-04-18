@@ -1,5 +1,11 @@
-TODO:
-  replace hub.{subscribe,publish} w/ one link rel tag
+Note:
+=====
+
+This document is old.  Instead, see:
+
+http://pubsubhubbub.googlecode.com/svn/trunk/pubsubhubbub-core-0.1.html
+
+
 
 
 ============================================================================
@@ -102,7 +108,6 @@ Notification: a delta on a topic, computed by the hub and sent to all
   be similar for publishers to delegate their pubsubhub with a simple
   link tag. Example:
     <link rel="hub.subscribe" href="http://pubsubhubbub.com/subscribe" />
-    <link rel="hub.publish" href="http://pubsubhubbub.com/publish" />
 
 * Multi-protocol would be nice, but simple would probably win... HTTP
   only at first.  XMPP later.  XMPP has a few advantages, but really
@@ -576,8 +581,8 @@ Discovery:
 in Atom.xml:
     <link rel="hub.subscribe" href="http://pubsubhubbub.appspot.com/subscribe" />
         (repeated.  client should pick one)
+
 in /index.html
-   <link rel="hub.publish" href="http://pubsubhubbub.appspot.com/publish" />
    <link rel="hub.subscribe" href="http://pubsubhubbub.appspot.com/publish" />
    <link rel="alternate" type="application/atom+xml" href="http://lolcats.xml" />
 
