@@ -407,6 +407,27 @@
         possibly approximate, of subscribers on behalf of which the feed is
         being fetched.</t>
       </section>
+
+      <section title="Content Distribution">
+        <t>If, after a content fetch, the hub determines that the topic feed
+        content has changed, the hub sends information about the changes to
+        each of the subscribers to the topic. A content distribution request
+        is a POST request from hub to the subscriber's callback URL. This
+        request has a Content-Type of application/atom+xml and its body is a
+        list of changed items expressed as an Atom feed.</t>
+
+        <t>The request body is an Atom feed document. The feed-level elements
+        in this feed are not significant aside from entry elements. Each entry
+        element in the feed contains the content from an entry in a topic feed
+        that the subscriber has an active subscription for. The hub MUST
+        reproduce all of the elements from the source entry in the
+        corresponding entry in the content distribution request. In
+        particular, the atom:id value MUST be reproduced exactly. If the
+        source entry does not have an atom:source element, the hub MUST create
+        an atom:source element containing the atom:title and atom:id elements
+        and an atom:link element with rel "self" whose values are functionally
+        equivalent to the corresponding elements in the topic feed.</t>
+      </section>
     </section>
   </middle>
 

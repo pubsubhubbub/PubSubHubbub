@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Final: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Sat, 18 Apr 2009 21:53:20 +0000">
+<meta http-equiv="Expires" content="Sat, 18 Apr 2009 23:36:32 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -198,9 +198,11 @@ Publishing<br />
 New Content Notification<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#contentfetch">6.2.</a>&nbsp;
 Content Fetch<br />
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor9">6.3.</a>&nbsp;
+Content Distribution<br />
 <a href="#rfc.references1">7.</a>&nbsp;
 References<br />
-<a href="#anchor10">Appendix&nbsp;A.</a>&nbsp;
+<a href="#anchor11">Appendix&nbsp;A.</a>&nbsp;
 Specification Feedback<br />
 <a href="#rfc.authors">&#167;</a>&nbsp;
 Authors' Addresses<br />
@@ -588,6 +590,30 @@ Content Fetch</h3>
         possibly approximate, of subscribers on behalf of which the feed is
         being fetched.
 </p>
+<a name="anchor9"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.6.3"></a><h3>6.3.&nbsp;
+Content Distribution</h3>
+
+<p>If, after a content fetch, the hub determines that the topic feed
+        content has changed, the hub sends information about the changes to
+        each of the subscribers to the topic. A content distribution request
+        is a POST request from hub to the subscriber's callback URL. This
+        request has a Content-Type of application/atom+xml and its body is a
+        list of changed items expressed as an Atom feed.
+</p>
+<p>The request body is an Atom feed document. The feed-level elements
+        in this feed are not significant aside from entry elements. Each entry
+        element in the feed contains the content from an entry in a topic feed
+        that the subscriber has an active subscription for. The hub MUST
+        reproduce all of the elements from the source entry in the
+        corresponding entry in the content distribution request. In
+        particular, the atom:id value MUST be reproduced exactly. If the
+        source entry does not have an atom:source element, the hub MUST create
+        an atom:source element containing the atom:title and atom:id elements
+        and an atom:link element with rel "self" whose values are functionally
+        equivalent to the corresponding elements in the topic feed.
+</p>
 <a name="rfc.references1"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <h3>7.&nbsp;References</h3>
@@ -612,7 +638,7 @@ Content Fetch</h3>
 <td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
 </table>
 
-<a name="anchor10"></a><br /><hr />
+<a name="anchor11"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.A"></a><h3>Appendix A.&nbsp;
 Specification Feedback</h3>
