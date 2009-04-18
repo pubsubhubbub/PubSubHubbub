@@ -104,16 +104,18 @@
           systems might call the publisher the "source".</t>
 
           <t hangText="Subscriber:">an entity (person or program) that wants
-          to be notified of changed on a topic. The subscriber can be directly
-          network-accessible or behind a NAT.</t>
+          to be notified of changed on a topic. The subscriber must be
+          directly network-accessible, and is identified by Subscriber
+          Callback URL.</t>
 
-          <t hangText="Subscription:">a tuple (Topic URL, Subscriber). For
-          network-accessible subscribers, the subscription's unique key is
-          actually the tuple (Topic URL, Subscriber Callback URL). For NAT'd
-          subscribers, the unique key for a subscription is (Topic URL,
-          SubscriberToken). In both cases, subscriptions may (at the hub's
-          decision) have expiration times akin to DHCP leases and then must be
+          <t hangText="Subscription:">a tuple (Topic URL, Subscriber). The
+          subscription's unique key is actually the tuple (Topic URL,
+          Subscriber Callback URL). ubscriptions may (at the hub's decision)
+          have expiration times akin to DHCP leases and then must be
           renewed.</t>
+
+          <t hangText="Subscriber Callback URL:">The URL at which a subscriber
+          wishes to recieve notifications.</t>
 
           <t hangText="Event:">an event that's visible to multiple topics. For
           each event that happens (e.g. "Brad posted to the Linux
@@ -214,7 +216,7 @@
       </figure>
 
       <t>Publisher makes the decision as to include full body, truncated body,
-      or meta data of most recent event(s). One of: </t>
+      or meta data of most recent event(s). One of:</t>
 
       <t><list style="symbols">
           <t>URL + metadata</t>
@@ -261,7 +263,7 @@
       hub.</t>
 
       <t>TODO: How do you indicate to the hub that you no longer want to have
-      a delegate URL? </t>
+      a delegate URL?</t>
 
       <t>Requirement is that topic URLs and delegate URLs can never
       overlap!</t>
@@ -269,6 +271,52 @@
 
     <section title="Subscribing">
       <t></t>
+
+      <section title="Subscriber Sends Subscription Request">
+        <t>Subscription is initiated by the subscriber making a POST request
+        to the Hub URL. This request has a Content-type of <spanx
+        style="verb">application/x-www-form-urlencoded</spanx> and the
+        following parameters in its body:</t>
+
+        <t><list style="hanging">
+            <t hangText="hub.mode">REQUIRED. The literal string
+            "subscribe"</t>
+
+            <t hangText="hub.callback">REQUIRED. The subscriber's callback
+            URL.</t>
+
+            <t hangText="hub.topic">REQUIRED. The topic URL that the
+            subscriber wishes to subscribe to.</t>
+
+            <t hangText="hub.verify">REQUIRED. Comma-separated list of
+            keywords describing verification modes supported by this
+            subscriber, as described below.</t>
+
+            <t hangText="hub.verify_token">A subscriber-provided opaque token
+            that will be echoed back in the verification request to assist the
+            subscriber in identifying which subscription request is being
+            verified. If this is not included, no token will be included in
+            the verification request.</t>
+          </list></t>
+
+        <t>The following keywords are supported for hub.verify:</t>
+
+        <t><list style="hanging">
+            <t hangText="sync">The subscriber supports synchronous
+            verification, where the verification request must occur before the
+            subscription request returns.</t>
+
+            <t hangText="async">The subscriber supports asynchronous
+            verification, where the verification request may occur at a later
+            point after the subscription request has returned.</t>
+          </list></t>
+
+        <t>Where multiple keywords are used, their order indicates the
+        subscriber's order of preference. Hubs MUST ignore verify mode
+        keywords that they do not understand. Subscribers MUST use at least
+        one of the modes indicated in the list above, but MAY include
+        additional keywords defined by extension specifications.</t>
+      </section>
     </section>
 
     <section title="Publishing">
