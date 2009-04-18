@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Final: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Sat, 18 Apr 2009 17:55:34 +0000">
+<meta http-equiv="Expires" content="Sat, 18 Apr 2009 21:33:15 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -190,13 +190,13 @@ Atom Details<br />
 Subscribing<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">5.1.</a>&nbsp;
 Subscriber Sends Subscription Request<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor7">5.2.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#verifysub">5.2.</a>&nbsp;
 Hub Verifies Intent to Subscribe<br />
-<a href="#anchor8">6.</a>&nbsp;
+<a href="#anchor7">6.</a>&nbsp;
 Publishing<br />
 <a href="#rfc.references1">7.</a>&nbsp;
 References<br />
-<a href="#anchor10">Appendix&nbsp;A.</a>&nbsp;
+<a href="#anchor9">Appendix&nbsp;A.</a>&nbsp;
 Specification Feedback<br />
 <a href="#rfc.authors">&#167;</a>&nbsp;
 Authors' Addresses<br />
@@ -483,7 +483,19 @@ Subscriber Sends Subscription Request</h3>
         one of the modes indicated in the list above, but MAY include
         additional keywords defined by extension specifications.
 </p>
-<a name="anchor7"></a><br /><hr />
+<p>The hub MUST respond to a subscription request with a 204 No
+        Content response to indicate that the request was already verified and
+        that the subscription has been created. If the subscription has yet to
+        be verified (if the hub is using asynchronous verification), the hub
+        MUST respond with a 202 Accepted response. In the case of any error,
+        an appropriate HTTP error response code (4xx or 5xx) MUST be
+        returned.
+</p>
+<p>In synchronous mode, the verification (<a class='info' href='#verifysub'>Section&nbsp;5.2<span> (</span><span class='info'>Hub Verifies Intent to Subscribe</span><span>)</span></a>) MUST be completed before the hub returns a
+        response. In asynchronous mode, the verification MAY be deferred until
+        a later time.
+</p>
+<a name="verifysub"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.5.2"></a><h3>5.2.&nbsp;
 Hub Verifies Intent to Subscribe</h3>
@@ -521,7 +533,7 @@ Hub Verifies Intent to Subscribe</h3>
         other client and server error response codes (4xx and 5xx) to mean
         that the subscription is <em>not</em> verified.
 </p>
-<a name="anchor8"></a><br /><hr />
+<a name="anchor7"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.6"></a><h3>6.&nbsp;
 Publishing</h3>
@@ -556,7 +568,7 @@ Publishing</h3>
 <td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
 </table>
 
-<a name="anchor10"></a><br /><hr />
+<a name="anchor9"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.A"></a><h3>Appendix A.&nbsp;
 Specification Feedback</h3>

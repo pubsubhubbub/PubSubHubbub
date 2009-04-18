@@ -324,9 +324,22 @@
         keywords that they do not understand. Subscribers MUST use at least
         one of the modes indicated in the list above, but MAY include
         additional keywords defined by extension specifications.</t>
+
+        <t>The hub MUST respond to a subscription request with a 204 No
+        Content response to indicate that the request was already verified and
+        that the subscription has been created. If the subscription has yet to
+        be verified (if the hub is using asynchronous verification), the hub
+        MUST respond with a 202 Accepted response. In the case of any error,
+        an appropriate HTTP error response code (4xx or 5xx) MUST be
+        returned.</t>
+
+        <t>In synchronous mode, the verification (<xref
+        target="verifysub"></xref>) MUST be completed before the hub returns a
+        response. In asynchronous mode, the verification MAY be deferred until
+        a later time.</t>
       </section>
 
-      <section title="Hub Verifies Intent to Subscribe">
+      <section anchor="verifysub" title="Hub Verifies Intent to Subscribe">
         <t>In order to prevent an attacker from creating unwanted
         subscriptions on behalf of a subscriber, a hub must ensure that the
         subscriber did indeed send the subscription request.</t>
