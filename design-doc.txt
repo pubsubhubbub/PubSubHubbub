@@ -29,6 +29,8 @@ enabling the obvious lower latency feed readers, would enable many
 cool applications, most of which we can't even imagine.  But we're
 looking forward to decentralized social networking.
 
+<MOVED TO XML>
+
 ============================================================================
 >> Terminology
 ============================================================================
@@ -77,6 +79,10 @@ Notification: a delta on a topic, computed by the hub and sent to all
   choose to send multi-topic notifications as an optimization for
   heavy subscribers, but subscribers MUST understand them.
 
+</MOVED TO XML>
+
+<FAQ>
+
 ============================================================================
 >> Notes:
 ============================================================================
@@ -110,27 +116,27 @@ Notification: a delta on a topic, computed by the hub and sent to all
   only works if all of the feeds in the trace correctly supply a 'via'
   tag. Then it's on the client to iteratively follow the trace).
 
+</FAQ>
+
 ============================================================================
 >> High-level protocol flow:
 ============================================================================
 
+<MOVED>
+
 * Publishers POST a ping to their hub(s) URLs when their topic(s)
   change.
 
-* Subscribers POST to one or more of the advertised hubs for a topic
-  they're interested in.  Alternatively, some hubs may offer
-  auto-polling capability, to let {their,any} subscribers subscribe to
-  topics which don't advertise a hub.
+* Subscribers POST to one or more of the advertised hubs for a topic they're interested in.  Alternatively, some hubs may offer auto-polling capability, to let {their,any} subscribers subscribe to topics which don't advertise a hub.
 
-* The hub caches minimal metadata (id, data, entry digest) about each
-  topic's previous state.  When the hub refetches a topic feed (on its
-  own initiative or as a result of a publisher's ping) and finds a
-  delta, it enqueues a notification to all registered subscribers.
-  Subscribers can be notified of topic deltas in a variety of ways:
+* The hub caches minimal metadata (id, data, entry digest) about each topic's previous state.  When the hub refetches a topic feed (on its own initiative or as a result of a publisher's ping) and finds a delta, it enqueues a notification to all registered subscribers. Subscribers can be notified of topic deltas in a variety of ways:
 
-    - In the base profile, subscribers must be directly network
-      accessible (not behind a NAT), running a listening webserver,
-      and can receive an HTTP callback to notify them their topic
+</MOVED>
+
+<APPENDIX>
+
+    - In the base profile, subscribers must be directly network accessible (not behind a NAT),
+      running a listening webserver, and can receive an HTTP callback to notify them their topic
       changed.  To avoid authentication issues with HTTP, this
       callback doesn't include any payload but rather just a note for
       the subscriber to check the hub for the topic URL (which
@@ -162,6 +168,8 @@ Notification: a delta on a topic, computed by the hub and sent to all
     - Fancier implementations may choose to use HTTP long polling
       ("comet") or XMPP.  We're punting on this for now in the
       interest of getting something basic working for the common case.
+
+</APPENDIX>
 
 ============================================================================
 >> Atom details
@@ -578,3 +586,9 @@ then bookmarklet to ping the publish URL.
 ===========================================================================
               end meeting notes from 2009-09-16
 ===========================================================================
+
+=== Open issues... ===
+
+Is there an existing standard for aggregators to specify how many readers they're requesting on behalf of?
+
+

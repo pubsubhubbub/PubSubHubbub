@@ -1,7 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="US-ASCII"?>
 <?xml-stylesheet type='text/xsl' href='http://xml.resource.org/authoring/rfc2629.xslt' ?>
 <!DOCTYPE rfc SYSTEM "rfc2629.dtd">
-
 <!--
   For editting this, see:
 
@@ -13,270 +12,418 @@
   $ xml2rfc pubsubhubbub-core-0.1.xml pubsubhubbub-core-0.1.html
 
 -->
-
-<rfc category="info" ipr="full3978" docName="pubsubhubbub-core-0.1.xml">
-
+<rfc category="info" docName="pubsubhubbub-core-0.1.xml" ipr="full3978">
   <?rfc toc="yes" ?>
+
   <?rfc tocdepth="2" ?>
+
   <?rfc symrefs="yes" ?>
+
   <?rfc sortrefs="yes"?>
+
   <?rfc strict="yes" ?>
+
   <?rfc iprnotified="no" ?>
+
   <?rfc private="Final" ?>
 
   <front>
     <title>PubSubHubbub Core 0.1 -- Working Draft</title>
 
-    <author initials="" surname="PubSubHubbub" fullname="PubSubHubbub Team">
-      <organization />
+    <author fullname="PubSubHubbub Team" initials="" surname="PubSubHubbub">
+      <organization></organization>
+
       <address>
         <email>pubsubhubbub@googlegroups.com</email>
       </address>
     </author>
 
-    <date day="13" month="April" year="2009"/>
+    <date day="13" month="April" year="2009" />
 
     <abstract>
-      <t>
-        An open, simple web-scale pubsub protocol, along with an open
-        source reference implentation targetting Google App Engine.
-        Notably, however, nothing in the protocol is centralized, or
-        Google- or App Engine-specific.  Anybody can play.
-      </t>
-      <t>
-	As opposed to more developed (and more complex) pubsub specs
-	like XEP-0060, this spec's base profile (the barrier-to-entry
-	to speak it) is dead simple.  The fancy bits required for
-	high-volume publishers and subscribers are optional.  The base
-	profile is HTTP-based, as opposed to XMPP (see more on this
-	below).
-      </t>
-      <t>
-	To dramatically simplify the spec in several places where we had to
-	choose between supporting A or B, we took it upon ourselves to say
-	"only A", rather than making it an implementation decision.
-      </t>
-      <t>
-	We offer this spec in hopes that it fills a need or at least advances
-	the state of the discussion in the pubsub space.  Polling sucks.  We
-	think a decentralized pubsub layer is a fundamental, missing layer in
-	the Internet architecture today and its existence, more than just
-	enabling the obvious lower latency feed readers, would enable many
-	cool applications, most of which we can't even imagine.  But we're
-	looking forward to decentralized social networking.
-      </t>
+      <t>An open, simple web-scale pubsub protocol, along with an open source
+      reference implentation targetting Google App Engine. Notably, however,
+      nothing in the protocol is centralized, or Google- or App
+      Engine-specific. Anybody can play.</t>
+
+      <t>As opposed to more developed (and more complex) pubsub specs like
+      XEP-0060, this spec's base profile (the barrier-to-entry to speak it) is
+      dead simple. The fancy bits required for high-volume publishers and
+      subscribers are optional. The base profile is HTTP-based, as opposed to
+      XMPP (see more on this below).</t>
+
+      <t>To dramatically simplify the spec in several places where we had to
+      choose between supporting A or B, we took it upon ourselves to say "only
+      A", rather than making it an implementation decision.</t>
+
+      <t>We offer this spec in hopes that it fills a need or at least advances
+      the state of the discussion in the pubsub space. Polling sucks. We think
+      a decentralized pubsub layer is a fundamental, missing layer in the
+      Internet architecture today and its existence, more than just enabling
+      the obvious lower latency feed readers, would enable many cool
+      applications, most of which we can't even imagine. But we're looking
+      forward to decentralized social networking.</t>
     </abstract>
-
   </front>
-  <middle>
 
+  <middle>
     <section title="Authors">
-      <t>
-        <list style='empty'>
+      <t><list style="empty">
           <t>Brad Fitzpatrick (brad@danga.com)</t>
+
           <t>Brett Slatkin (bslatkin@gmail.com)</t>
-        </list>
-      </t>
+        </list></t>
     </section>
 
     <section title="Notation and Conventions">
-      <t>
-        The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-        "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-        document are to be interpreted as described in <xref target="RFC2119" />.
-        Domain name examples use <xref target="RFC2606" />.
-      </t>
+      <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+      "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+      document are to be interpreted as described in <xref
+      target="RFC2119"></xref>. Domain name examples use <xref
+      target="RFC2606"></xref>.</t>
     </section>
 
     <section title="Definitions">
-      <t>
-        <list style="hanging">
-          <t hangText="Topic:">
-            an Atom feed URL.  The unit to which one can subscribe to
-	    changes.  RSS isn't supported for simplicity.  Further, the spec
-	    currently only addresses public (unauthenticated) Atom feed URLs.
-          </t>
-          <t hangText="Pubsub Hub (&quot;the hub&quot;):">
-	    the server (URL) which implements both sides of this
-	    protocol.  We're currently implementing this and running
-	    at server at http://pubsubhubbub.appspot.com/ that's at
-	    least for now open for anybody to use, as either a
-	    publisher or subscriber.  Any hub is free to implement its
-	    own policies on who can use it.
-          </t>
-          <t hangText="Publisher:">
-            an owner of a topic.  Notifies the pubsub hub when the
-	    topic (Atom feed) has been updated.  Just notifies that it
-	    _has_ been updated, but not how.  As in almost all pubsub
-	    systems, the publisher is unaware of the subscribers, if
-	    any.  Other pubsub systems might call the publisher the
-	    "source".
-          </t>
-	  <t hangText="Subscriber:">
-	    an entity (person or program) that wants to be notified of
-	    changed on a topic.  The subscriber can be directly
-	    network-accessible or behind a NAT.
-	  </t>
-	  <t hangText="Subscription:">
-	    a tuple (Topic URL, Subscriber).  For network-accessible
-	    subscribers, the subscription's unique key is actually the
-	    tuple (Topic URL, Subscriber Callback URL).  For NAT'd
-	    subscribers, the unique key for a subscription is (Topic
-	    URL, SubscriberToken).  In both cases, subscriptions may
-	    (at the hub's decision) have expiration times akin to DHCP
-	    leases and then must be renewed.
-	  </t>
-	  <t hangText="Event:">
-	    an event that's visible to multiple topics.  For each
-	    event that happens (e.g. "Brad posted to the Linux
-	    Community."), multiple topics could be affected
-	    (e.g. "Brad posted." and "Linux community has new post").
-	    Publisher events update topics, and the hub looks up all
-	    subscriptions for all affected topics, sending out
-	    notifications to subscribers.
-	  </t>
-	  <t hangText="Notification:">
-	    a delta on a topic, computed by the hub and sent to all
-	    subscribers.  (TBD: format of this delta.  likely: an Atom
-	    feed itself with just the new or changed stuff, and
-	    gravestones for removed items?)  The notification can be
-	    the result of a publisher telling the hub of an update, or
-	    the hub proactively polling a topic feed, perhaps for a
-	    subscriber subscribing to a topic that's not pubsub-aware.
-	    Note also that a notification to a subscriber can be a
-	    payload consisting of updates for multiple topics.
-	    Publishers MAY choose to send multi-topic notifications as
-	    an optimization for heavy subscribers, but subscribers
-	    MUST understand them.
-	  </t>
-        </list>
-      </t>
+      <t><list style="hanging">
+          <t hangText="Topic:">an Atom feed URL. The unit to which one can
+          subscribe to changes. RSS isn't supported for simplicity. Further,
+          the spec currently only addresses public (unauthenticated) Atom feed
+          URLs.</t>
+
+          <t hangText="Pubsub Hub (&quot;the hub&quot;):">the server (URL)
+          which implements both sides of this protocol. We're currently
+          implementing this and running at server at
+          http://pubsubhubbub.appspot.com/ that's at least for now open for
+          anybody to use, as either a publisher or subscriber. Any hub is free
+          to implement its own policies on who can use it.</t>
+
+          <t hangText="Publisher:">an owner of a topic. Notifies the pubsub
+          hub when the topic (Atom feed) has been updated. Just notifies that
+          it _has_ been updated, but not how. As in almost all pubsub systems,
+          the publisher is unaware of the subscribers, if any. Other pubsub
+          systems might call the publisher the "source".</t>
+
+          <t hangText="Subscriber:">an entity (person or program) that wants
+          to be notified of changed on a topic. The subscriber can be directly
+          network-accessible or behind a NAT.</t>
+
+          <t hangText="Subscription:">a tuple (Topic URL, Subscriber). For
+          network-accessible subscribers, the subscription's unique key is
+          actually the tuple (Topic URL, Subscriber Callback URL). For NAT'd
+          subscribers, the unique key for a subscription is (Topic URL,
+          SubscriberToken). In both cases, subscriptions may (at the hub's
+          decision) have expiration times akin to DHCP leases and then must be
+          renewed.</t>
+
+          <t hangText="Event:">an event that's visible to multiple topics. For
+          each event that happens (e.g. "Brad posted to the Linux
+          Community."), multiple topics could be affected (e.g. "Brad posted."
+          and "Linux community has new post"). Publisher events update topics,
+          and the hub looks up all subscriptions for all affected topics,
+          sending out notifications to subscribers.</t>
+
+          <t hangText="Notification:">a delta on a topic, computed by the hub
+          and sent to all subscribers. (TBD: format of this delta. likely: an
+          Atom feed itself with just the new or changed stuff, and gravestones
+          for removed items?) The notification can be the result of a
+          publisher telling the hub of an update, or the hub proactively
+          polling a topic feed, perhaps for a subscriber subscribing to a
+          topic that's not pubsub-aware. Note also that a notification to a
+          subscriber can be a payload consisting of updates for multiple
+          topics. Publishers MAY choose to send multi-topic notifications as
+          an optimization for heavy subscribers, but subscribers MUST
+          understand them.</t>
+        </list></t>
     </section>
 
+    <section title="High-level protocol flow">
+      <t>(This section is non-normative.)</t>
+
+      <t><list style="symbols">
+          <t>Publishers POST a ping to their hub(s) URLs when their topic(s)
+          change.</t>
+
+          <t>Subscribers POST to one or more of the advertised hubs for a
+          topic they're interested in. Alternatively, some hubs may offer
+          auto-polling capability, to let {their,any} subscribers subscribe to
+          topics which don't advertise a hub.</t>
+
+          <t>The hub caches minimal metadata (id, data, entry digest) about
+          each topic's previous state. When the hub refetches a topic feed (on
+          its own initiative or as a result of a publisher's ping) and finds a
+          delta, it enqueues a notification to all registered subscribers.
+          Subscribers can be notified of topic deltas in a variety of
+          ways:</t>
+        </list></t>
+    </section>
+
+    <section title="Atom Details">
+      <t>Notification and source formats will be Atom. More detail follows
+      this example.</t>
+
+      <figure>
+        <artwork><![CDATA[  <atom:feed>
+    # ... source, title, etc ...
+
+    <link rel="hub.subscribe" href="http://myhub.com/subscribe" />
+    <link rel="self" href="http://publisher.com/happycats.xml" />
+    <updated>2008-08-11T02:15:01Z</updated>
+
+    # Example of a full entry.
+    <entry>
+      <title>Heathcliff</title>
+      <link href="http://publisher.com/happycat25.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-08-11T02:15:01Z</updated>
+      <content>
+        What a happy cat. Full content goes here.
+      </content>
+    </entry>
+
+    # Example of an entity that isn't full/is truncated. This is implied
+    # by the lack of a <content> element and a <summary> element instead.
+    <entry >
+      <title>Heathcliff</title>
+      <link href="http://publisher.com/happycat25.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-08-11T02:15:01Z</updated>
+      <summary>
+        What a happy cat!
+      </summary>
+    </entry>
+    
+    # Meta-data only; implied by the lack of <content> and <summary> elements.
+    <entry>
+      <title>Garfield</title>
+      <link rel="alternate" href="http://publisher.com/happycat24.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-08-11T02:15:01Z</updated>
+    </entry>
+
+    # Context entry that's meta-data only and not new. Implied because the
+    # update time on this entry is before the //atom:feed/updated time.
+    <entry>
+      <title>Nermal</title>
+      <link rel="alternate" href="http://publisher.com/happycat23s.xml" />
+      <id>http://publisher.com/happycat25.xml</id>
+      <updated>2008-07-10T12:28:13Z</updated>
+    </entry>
+
+  </atom:feed>
+]]></artwork>
+      </figure>
+
+      <t>Publisher makes the decision as to include full body, truncated body,
+      or meta data of most recent event(s). One of: </t>
+
+      <t><list style="symbols">
+          <t>URL + metadata</t>
+
+          <t>URL + metadata + truncated</t>
+
+          <t>URL + metadata + full</t>
+        </list></t>
+
+      <t>The trade-off between including all content in outgoing notifications
+      or having the thundering herd (by clients who fetch the
+      //atom:feed/entry/link in response to a notification) is up to the
+      publisher.</t>
+
+      <t>Entries of most recent 10 events (for recipient to know whether or
+      not they'd missed any recent items... like TCP SACK) will be provided as
+      context. This is implied by the difference between the
+      //atom:feed/updated field and the //atom:feed/entry/updated fields. The
+      //atom:feed/updated field will be set to the time of the *oldest*
+      &lt;entry&gt; in the list that is new. All &lt;entry&gt; items with
+      &lt;updated&gt; times before then are context; all with times equal to
+      or after are new. This also lets subscribers know how long it has been
+      from when the notification was first sent by the publisher to when they
+      actually received it from the hub.</t>
+
+      <t>The //atom:feed/link[@rel="self"] element will indicate the original
+      URL for the entire event stream with no truncation (if available).</t>
+
+      <t>The //atom:feed/link[@rel="hub.delegate"] element indicates the URL
+      that the hub should use for retrieving new notifications from a
+      publisher. The publisher can make this delegate URL contain a meta-data
+      only or truncated view of the feed. If a hub.delegate is not provided,
+      then the 'self' URL is used as both the source of notifications and the
+      source for the topic URL feed.</t>
+
+      <t>Topic URLs must be unique, but multiple topics may use the same
+      hub.delegate. In this situation, the delegate URL may serve a
+      &lt;OLD_INFO&gt;MIME multipart response, each part of which will contain
+      a separate Atom document for an individual topic&lt;/OLD_INFO&gt;. The
+      hub must understand this delegation. Once it has fetched the topic URL
+      once to see this delegation is present, it will use the delegation url
+      to pull the feed. This allows the publisher to be more efficient at
+      publishing across many topics at once with a single fetch from the
+      hub.</t>
+
+      <t>TODO: How do you indicate to the hub that you no longer want to have
+      a delegate URL? </t>
+
+      <t>Requirement is that topic URLs and delegate URLs can never
+      overlap!</t>
+    </section>
+
+    <section title="Subscribing">
+      <t></t>
+    </section>
+
+    <section title="Publishing">
+      <t></t>
+    </section>
   </middle>
+
   <back>
-
     <references title="References">
-
       <reference anchor="RFC2606">
         <front>
           <title>Reserved Top Level DNS Names</title>
-          <author initials="D.E" surname="Eastlake" fullname="D. Eastlake">
-            <organization></organization>
+
+          <author fullname="D. Eastlake" initials="D.E" surname="Eastlake">
+            <organization />
           </author>
-          <author initials="A.P" surname="Panitz" fullname="A. Panitz">
-            <organization></organization>
+
+          <author fullname="A. Panitz" initials="A.P" surname="Panitz">
+            <organization />
           </author>
         </front>
+
         <seriesInfo name="RFC" value="2606" />
       </reference>
 
       <reference anchor="RFC2119">
         <front>
-          <title>
-            Key words for use in RFCs to Indicate Requirement Levels
-          </title>
-          <author initials="B.S" surname="Bradner" fullname="Scott Bradner">
+          <title>Key words for use in RFCs to Indicate Requirement
+          Levels</title>
+
+          <author fullname="Scott Bradner" initials="B.S" surname="Bradner">
             <organization>Alis Technologies</organization>
           </author>
         </front>
+
         <seriesInfo name="RFC" value="2119" />
       </reference>
 
       <reference anchor="RFC2616">
         <front>
           <title>Hypertext Transfer Protocol -- HTTP/1.1</title>
-          <author initials="R.F" surname="Fielding" fullname="R. Fielding">
+
+          <author fullname="R. Fielding" initials="R.F" surname="Fielding">
             <organization>UC Irvine</organization>
           </author>
-          <author initials="J.G" surname="Gettys" fullname="J. Gettys">
+
+          <author fullname="J. Gettys" initials="J.G" surname="Gettys">
             <organization>Compaq/W3C</organization>
           </author>
-          <author initials="J.M" surname="Mogul" fullname="J. Mogul">
+
+          <author fullname="J. Mogul" initials="J.M" surname="Mogul">
             <organization>Compaq</organization>
           </author>
-          <author initials="H.F" surname="Frystyk" fullname="H. Frystyk">
+
+          <author fullname="H. Frystyk" initials="H.F" surname="Frystyk">
             <organization>W3C/MIT</organization>
           </author>
-          <author initials="L.M" surname="Masinter" fullname="L. Masinter">
+
+          <author fullname="L. Masinter" initials="L.M" surname="Masinter">
             <organization>Xerox</organization>
           </author>
-          <author initials="P.L" surname="Leach" fullname="P. Leach">
+
+          <author fullname="P. Leach" initials="P.L" surname="Leach">
             <organization>Microsoft</organization>
           </author>
-          <author initials="T.L" surname="Berners-Lee" fullname="T. Berners-Lee">
+
+          <author fullname="T. Berners-Lee" initials="T.L"
+                  surname="Berners-Lee">
             <organization>W3C/MIT</organization>
           </author>
         </front>
+
         <seriesInfo name="RFC" value="2616" />
       </reference>
 
       <reference anchor="RFC2617">
         <front>
-          <title>
-            HTTP Authentication: Basic and Digest Access Authentication
-          </title>
-          <author initials="J.F" surname="Franks" fullname="J. Franks">
+          <title>HTTP Authentication: Basic and Digest Access
+          Authentication</title>
+
+          <author fullname="J. Franks" initials="J.F" surname="Franks">
             <organization />
           </author>
-          <author initials="P.HB" surname="Hallam-Baker" fullname="P. Hallam-Baker">
+
+          <author fullname="P. Hallam-Baker" initials="P.HB"
+                  surname="Hallam-Baker">
             <organization />
           </author>
-          <author initials="J.H" surname="Hostetler" fullname="J. Hostetler">
+
+          <author fullname="J. Hostetler" initials="J.H" surname="Hostetler">
             <organization />
           </author>
-          <author initials="S.L" surname="Lawrence" fullname="S. Lawrence">
+
+          <author fullname="S. Lawrence" initials="S.L" surname="Lawrence">
             <organization />
           </author>
-          <author initials="P.L" surname="Leach" fullname="P. Leach">
+
+          <author fullname="P. Leach" initials="P.L" surname="Leach">
             <organization />
           </author>
-          <author initials="A.L" surname="Luotonen" fullname="A. Luotonen">
+
+          <author fullname="A. Luotonen" initials="A.L" surname="Luotonen">
             <organization />
           </author>
-          <author initials="L.S" surname="Stewart" fullname="L. Stewart">
+
+          <author fullname="L. Stewart" initials="L.S" surname="Stewart">
             <organization />
           </author>
         </front>
+
         <seriesInfo name="RFC" value="2617" />
       </reference>
 
       <reference anchor="RFC3629">
         <front>
-          <title>
-            UTF-8, a transformation format of Unicode and ISO 10646
-          </title>
-          <author initials="F.Y" surname="Yergeau" fullname="Francois Yergeau">
+          <title>UTF-8, a transformation format of Unicode and ISO
+          10646</title>
+
+          <author fullname="Francois Yergeau" initials="F.Y" surname="Yergeau">
             <organization />
           </author>
         </front>
+
         <seriesInfo name="RFC" value="3629" />
       </reference>
 
       <reference anchor="RFC3986">
         <front>
           <title>Uniform Resource Identifiers (URI): Generic Syntax</title>
-          <author initials="T.L" surname="Berners-Lee" fullname="T. Berners-Lee">
+
+          <author fullname="T. Berners-Lee" initials="T.L"
+                  surname="Berners-Lee">
             <organization />
           </author>
         </front>
+
         <seriesInfo name="RFC" value="3986" />
       </reference>
 
       <reference anchor="RFC2045">
         <front>
-          <title>Multipurpose Internet Mail Extensions (MIME) Part One: Format of Internet Message Bodies</title>
-          <author initials="N.F" surname="Freed" fullname="N. Freed">
+          <title>Multipurpose Internet Mail Extensions (MIME) Part One: Format
+          of Internet Message Bodies</title>
+
+          <author fullname="N. Freed" initials="N.F" surname="Freed">
             <organization>Innosoft</organization>
           </author>
-          <author initials="N.B" surname="Borenstein" fullname="N. Borenstein">
+
+          <author fullname="N. Borenstein" initials="N.B" surname="Borenstein">
             <organization>First Virtual</organization>
           </author>
         </front>
+
         <seriesInfo name="RFC" value="2045" />
       </reference>
-
     </references>
   </back>
-
 </rfc>
