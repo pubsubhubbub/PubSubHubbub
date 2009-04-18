@@ -57,8 +57,10 @@ Publisher:  an owner of a topic.  Notifies the pubsub hub when the topic
   of the subscribers, if any.
 
 Subscriber: an entity (person or program) that wants to be notified of
-  changed on a topic.  The subscriber can be directly network-accessible
-  or behind a NAT.
+  changed on a topic.  Must be directly network-accessible, not being
+  a NAT.  PubSubHubbub is a server-to-server protocol.  If you're being
+  NAT, you're a client, out-of-scope for this protocol.  (Browser channels,
+  long-polling a server would be more appropriate for you.)
 
 Subscription: a tuple (Topic URL, Subscriber).  For network-accessible
   subscribers, the subscription's unique key is actually the tuple
@@ -460,9 +462,10 @@ The subscriber will know the topic URL by looking at the
 //atom:feed/link[@rel="self"] value? Or maybe we'll make it rel="source" for
 the notifications?
 
-<OLDINFO>The post will always be a multi-part post, each part will be an Atom feed for an individual topic.</OLDINFO>
-
-The subscriber should return 200 or 204 on successful acceptance of the event. 4xx and 5xx responses will be considered errors (and delivery will be attempted again later). What should we do with 3xx responses?
+The subscriber should return 200 or 204 on successful acceptance of
+the event. 4xx and 5xx responses will be considered errors (and
+delivery will be attempted again later).  TODO: What should we do with
+3xx responses?
 
 ===========================================================================
 >> Meeting notes from 2008-09-16:
@@ -559,15 +562,6 @@ Large subscribers:  (may be v2)
       /do-some-work/sent-notifications-to-big-peeps
 * optional property on subscriptions for big subscribers to say, "Yo, it's okay to mix my subscriptions together
    in one HTTP payload post."  in which case it's atom-stream.xml style (updates.sixapart.com) and the payloads are mixed:
-
-NAT'ed subbers:
-------------------------
-* first, have to subscribe.  but they know they're natted and can say so.
-* require HTTPS, /create-polling-token
-    -- response includes:
-          * the token
-          * ISO 8601 expiration time.  you have to poll before this to renew it.
-* require HTTPS, /subscribe?topicurl=http//&{token=subid | callback=....}
 
 
 Misc notes:

@@ -118,7 +118,7 @@
 
           <t hangText="Subscription:">a tuple (Topic URL, Subscriber). The
           subscription's unique key is actually the tuple (Topic URL,
-          Subscriber Callback URL). ubscriptions may (at the hub's decision)
+          Subscriber Callback URL).  Subscriptions may (at the hub's decision)
           have expiration times akin to DHCP leases and then must be
           renewed.</t>
 
