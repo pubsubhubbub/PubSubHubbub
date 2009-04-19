@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Final: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Sat, 18 Apr 2009 23:36:32 +0000">
+<meta http-equiv="Expires" content="Sun, 19 Apr 2009 00:05:43 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -187,20 +187,22 @@ High-level protocol flow<br />
 <a href="#anchor4">4.</a>&nbsp;
 Atom Details<br />
 <a href="#anchor5">5.</a>&nbsp;
+Discovery<br />
+<a href="#subscribing">6.</a>&nbsp;
 Subscribing<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">5.1.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">6.1.</a>&nbsp;
 Subscriber Sends Subscription Request<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#verifysub">5.2.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#verifysub">6.2.</a>&nbsp;
 Hub Verifies Intent to Subscribe<br />
-<a href="#anchor7">6.</a>&nbsp;
+<a href="#anchor7">7.</a>&nbsp;
 Publishing<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor8">6.1.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor8">7.1.</a>&nbsp;
 New Content Notification<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#contentfetch">6.2.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#contentfetch">7.2.</a>&nbsp;
 Content Fetch<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor9">6.3.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor9">7.3.</a>&nbsp;
 Content Distribution<br />
-<a href="#rfc.references1">7.</a>&nbsp;
+<a href="#rfc.references1">8.</a>&nbsp;
 References<br />
 <a href="#anchor11">Appendix&nbsp;A.</a>&nbsp;
 Specification Feedback<br />
@@ -426,13 +428,24 @@ Atom Details</h3>
 <a name="anchor5"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.5"></a><h3>5.&nbsp;
+Discovery</h3>
+
+<p>A potential subscriber initiates discovery by retrieving the Atom
+      feed to which it wants to subscribe. A feed that acts as a topic as per
+      this specification MUST publish, as a child of atom:feed, an atom:link
+      element whose rel attribute has the value "hub.subscribe" and whose href
+      attribute contains the hub URL. When a potential subscriber encounters
+      such a link, that subscriber MAY subscribe to the feed as described in
+      <a class='info' href='#subscribing'>Section&nbsp;6<span> (</span><span class='info'>Subscribing</span><span>)</span></a>.
+</p>
+<a name="subscribing"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.6"></a><h3>6.&nbsp;
 Subscribing</h3>
 
-<p>
-</p>
 <a name="anchor6"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.5.1"></a><h3>5.1.&nbsp;
+<a name="rfc.section.6.1"></a><h3>6.1.&nbsp;
 Subscriber Sends Subscription Request</h3>
 
 <p>Subscription is initiated by the subscriber making a POST request
@@ -497,13 +510,13 @@ Subscriber Sends Subscription Request</h3>
         an appropriate HTTP error response code (4xx or 5xx) MUST be
         returned.
 </p>
-<p>In synchronous mode, the verification (<a class='info' href='#verifysub'>Section&nbsp;5.2<span> (</span><span class='info'>Hub Verifies Intent to Subscribe</span><span>)</span></a>) MUST be completed before the hub returns a
+<p>In synchronous mode, the verification (<a class='info' href='#verifysub'>Section&nbsp;6.2<span> (</span><span class='info'>Hub Verifies Intent to Subscribe</span><span>)</span></a>) MUST be completed before the hub returns a
         response. In asynchronous mode, the verification MAY be deferred until
         a later time.
 </p>
 <a name="verifysub"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.5.2"></a><h3>5.2.&nbsp;
+<a name="rfc.section.6.2"></a><h3>6.2.&nbsp;
 Hub Verifies Intent to Subscribe</h3>
 
 <p>In order to prevent an attacker from creating unwanted
@@ -541,7 +554,7 @@ Hub Verifies Intent to Subscribe</h3>
 </p>
 <a name="anchor7"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.6"></a><h3>6.&nbsp;
+<a name="rfc.section.7"></a><h3>7.&nbsp;
 Publishing</h3>
 
 <p>TODO. (this section hasn't been moved from the text file to XML
@@ -552,7 +565,7 @@ Publishing</h3>
 </p>
 <a name="anchor8"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.6.1"></a><h3>6.1.&nbsp;
+<a name="rfc.section.7.1"></a><h3>7.1.&nbsp;
 New Content Notification</h3>
 
 <p>When new content is added to a feed, a notification is sent from
@@ -573,7 +586,7 @@ New Content Notification</h3>
 
 <p>The new content notification is a signal to the hub that there is
         new content available. The hub SHOULD arrange for a content fetch
-        request (<a class='info' href='#contentfetch'>Section&nbsp;6.2<span> (</span><span class='info'>Content Fetch</span><span>)</span></a>) to be performed in the
+        request (<a class='info' href='#contentfetch'>Section&nbsp;7.2<span> (</span><span class='info'>Content Fetch</span><span>)</span></a>) to be performed in the
         near future to retrieve the new content. If the publication request
         was accepted, the hub MUST return a 202 Accepted response. If the
         publication request is not accepted for some reason, the hub MUST
@@ -581,7 +594,7 @@ New Content Notification</h3>
 </p>
 <a name="contentfetch"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.6.2"></a><h3>6.2.&nbsp;
+<a name="rfc.section.7.2"></a><h3>7.2.&nbsp;
 Content Fetch</h3>
 
 <p>When the hub wishes to retrieve new content for a topic, the hub
@@ -592,7 +605,7 @@ Content Fetch</h3>
 </p>
 <a name="anchor9"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.6.3"></a><h3>6.3.&nbsp;
+<a name="rfc.section.7.3"></a><h3>7.3.&nbsp;
 Content Distribution</h3>
 
 <p>If, after a content fetch, the hub determines that the topic feed
@@ -616,7 +629,7 @@ Content Distribution</h3>
 </p>
 <a name="rfc.references1"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<h3>7.&nbsp;References</h3>
+<h3>8.&nbsp;References</h3>
 <table width="99%" border="0">
 <tr><td class="author-text" valign="top"><a name="RFC2045">[RFC2045]</a></td>
 <td class="author-text">Freed, N. and N. Borenstein, &ldquo;<a href="http://tools.ietf.org/html/rfc2045">Multipurpose Internet Mail Extensions (MIME) Part One: Format

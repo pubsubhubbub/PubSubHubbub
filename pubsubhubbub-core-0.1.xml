@@ -277,9 +277,17 @@
       overlap!</t>
     </section>
 
-    <section title="Subscribing">
-      <t></t>
+    <section title="Discovery">
+      <t>A potential subscriber initiates discovery by retrieving the Atom
+      feed to which it wants to subscribe. A feed that acts as a topic as per
+      this specification MUST publish, as a child of atom:feed, an atom:link
+      element whose rel attribute has the value "hub.subscribe" and whose href
+      attribute contains the hub URL. When a potential subscriber encounters
+      such a link, that subscriber MAY subscribe to the feed as described in
+      <xref target="subscribing"></xref>.</t>
+    </section>
 
+    <section anchor="subscribing" title="Subscribing">
       <section title="Subscriber Sends Subscription Request">
         <t>Subscription is initiated by the subscriber making a POST request
         to the Hub URL. This request has a Content-type of <spanx
