@@ -39,31 +39,44 @@
       var original = window.location.href;
       var theForm = document.getElementById('theForm');
       theForm.submit();
-      parent._____pshb_closeFrameAfterLoad(original);
+    }
+    
+    var showError = function(message) {
+      var contentDiv = document.getElementById('content');
+      contentDiv.innerHTML = '<strong>Error</strong>' +
+          '<div>' + message + '</div>';
     }
 
     var handleLoad = function() {
-      if (parent._____pshb_hubAddress != undefined) {
+      var pieces = window.location.href.split('?');
+      if (pieces.length != 2) {
+        showError('HTML parameters malformed.');
+        return;
+      };
+      var params = pieces[1].split('&');
+      if (params.length != 2) {
+        showError('Two HTML parameters required');
+        return;
+      };
+      var feed = params[0].substr(params[0].indexOf('feed=') + 5);
+      var hub = params[1].substr(params[1].indexOf('hub=') + 4);
+      
+      if (hub != '' && hub != 'null') {
         var theForm = document.getElementById('theForm');
-        theForm.action = parent._____pshb_hubAddress;
+        theForm.action = hub;
         var hubView = document.getElementById('hubUrlView');
-        hubView.innerHTML = parent._____pshb_hubAddress;
+        hubView.innerHTML = hub;
       } else {
-        var contentDiv = document.getElementById('content');
-        contentDiv.innerHTML = '<strong>Error</strong>' +
-            '<div>Could not find Hub URL in bookmarklet config!</div>';
+        showError('Could not find Hub URL in bookmarklet config!');
         return;
       }
-      var href = parent._____pshb_findAtomFeed();
-      if (href != null) {
+      if (feed != '' && feed != 'null') {
         var feedDiv = document.getElementById('feed');
-        feedDiv.innerHTML = href;
+        feedDiv.innerHTML = feed;
         var hubUrl = document.getElementById('hubUrlInput');
-        hubUrl.value = href;
+        hubUrl.value = feed;
       } else {
-        var contentDiv = document.getElementById('content');
-        contentDiv.innerHTML = '<strong>Error</strong>' +
-            '<div>Could not find Atom feeds in this page!</div>';
+        showError('Could not find Atom feeds in this page!');
         return;
       }
 
@@ -91,7 +104,7 @@
   </form>
 
   <div id="help">
-    <a target="_blank" href="bookmarklet_config.html">Configure this bookmarklet</a>
+    <a target="_blank" href="http://pubsubhubbub.appspot.com/bookmarklet_config.html">Configure this bookmarklet</a>
     |
     <a target="_blank" href="http://pubsubhubbub.googlecode.com">About</a>
   </div>

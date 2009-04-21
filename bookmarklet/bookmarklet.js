@@ -16,7 +16,8 @@
   if (document.body && !document.xmlVersion) {
     var jsonp = document.createElement('script');
     jsonp.type = 'text/javascript';
-    jsonp.src = 'bookmarklet_jsonp.min.js?rand=' + Math.floor(Math.random() * 1000);
+    // Remove the domain portion of the URL below for local testing.
+    jsonp.src = 'http://pubsubhubbub.appspot.com/bookmarklet_jsonp.min.js?rand=' + Math.floor(Math.random() * 1000);
     var head = document.getElementsByTagName('head')[0].appendChild(jsonp);
   };
 })()

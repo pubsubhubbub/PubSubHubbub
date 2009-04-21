@@ -18,7 +18,7 @@
     }
   </style>
   <script type="text/javascript" charset="utf-8">
-    var bookmarkletData = "(function(){if(document.body&&!document.xmlVersion){var jsonp=document.createElement('script');jsonp.type='text/javascript';jsonp.src='http://pubsubhubbub.appspot.com/bookmarklet_jsonp.min.js?rand='+Math.floor(Math.random()*1000);var head=document.getElementsByTagName('head')[0].appendChild(jsonp);};})()";
+    var bookmarkletData = "%(bookmarklet_min_js)s";
     var updateBookmarklet = function() {
       setTimeout(function() {
         var hubUrl = document.getElementById('hubUrl');
@@ -43,4 +43,3 @@
 
 </body>
 </html>
-

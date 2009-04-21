@@ -21,17 +21,17 @@ var _____pshb_BookmarkletRun = function() {
   if (document.getElementById(post_id) == null) {
     post = document.createElement('iframe');
     post.id = post_id;
-    post.src = 'bookmarklet.html';
     post.width = '250';
     post.height = '120';
     var s = post.style;
     s.position = 'absolute';
-    s.top = '10';
-    s.right = '10';
+    s.top = '10px';
+    s.right = '10px';
     s.padding = '0';
     s.margin = '0';
     s.border = '5px solid #9c0';
-    
+    s.zIndex = '1000000';
+
     close = document.createElement('a');
     close.href = 'javascript:window._____pshb_closeMe();';
     close.innerHTML = '&times;';
@@ -40,8 +40,8 @@ var _____pshb_BookmarkletRun = function() {
     s.fontWeight = 'bold';
     s.fontSize = '12px';
     s.position = 'absolute';
-    s.top = '15';
-    s.right = '15';
+    s.top = '15px';
+    s.right = '15px';
     s.margin = '0';
     s.borderStyle = 'dotted';
     s.borderColor = '#aaa;';
@@ -50,11 +50,14 @@ var _____pshb_BookmarkletRun = function() {
     s.display = 'block';
     s.textDecoration = 'none';
     s.color = '#000';
-    s.zIndex = '100';
+    s.zIndex = '1000001';
   };
 
   // Thanks Prototype.
   var canonicalize = function(s) {
+    if (s == '' || s == null) {
+      return '';
+    };
     var temp = document.createElement('div');
     temp.innerHTML = s.toLowerCase();
     var result = temp.childNodes[0].nodeValue;
@@ -67,7 +70,7 @@ var _____pshb_BookmarkletRun = function() {
     document.body.removeChild(post);
   };
 
-  window._____pshb_findAtomFeed = function() {
+  var findAtomFeed = function() {
     var links = document.getElementsByTagName('link');
     for (var i = 0; i < links.length; ++i) {
       var item = links[i];
@@ -83,34 +86,41 @@ var _____pshb_BookmarkletRun = function() {
     return null;
   };
 
+  window._____pshb_sawLoad = false;
+  window._____pshb_autoClose = true;
+
   // TODO: Figure out a better way to detect event delivery completion.
   // XHR can see 204 responses but doing this cross-domain seems impossible.
-  // We do not want to proxy the publish POST through a server because that
-  // will hide the IP address of the requestor; this leaves publishing open
-  // to a DoS attack, which we want to avoid.
-  window._____pshb_closeFrameAfterLoad = function (original) {
-    setTimeout(function() {
-      var current_post = document.getElementById(post_id);
-      try {
-        if (current_post.contentWindow.location.href == original) {
-          // Assume this means the content did not change, which means the 204
-          // was probably successful and we can close the window. If any other
-          // URL was loaded instead, we shouldn't close the window and the user
-          // should look at the error message.
-          window._____pshb_closeMe();
-        };
-      } catch (e) {
-        // If we get a cross-domain error, that means we've loaded a different
-        // page with some kind of error message, etc, and thus we should leave
-        // the bookmarklet open for the user to see.
-      };
-    }, 2000);
+  // Proxying the publish POST through a server because that will hide the IP
+  // address of the requestor; this leaves publishing open to a DoS attack,
+  // which we want to avoid.
+  window._____pshb_handleLoad = function() {
+    if (!window._____pshb_sawLoad) {
+      window._____pshb_sawLoad = true;
+    } else {
+      // This means the iframe has loaded another page, which could not possibly
+      // be a 204 response (since browsers do nothing on that response). So here
+      // we assume the post failed and do not automatically close the window.
+      window._____pshb_autoClose = false;
+    };
+  };
+
+  var autoClose = function() {
+    if (window._____pshb_autoClose) {
+      window._____pshb_closeMe();
+    };
   };
 
 
   if (post != null) {
+    var feed = findAtomFeed();
+    var hub = _____pshb_getHub();
+    post.onload = _____pshb_handleLoad;
+    // Remove the domain portion of the URL below for local testing.
+    post.src = 'http://pubsubhubbub.appspot.com/bookmarklet.html' + '?feed=' + feed + '&hub=' + hub;
     document.body.appendChild(post);
     document.body.appendChild(close);
+    setTimeout(autoClose, 2000);
   };
 };
 
