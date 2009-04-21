@@ -1,0 +1,102 @@
+<html>
+<head>
+  <style type="text/css">
+    body {
+      font-size: 12px;
+      color: #000;
+      background-color: #fff;
+      width: 230px;
+      font-family: "Trebuchet MS", Helvetica, sans-serif;
+    }
+    #help {
+      font-size: 10px;
+      position: absolute;
+      bottom: 10;
+      left: 10;
+    }
+    #help a:link,
+    #help a:visited,
+    #help a:active,
+    #help a:hover {
+      color: #00e;
+    }
+    .url {
+      font-size: 10px;
+      line-height: 10px;
+      height: 22px;
+      width: 100%;
+      overflow: hidden;
+      word-wrap: break-word;
+      padding: 0;
+      margin: 3px 0 0 0;
+    }
+    #content > div {
+      margin-bottom: 4px;
+    }
+  </style>
+  <script type="text/javascript" charset="utf-8">
+    var submitForm = function() {
+      var original = window.location.href;
+      var theForm = document.getElementById('theForm');
+      theForm.submit();
+      parent._____pshb_closeFrameAfterLoad(original);
+    }
+
+    var handleLoad = function() {
+      if (parent._____pshb_hubAddress != undefined) {
+        var theForm = document.getElementById('theForm');
+        theForm.action = parent._____pshb_hubAddress;
+        var hubView = document.getElementById('hubUrlView');
+        hubView.innerHTML = parent._____pshb_hubAddress;
+      } else {
+        var contentDiv = document.getElementById('content');
+        contentDiv.innerHTML = '<strong>Error</strong>' +
+            '<div>Could not find Hub URL in bookmarklet config!</div>';
+        return;
+      }
+      var href = parent._____pshb_findAtomFeed();
+      if (href != null) {
+        var feedDiv = document.getElementById('feed');
+        feedDiv.innerHTML = href;
+        var hubUrl = document.getElementById('hubUrlInput');
+        hubUrl.value = href;
+      } else {
+        var contentDiv = document.getElementById('content');
+        contentDiv.innerHTML = '<strong>Error</strong>' +
+            '<div>Could not find Atom feeds in this page!</div>';
+        return;
+      }
+
+      setTimeout(submitForm, 100);
+    }
+  </script>
+</head>
+<body onload="handleLoad();">
+
+<div id="content">
+
+  <div>
+    <strong>Found this feed:</strong>
+    <div class="url" id="feed"></div>
+  </div>
+
+  <div>
+    <strong>Publishing new events to this hub:</strong>
+    <div class="url" id="hubUrlView"></div>
+  </div>
+
+  <form id="theForm" action="" method="post">
+    <input type="hidden" name="hub.url" id="hubUrlInput">
+    <input type="hidden" name="hub.mode" value="publish">
+  </form>
+
+  <div id="help">
+    <a target="_blank" href="config.html">Configure this bookmarklet</a>
+    |
+    <a target="_blank" href="http://pubsubhubbub.googlecode.com">About</a>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -33,5 +33,10 @@ handlers:
   script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
   login: admin
 
+# Optional bookmarklet creation gadget.
+- url: /bookmarklet(_jsonp\.min\.js|\.min\.js|\.html|_config\.html|_gadget\.xml)
+  static_files: bookmarklet/bookmarklet\1
+  upload: bookmarklet/.+\.(min\.js|html|xml)
+
 - url: .*
   script: main.py
