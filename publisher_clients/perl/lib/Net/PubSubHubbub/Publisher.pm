@@ -10,8 +10,9 @@ Net::PubSubHubbub::Publisher - client library to ping a PubSubHubbub hub
 
 =head1 OVERVIEW
 
-  my $publisher = Net::PubSubHubbub::Publisher->new(hub => $hub);
-  $publisher->publish_update($atom_topic_url);
+  my $pub = Net::PubSubHubbub::Publisher->new(hub => $hub);
+  $pub->publish_update($atom_topic_url) or
+      die "Ping failed: " . $pub->last_response->status_line;
 
 =cut
 
@@ -62,7 +63,8 @@ sub new {
 
 Sends a ping that the provided Topic URL has been updated.
 
-=back
+Returns true on success.  If false, see C<last_response> to figure out
+why it failed.
 
 =cut
 
@@ -80,6 +82,13 @@ sub publish_update {
     return 0;
 }
 
+=item C<last_response>()
+
+Returns the last L<HTTP::Response>.  Use this when C<publish_update>
+fails to discover why it failed.
+
+=cut
+
 sub last_response {
     my $self = shift;
     return $self->{last_res};
@@ -87,12 +96,26 @@ sub last_response {
 
 1;
 
-=head1 SEE ALSO
+=back
 
-L<http://code.google.com/p/pubsubhubbub/> -- PubSubHubbub home
+=head1 COPYRIGHT & LICENSE
+
+This module is Copyright (c) 2009 Brad Fitzpatrick.
+All rights reserved.
+
+You may distribute under the terms of either the GNU General Public
+License or the Artistic License, as specified in the Perl README file.
+
+=head1 WARRANTY
+
+This is free software. IT COMES WITHOUT WARRANTY OF ANY KIND.
 
 =head1 AUTHOR
 
 Brad Fitzpatrick <brad@danga.com>
+
+=head1 SEE ALSO
+
+L<http://code.google.com/p/pubsubhubbub/> -- PubSubHubbub home
 
 =cut
