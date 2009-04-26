@@ -12,7 +12,7 @@ sub usage {
         warn "ERROR: $err\n\n";
     }
     print STDERR <<END;
-Usage: pubsubhubbub-publish [OPTS] <topic_url>
+Usage: pubsubhubbub-publish [OPTS] <topic_url> [<topic_url2> ...]
 
 Pings the hub, notifying the hub that the provided 'topic_url' has
 been updated.
@@ -31,15 +31,17 @@ my $hub = "http://pubsubhubbub.appspot.com/publish";
 GetOptions("hub=s" => \$hub)
     or usage();
 
-my $topic_url = shift;
-usage("topic_url required.")
-    unless $topic_url && $topic_url =~ m!^https?://\S+$!;
+my @topic_urls = @ARGV or usage("topic_url required.");
+foreach my $url (@topic_urls) {
+    usage("Bogus topic URL: $url")
+        unless $url =~ m!^https?://\S+$!;
+}
 
 usage("No hub provided.")
     unless $hub && $hub =~ m!^https?://\S+$!;
 
 my $publisher = Net::PubSubHubbub::Publisher->new(hub => $hub);
-unless ($publisher->publish_update($topic_url)) {
+unless ($publisher->publish_update(@topic_urls)) {
     warn "Error pinging hub: " . $publisher->last_response->status_line;
     exit(1);
 }

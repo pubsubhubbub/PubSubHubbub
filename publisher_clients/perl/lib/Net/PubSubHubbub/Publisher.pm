@@ -16,7 +16,7 @@ Net::PubSubHubbub::Publisher - client library to ping a PubSubHubbub hub
 
 =cut
 
-our $VERSION = "0.90";
+our $VERSION = "0.91";
 
 =head1 CONSTRUCTOR
 
@@ -61,7 +61,9 @@ sub new {
 
 =item C<publish_update>($topic_url)
 
-Sends a ping that the provided Topic URL has been updated.
+=item C<publish_update>(@topic_urls)
+
+Sends a ping that the provided Topic URL(s) has/have been updated.
 
 Returns true on success.  If false, see C<last_response> to figure out
 why it failed.
@@ -69,14 +71,14 @@ why it failed.
 =cut
 
 sub publish_update {
-    my ($self, $url) = @_;
-    unless ($url =~ m!^https?://!) {
-        croak("Bogus URL of $url");
+    my ($self, @urls) = @_;
+    croak "No URL(s) provided" unless @urls;
+    foreach my $url (@urls) {
+        croak("Bogus URL: $url") unless $url =~ m!^https?://!;
     }
-    my $req = POST $self->{hub}, [
-                                  "hub.mode" => "publish",
-                                  "hub.url" => $url,
-                                  ];
+    my @args = ("hub.mode" => "publish");
+    push @args, map { ("hub.url" => $_) } @urls;
+    my $req = POST $self->{hub}, \@args;
     my $res = $self->{last_res} = $self->{ua}->request($req);
     return 1 if $res->is_success;
     return 0;
