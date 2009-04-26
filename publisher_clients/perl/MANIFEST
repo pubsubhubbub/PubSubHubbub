@@ -1,3 +1,4 @@
+ChangeLog
 pubsubhubbub-publish
 lib/Net/PubSubHubbub/Publisher.pm
 Makefile.PL
