@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+# -*-perl-*-
+
+use strict;
+use Net::PubSubHubbub::Publisher;
+use Getopt::Long;
+use LWP::Simple ();
+
+sub usage {
+    my $err = shift;
+    if ($err) {
+        warn "ERROR: $err\n\n";
+    }
+    print STDERR <<END;
+Usage: pubsubhubbub-publish [OPTS] <topic_url>
+
+Pings the hub, notifying the hub that the provided 'topic_url' has
+been updated.
+
+Options:
+--hub=<hub_publish_endpoint>  Which hub endpoint to ping.  Defaults
+    to the open, reference hub, but you need to use whatever hub
+    that your Topic URL references.
+
+END
+
+    exit(1);
+}
+
+my $hub = "http://pubsubhubbub.appspot.com/publish";
+GetOptions("hub=s" => \$hub)
+    or usage();
+
+my $topic_url = shift;
+usage("topic_url required.")
+    unless $topic_url && $topic_url =~ m!^https?://\S+$!;
+
+usage("No hub provided.")
+    unless $hub && $hub =~ m!^https?://\S+$!;
+
+my $publisher = Net::PubSubHubbub::Publisher->new(hub => $hub);
+unless ($publisher->publish_update($topic_url)) {
+    warn "Error pinging hub: " . $publisher->last_response->status_line;
+    exit(1);
+}

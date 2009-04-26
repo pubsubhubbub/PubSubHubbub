@@ -1,3 +1,4 @@
+pubsubhubbub-publish
 lib/Net/PubSubHubbub/Publisher.pm
 Makefile.PL
 MANIFEST			This list of files
