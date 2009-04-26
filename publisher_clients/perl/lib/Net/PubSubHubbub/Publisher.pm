@@ -4,7 +4,30 @@ use LWP::UserAgent;
 use HTTP::Request::Common;
 use Carp qw(croak);
 
-our $VERSION = "1.00";
+=head1 NAME
+
+Net::PubSubHubbub::Publisher - client library to ping a PubSubHubbub hub
+
+=head1 OVERVIEW
+
+  my $publisher = Net::PubSubHubbub::Publisher->new(hub => $hub);
+  $publisher->publish_update($atom_topic_url);
+
+=cut
+
+our $VERSION = "0.90";
+
+=head1 CONSTRUCTOR
+
+=over 4
+
+=item C<new>(hub => $hub[, ua => $ua])
+
+Takes a required hub URL, and an optional L<LWP::UserAgent> instance.
+
+=back
+
+=cut
 
 sub new {
     my ($class, %opts) = @_;
@@ -31,6 +54,18 @@ sub new {
     }, $class;
 }
 
+=head1 METHODS
+
+=over 4
+
+=item C<publish_update>($topic_url)
+
+Sends a ping that the provided Topic URL has been updated.
+
+=back
+
+=cut
+
 sub publish_update {
     my ($self, $url) = @_;
     unless ($url =~ m!^https?://!) {
@@ -51,3 +86,13 @@ sub last_response {
 }
 
 1;
+
+=head1 SEE ALSO
+
+L<http://code.google.com/p/pubsubhubbub/> -- PubSubHubbub home
+
+=head1 AUTHOR
+
+Brad Fitzpatrick <brad@danga.com>
+
+=cut
