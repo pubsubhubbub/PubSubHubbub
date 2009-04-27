@@ -1,4 +1,6 @@
-0.90 (2009-04-26)
+1.00 (2009-04-26)
 
-        - first release, untested
+    * first release.  works, including batching.
+
+
 
