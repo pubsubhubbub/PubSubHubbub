@@ -41,6 +41,8 @@ use Net::PubSubHubbub::Publisher 0.91;
 
 our $VERSION = '1.00';
 
+our $MAX_BATCH_SIZE = 50;
+
 my $keep_exit_status_for = 0;
 sub set_keep_exit_status_for { $keep_exit_status_for = shift; }
 
@@ -48,23 +50,49 @@ my %publisher;  # $hub -> Net::PubSubHubbub::Publisher
 
 sub work {
     my ($class, $job) = @_;
-    my $args = $job->arg;
     my $client = $job->handle->client;
+    my $hub    = $job->arg->{hub};
+    unless ($hub && $hub =~ m!^https?://\S+$!) {
+        $job->permanent_failure("Bogus hub $hub. Ignoring job.");
+        return;
+    }
 
-    my $hub    = $args->{hub};
-    my $topic  = $args->{topic_url};
+    my @jobs;
+    my @topics;
+
+    my $add_job = sub {
+        my $j = shift;
+        my $args = $j->arg;
+        unless ($args->{hub} eq $hub) {
+            # Each job must share the same hub.
+            warn "WARNING: coalesced job had different hub in its args. Skipping.";
+            return;
+        }
+
+        push @jobs, $j;
+        push @topics, $args->{topic_url};
+    };
+    $add_job->($job);
 
     my $publisher = $publisher{$hub} ||=
         Net::PubSubHubbub::Publisher->new(hub => $hub);
 
-    if ($publisher->publish_update($topic)) {
-        warn "Pinged $hub about $topic.\n";
-        $job->completed;
+    while (@topics < $MAX_BATCH_SIZE) {
+        my $j = $client->find_job_with_coalescing_value(__PACKAGE__, $hub);
+        last unless $j;
+        $add_job->($j);
+    }
+
+    if ($publisher->publish_update(@topics)) {
+        warn "Pinged $hub about topic(s): @topics.\n";
+        foreach my $j (@jobs) {
+            $j->completed;
+        }
         return;
     }
 
     my $failure_reason = $publisher->last_response->status_line;
-    warn "Failed to ping $hub about $topic: $failure_reason\n";
+    warn "Failed to ping $hub about @topics: $failure_reason\n";
     $job->failed($failure_reason);
 }
 
