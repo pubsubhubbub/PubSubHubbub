@@ -57,12 +57,15 @@ sub work {
     my $publisher = $publisher{$hub} ||=
         Net::PubSubHubbub::Publisher->new(hub => $hub);
 
-    if ($publisher->publish_topic($topic)) {
+    if ($publisher->publish_update($topic)) {
+        warn "Pinged $hub about $topic.\n";
         $job->completed;
         return;
     }
 
-    $job->failed($publisher->last_response->status_line);
+    my $failure_reason = $publisher->last_response->status_line;
+    warn "Failed to ping $hub about $topic: $failure_reason\n";
+    $job->failed($failure_reason);
 }
 
 sub keep_exit_status_for {
