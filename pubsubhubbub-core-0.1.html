@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html lang="en"><head><title>Final: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Sun, 19 Apr 2009 00:05:43 +0000">
+<html lang="en"><head><title>Draft: PubSubHubbub Core 0.1 -- Working Draft</title>
+<meta http-equiv="Expires" content="Mon, 27 Apr 2009 02:38:17 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -142,7 +142,7 @@
 <body>
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <table summary="layout" width="66%" border="0" cellpadding="0" cellspacing="0"><tr><td><table summary="layout" width="100%" border="0" cellpadding="2" cellspacing="1">
-<tr><td class="header">Final</td><td class="header">B. Fitzpatrick</td></tr>
+<tr><td class="header">Draft</td><td class="header">B. Fitzpatrick</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">B. Slatkin</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">Google, Inc</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">M. Atkins</td></tr>
@@ -186,25 +186,25 @@ Definitions<br />
 High-level protocol flow<br />
 <a href="#anchor4">4.</a>&nbsp;
 Atom Details<br />
-<a href="#anchor5">5.</a>&nbsp;
+<a href="#discovery">5.</a>&nbsp;
 Discovery<br />
 <a href="#subscribing">6.</a>&nbsp;
 Subscribing<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">6.1.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor5">6.1.</a>&nbsp;
 Subscriber Sends Subscription Request<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#verifysub">6.2.</a>&nbsp;
 Hub Verifies Intent to Subscribe<br />
-<a href="#anchor7">7.</a>&nbsp;
+<a href="#publishing">7.</a>&nbsp;
 Publishing<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor8">7.1.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor6">7.1.</a>&nbsp;
 New Content Notification<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#contentfetch">7.2.</a>&nbsp;
 Content Fetch<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor9">7.3.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor7">7.3.</a>&nbsp;
 Content Distribution<br />
 <a href="#rfc.references1">8.</a>&nbsp;
 References<br />
-<a href="#anchor11">Appendix&nbsp;A.</a>&nbsp;
+<a href="#anchor9">Appendix&nbsp;A.</a>&nbsp;
 Specification Feedback<br />
 <a href="#rfc.authors">&#167;</a>&nbsp;
 Authors' Addresses<br />
@@ -324,15 +324,15 @@ Atom Details</h3>
 </p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>  &lt;atom:feed&gt;
     # ... source, title, etc ...
 
-    &lt;link rel="hub.subscribe" href="http://myhub.com/subscribe" /&gt;
-    &lt;link rel="self" href="http://publisher.com/happycats.xml" /&gt;
+    &lt;link rel="hub" href="http://myhub.example.com/endpoint" /&gt;
+    &lt;link rel="self" href="http://publisher.example.com/happycats.xml" /&gt;
     &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
 
     # Example of a full entry.
     &lt;entry&gt;
       &lt;title&gt;Heathcliff&lt;/title&gt;
-      &lt;link href="http://publisher.com/happycat25.xml" /&gt;
-      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;link href="http://publisher.example.com/happycat25.xml" /&gt;
+      &lt;id&gt;http://publisher.example.com/happycat25.xml&lt;/id&gt;
       &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
       &lt;content&gt;
         What a happy cat. Full content goes here.
@@ -343,8 +343,8 @@ Atom Details</h3>
     # by the lack of a &lt;content&gt; element and a &lt;summary&gt; element instead.
     &lt;entry &gt;
       &lt;title&gt;Heathcliff&lt;/title&gt;
-      &lt;link href="http://publisher.com/happycat25.xml" /&gt;
-      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;link href="http://publisher.example.com/happycat25.xml" /&gt;
+      &lt;id&gt;http://publisher.example.com/happycat25.xml&lt;/id&gt;
       &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
       &lt;summary&gt;
         What a happy cat!
@@ -354,8 +354,8 @@ Atom Details</h3>
     # Meta-data only; implied by the lack of &lt;content&gt; and &lt;summary&gt; elements.
     &lt;entry&gt;
       &lt;title&gt;Garfield&lt;/title&gt;
-      &lt;link rel="alternate" href="http://publisher.com/happycat24.xml" /&gt;
-      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;link rel="alternate" href="http://publisher.example.com/happycat24.xml" /&gt;
+      &lt;id&gt;http://publisher.example.com/happycat25.xml&lt;/id&gt;
       &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
     &lt;/entry&gt;
 
@@ -363,8 +363,8 @@ Atom Details</h3>
     # update time on this entry is before the //atom:feed/updated time.
     &lt;entry&gt;
       &lt;title&gt;Nermal&lt;/title&gt;
-      &lt;link rel="alternate" href="http://publisher.com/happycat23s.xml" /&gt;
-      &lt;id&gt;http://publisher.com/happycat25.xml&lt;/id&gt;
+      &lt;link rel="alternate" href="http://publisher.example.com/happycat23s.xml" /&gt;
+      &lt;id&gt;http://publisher.example.com/happycat25.xml&lt;/id&gt;
       &lt;updated&gt;2008-07-10T12:28:13Z&lt;/updated&gt;
     &lt;/entry&gt;
 
@@ -402,13 +402,6 @@ Atom Details</h3>
 <p>The //atom:feed/link[@rel="self"] element will indicate the original
       URL for the entire event stream with no truncation (if available).
 </p>
-<p>The //atom:feed/link[@rel="hub.delegate"] element indicates the URL
-      that the hub should use for retrieving new notifications from a
-      publisher. The publisher can make this delegate URL contain a meta-data
-      only or truncated view of the feed. If a hub.delegate is not provided,
-      then the 'self' URL is used as both the source of notifications and the
-      source for the topic URL feed.
-</p>
 <p>Topic URLs must be unique, but multiple topics may use the same
       hub.delegate. In this situation, the delegate URL may serve a
       &lt;OLD_INFO&gt;MIME multipart response, each part of which will contain
@@ -425,25 +418,39 @@ Atom Details</h3>
 <p>Requirement is that topic URLs and delegate URLs can never
       overlap!
 </p>
-<a name="anchor5"></a><br /><hr />
+<a name="discovery"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.5"></a><h3>5.&nbsp;
 Discovery</h3>
 
-<p>A potential subscriber initiates discovery by retrieving the Atom
-      feed to which it wants to subscribe. A feed that acts as a topic as per
-      this specification MUST publish, as a child of atom:feed, an atom:link
-      element whose rel attribute has the value "hub.subscribe" and whose href
-      attribute contains the hub URL. When a potential subscriber encounters
-      such a link, that subscriber MAY subscribe to the feed as described in
-      <a class='info' href='#subscribing'>Section&nbsp;6<span> (</span><span class='info'>Subscribing</span><span>)</span></a>.
+<p>A potential subscriber initiates discovery by retrieving the
+      Atom feed to which it wants to subscribe. A feed that acts as a
+      topic as per this specification MUST publish, as a child of
+      atom:feed, an atom:link element whose rel attribute has the
+      value "hub" and whose href attribute contains the hub's endpoint
+      URL. When a potential subscriber encounters such a link, that
+      subscriber MAY subscribe to the feed as described in <a class='info' href='#subscribing'>Section&nbsp;6<span> (</span><span class='info'>Subscribing</span><span>)</span></a>.
 </p>
+<p>Example:
+</p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;atom:feed&gt;
+  ... source, title, etc ...
+  &lt;link rel="hub" href="http://myhub.example.com/endpoint" /&gt;
+  &lt;link rel="self" href="http://publisher.example.com/topic.xml" /&gt;
+  ....
+  &lt;entry&gt;
+     ....
+  &lt;/entry&gt;
+  &lt;entry&gt;
+     ....
+  &lt;/entry&gt;
+&lt;/atom:feed&gt;
+</pre></div>
 <a name="subscribing"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.6"></a><h3>6.&nbsp;
 Subscribing</h3>
 
-<a name="anchor6"></a><br /><hr />
+<a name="anchor5"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.6.1"></a><h3>6.1.&nbsp;
 Subscriber Sends Subscription Request</h3>
@@ -552,7 +559,7 @@ Hub Verifies Intent to Subscribe</h3>
         other client and server error response codes (4xx and 5xx) to mean
         that the subscription is <em>not</em> verified.
 </p>
-<a name="anchor7"></a><br /><hr />
+<a name="publishing"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.7"></a><h3>7.&nbsp;
 Publishing</h3>
@@ -563,7 +570,7 @@ Publishing</h3>
 <p>For now, see <a href='http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt'>the
       original design document</a> text file.
 </p>
-<a name="anchor8"></a><br /><hr />
+<a name="anchor6"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.7.1"></a><h3>7.1.&nbsp;
 New Content Notification</h3>
@@ -603,7 +610,7 @@ Content Fetch</h3>
         possibly approximate, of subscribers on behalf of which the feed is
         being fetched.
 </p>
-<a name="anchor9"></a><br /><hr />
+<a name="anchor7"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.7.3"></a><h3>7.3.&nbsp;
 Content Distribution</h3>
@@ -651,7 +658,7 @@ Content Distribution</h3>
 <td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
 </table>
 
-<a name="anchor11"></a><br /><hr />
+<a name="anchor9"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.A"></a><h3>Appendix A.&nbsp;
 Specification Feedback</h3>

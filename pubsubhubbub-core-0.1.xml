@@ -25,7 +25,7 @@
 
   <?rfc iprnotified="no" ?>
 
-  <?rfc private="Final" ?>
+  <?rfc private="Draft" ?>
 
   <front>
     <title>PubSubHubbub Core 0.1 -- Working Draft</title>
@@ -175,15 +175,15 @@
         <artwork><![CDATA[  <atom:feed>
     # ... source, title, etc ...
 
-    <link rel="hub.subscribe" href="http://myhub.com/subscribe" />
-    <link rel="self" href="http://publisher.com/happycats.xml" />
+    <link rel="hub" href="http://myhub.example.com/endpoint" />
+    <link rel="self" href="http://publisher.example.com/happycats.xml" />
     <updated>2008-08-11T02:15:01Z</updated>
 
     # Example of a full entry.
     <entry>
       <title>Heathcliff</title>
-      <link href="http://publisher.com/happycat25.xml" />
-      <id>http://publisher.com/happycat25.xml</id>
+      <link href="http://publisher.example.com/happycat25.xml" />
+      <id>http://publisher.example.com/happycat25.xml</id>
       <updated>2008-08-11T02:15:01Z</updated>
       <content>
         What a happy cat. Full content goes here.
@@ -194,8 +194,8 @@
     # by the lack of a <content> element and a <summary> element instead.
     <entry >
       <title>Heathcliff</title>
-      <link href="http://publisher.com/happycat25.xml" />
-      <id>http://publisher.com/happycat25.xml</id>
+      <link href="http://publisher.example.com/happycat25.xml" />
+      <id>http://publisher.example.com/happycat25.xml</id>
       <updated>2008-08-11T02:15:01Z</updated>
       <summary>
         What a happy cat!
@@ -205,8 +205,8 @@
     # Meta-data only; implied by the lack of <content> and <summary> elements.
     <entry>
       <title>Garfield</title>
-      <link rel="alternate" href="http://publisher.com/happycat24.xml" />
-      <id>http://publisher.com/happycat25.xml</id>
+      <link rel="alternate" href="http://publisher.example.com/happycat24.xml" />
+      <id>http://publisher.example.com/happycat25.xml</id>
       <updated>2008-08-11T02:15:01Z</updated>
     </entry>
 
@@ -214,8 +214,8 @@
     # update time on this entry is before the //atom:feed/updated time.
     <entry>
       <title>Nermal</title>
-      <link rel="alternate" href="http://publisher.com/happycat23s.xml" />
-      <id>http://publisher.com/happycat25.xml</id>
+      <link rel="alternate" href="http://publisher.example.com/happycat23s.xml" />
+      <id>http://publisher.example.com/happycat25.xml</id>
       <updated>2008-07-10T12:28:13Z</updated>
     </entry>
 
@@ -253,13 +253,6 @@
       <t>The //atom:feed/link[@rel="self"] element will indicate the original
       URL for the entire event stream with no truncation (if available).</t>
 
-      <t>The //atom:feed/link[@rel="hub.delegate"] element indicates the URL
-      that the hub should use for retrieving new notifications from a
-      publisher. The publisher can make this delegate URL contain a meta-data
-      only or truncated view of the feed. If a hub.delegate is not provided,
-      then the 'self' URL is used as both the source of notifications and the
-      source for the topic URL feed.</t>
-
       <t>Topic URLs must be unique, but multiple topics may use the same
       hub.delegate. In this situation, the delegate URL may serve a
       &lt;OLD_INFO&gt;MIME multipart response, each part of which will contain
@@ -277,15 +270,34 @@
       overlap!</t>
     </section>
 
-    <section title="Discovery">
-      <t>A potential subscriber initiates discovery by retrieving the Atom
-      feed to which it wants to subscribe. A feed that acts as a topic as per
-      this specification MUST publish, as a child of atom:feed, an atom:link
-      element whose rel attribute has the value "hub.subscribe" and whose href
-      attribute contains the hub URL. When a potential subscriber encounters
-      such a link, that subscriber MAY subscribe to the feed as described in
-      <xref target="subscribing"></xref>.</t>
-    </section>
+    <section anchor="discovery" title="Discovery">
+      <t>A potential subscriber initiates discovery by retrieving the
+      Atom feed to which it wants to subscribe. A feed that acts as a
+      topic as per this specification MUST publish, as a child of
+      atom:feed, an atom:link element whose rel attribute has the
+      value "hub" and whose href attribute contains the hub's endpoint
+      URL. When a potential subscriber encounters such a link, that
+      subscriber MAY subscribe to the feed as described in <xref
+      target="subscribing"></xref>.</t>
+
+      <t>Example:</t>
+
+      <figure>
+ <artwork><![CDATA[<atom:feed>
+  ... source, title, etc ...
+  <link rel="hub" href="http://myhub.example.com/endpoint" />
+  <link rel="self" href="http://publisher.example.com/topic.xml" />
+  ....
+  <entry>
+     ....
+  </entry>
+  <entry>
+     ....
+  </entry>
+</atom:feed>
+]]></artwork></figure>
+
+     </section>
 
     <section anchor="subscribing" title="Subscribing">
       <section title="Subscriber Sends Subscription Request">
@@ -378,7 +390,7 @@
       </section>
     </section>
 
-    <section title="Publishing">
+    <section anchor="publishing" title="Publishing">
       <t>TODO. (this section hasn't been moved from the text file to XML
       yet)</t>
 
