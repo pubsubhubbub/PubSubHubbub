@@ -63,10 +63,10 @@
       Engine-specific. Anybody can play.</t>
 
       <t>As opposed to more developed (and more complex) pubsub specs like
-      XEP-0060, this spec's base profile (the barrier-to-entry to speak it) is
-      dead simple. The fancy bits required for high-volume publishers and
-      subscribers are optional. The base profile is HTTP-based, as opposed to
-      XMPP (see more on this below).</t>
+      XEP-0060 (Jabber Publish-Subscribe) this spec's base profile (the
+      barrier-to-entry to speak it) is dead simple. The fancy bits required for
+      high-volume publishers and subscribers are optional. The base profile is
+      HTTP-based, as opposed to XMPP (see more on this below).</t>
 
       <t>To dramatically simplify the spec in several places where we had to
       choose between supporting A or B, we took it upon ourselves to say "only
@@ -93,56 +93,60 @@
 
     <section title="Definitions">
       <t><list style="hanging">
-          <t hangText="Topic:">an Atom feed URL. The unit to which one can
-          subscribe to changes. RSS isn't supported for simplicity. Further,
-          the spec currently only addresses public (unauthenticated) Atom feed
+          <t hangText="Topic:">An <xref target="RFC4287">Atom</xref> feed URL.
+          The unit to which one can subscribe to changes. <xref
+          target="RSS20">RSS</xref> isn't supported for simplicity. Further, the
+          spec currently only addresses public (unauthenticated) Atom feed
           URLs.</t>
 
-          <t hangText="Pubsub Hub (&quot;the hub&quot;):">the server (URL)
-          which implements both sides of this protocol. We're currently
-          implementing this and running at server at
-          http://pubsubhubbub.appspot.com/ that's at least for now open for
-          anybody to use, as either a publisher or subscriber. Any hub is free
-          to implement its own policies on who can use it.</t>
+          <t hangText="Pubsub Hub (&quot;the hub&quot;):">The server (URL) which
+          implements both sides of this protocol. We have implemented this and
+          are running a server at <eref
+          target="http://pubsubhubbub.appspot.com/">
+          http://pubsubhubbub.appspot.com</eref> that's at least for now open
+          for anybody to use, as either a publisher or subscriber. Any hub is
+          free to implement its own policies on who can use it.</t>
 
-          <t hangText="Publisher:">an owner of a topic. Notifies the pubsub
-          hub when the topic (Atom feed) has been updated. Just notifies that
-          it _has_ been updated, but not how. As in almost all pubsub systems,
-          the publisher is unaware of the subscribers, if any. Other pubsub
-          systems might call the publisher the "source".</t>
+          <t hangText="Publisher:">An owner of a topic. Notifies the pubsub hub
+          when the topic (Atom feed) has been updated. It just notifies that it
+          <spanx style="emph">has</spanx> been updated, but not how. As in
+          almost all pubsub systems, the publisher is unaware of the
+          subscribers, if any. Other pubsub systems might call the publisher the
+          "source".</t>
 
-          <t hangText="Subscriber:">an entity (person or program) that wants
-          to be notified of changed on a topic. The subscriber must be
-          directly network-accessible, and is identified by Subscriber
+          <t hangText="Subscriber:">An entity (person or program) that wants
+          to be notified of changes on a topic. The subscriber must be
+          directly network-accessible and is identified by its Subscriber
           Callback URL.</t>
 
-          <t hangText="Subscription:">a tuple (Topic URL, Subscriber). The
-          subscription's unique key is actually the tuple (Topic URL,
-          Subscriber Callback URL).  Subscriptions may (at the hub's decision)
-          have expiration times akin to DHCP leases and then must be
-          renewed.</t>
+          <t hangText="Subscription:">A unique relation to a topic by a
+          subscriber that indicates it should receive updates for that topic. A
+          subscription's unique key is the tuple (Topic URL, Subscriber Callback
+          URL). Subscriptions may (at the hub's decision) have expiration times
+          akin to DHCP leases which must be periodically renewed.</t>
 
           <t hangText="Subscriber Callback URL:">The URL at which a subscriber
-          wishes to recieve notifications.</t>
+          wishes to receive notifications.</t>
 
-          <t hangText="Event:">an event that's visible to multiple topics. For
-          each event that happens (e.g. "Brad posted to the Linux
-          Community."), multiple topics could be affected (e.g. "Brad posted."
-          and "Linux community has new post"). Publisher events update topics,
-          and the hub looks up all subscriptions for all affected topics,
-          sending out notifications to subscribers.</t>
+          <t hangText="Event:">An event that's visible to multiple topics. For
+          each event that happens (e.g. "Brad posted to the Linux Community."),
+          multiple topics could be affected (e.g. "Brad posted." and "Linux
+          community has new post"). Publisher events cause topics to be updated
+          and the hub looks up all subscriptions for affected topics, sending
+          out notifications to subscribers.</t>
 
-          <t hangText="Notification:">a delta on a topic, computed by the hub
-          and sent to all subscribers. (TBD: format of this delta. likely: an
-          Atom feed itself with just the new or changed stuff, and gravestones
-          for removed items?) The notification can be the result of a
-          publisher telling the hub of an update, or the hub proactively
-          polling a topic feed, perhaps for a subscriber subscribing to a
-          topic that's not pubsub-aware. Note also that a notification to a
-          subscriber can be a payload consisting of updates for multiple
-          topics. Publishers MAY choose to send multi-topic notifications as
-          an optimization for heavy subscribers, but subscribers MUST
-          understand them.</t>
+          <t hangText="Notification:">A payload describing how a topic's
+          contents have changed. This difference (or "delta") is computed by the
+          hub and sent to all subscribers. The format of the notification will
+          be an Atom feed served by the publisher with only new entries present.
+          The notification can be the result of a publisher telling the hub of
+          an update, or the hub proactively polling a topic feed, perhaps for a
+          subscriber subscribing to a topic that's not pubsub-aware. Note also
+          that a notification to a subscriber can be a payload consisting of
+          updates for multiple topics. Publishers MAY choose to send multi-topic
+          notifications as an optimization for heavy subscribers, but
+          subscribers MUST understand them. See <xref
+          target="contentdistribution" /> for format details.</t>
         </list></t>
     </section>
 
@@ -159,72 +163,72 @@
           topics which don't advertise a hub.</t>
 
           <t>The hub caches minimal metadata (id, data, entry digest) about
-          each topic's previous state. When the hub refetches a topic feed (on
+          each topic's previous state. When the hub re-fetches a topic feed (on
           its own initiative or as a result of a publisher's ping) and finds a
-          delta, it enqueues a notification to all registered subscribers.
-          Subscribers can be notified of topic deltas in a variety of
-          ways:</t>
+          delta, it enqueues a notification to all registered subscribers.</t>
         </list></t>
     </section>
 
     <section title="Atom Details">
-      <t>Notification and source formats will be Atom. More detail follows
+      <t>Notification and source formats will be Atom. Explanation detail follows
       this example.</t>
 
       <figure>
-        <artwork><![CDATA[  <atom:feed>
-    # ... source, title, etc ...
+        <artwork><![CDATA[<?xml version="1.0"?>
+<atom:feed>
+  <!-- Normally here would be source, title, etc ... -->
 
-    <link rel="hub" href="http://myhub.example.com/endpoint" />
-    <link rel="self" href="http://publisher.example.com/happycats.xml" />
+  <link rel="hub" href="http://myhub.example.com/endpoint" />
+  <link rel="self" href="http://publisher.example.com/happycats.xml" />
+  <updated>2008-08-11T02:15:01Z</updated>
+
+  <!-- Example of a full entry. -->
+  <entry>
+    <title>Heathcliff</title>
+    <link href="http://publisher.example.com/happycat25.xml" />
+    <id>http://publisher.example.com/happycat25.xml</id>
     <updated>2008-08-11T02:15:01Z</updated>
+    <content>
+      What a happy cat. Full content goes here.
+    </content>
+  </entry>
 
-    # Example of a full entry.
-    <entry>
-      <title>Heathcliff</title>
-      <link href="http://publisher.example.com/happycat25.xml" />
-      <id>http://publisher.example.com/happycat25.xml</id>
-      <updated>2008-08-11T02:15:01Z</updated>
-      <content>
-        What a happy cat. Full content goes here.
-      </content>
-    </entry>
+  <!-- Example of an entity that isn't full/is truncated. This is implied
+       by the lack of a <content> element and a <summary> element instead. -->
+  <entry >
+    <title>Heathcliff</title>
+    <link href="http://publisher.example.com/happycat25.xml" />
+    <id>http://publisher.example.com/happycat25.xml</id>
+    <updated>2008-08-11T02:15:01Z</updated>
+    <summary>
+      What a happy cat!
+    </summary>
+  </entry>
+  
+  <!-- Meta-data only; implied by the lack of <content> and
+       <summary> elements. -->
+  <entry>
+    <title>Garfield</title>
+    <link rel="alternate" href="http://publisher.example.com/happycat24.xml" />
+    <id>http://publisher.example.com/happycat25.xml</id>
+    <updated>2008-08-11T02:15:01Z</updated>
+  </entry>
 
-    # Example of an entity that isn't full/is truncated. This is implied
-    # by the lack of a <content> element and a <summary> element instead.
-    <entry >
-      <title>Heathcliff</title>
-      <link href="http://publisher.example.com/happycat25.xml" />
-      <id>http://publisher.example.com/happycat25.xml</id>
-      <updated>2008-08-11T02:15:01Z</updated>
-      <summary>
-        What a happy cat!
-      </summary>
-    </entry>
-    
-    # Meta-data only; implied by the lack of <content> and <summary> elements.
-    <entry>
-      <title>Garfield</title>
-      <link rel="alternate" href="http://publisher.example.com/happycat24.xml" />
-      <id>http://publisher.example.com/happycat25.xml</id>
-      <updated>2008-08-11T02:15:01Z</updated>
-    </entry>
+  <!-- Context entry that's meta-data only and not new. Implied because the
+       update time on this entry is before the //atom:feed/updated time. -->
+  <entry>
+    <title>Nermal</title>
+    <link rel="alternate" href="http://publisher.example.com/happycat23s.xml" />
+    <id>http://publisher.example.com/happycat25.xml</id>
+    <updated>2008-07-10T12:28:13Z</updated>
+  </entry>
 
-    # Context entry that's meta-data only and not new. Implied because the
-    # update time on this entry is before the //atom:feed/updated time.
-    <entry>
-      <title>Nermal</title>
-      <link rel="alternate" href="http://publisher.example.com/happycat23s.xml" />
-      <id>http://publisher.example.com/happycat25.xml</id>
-      <updated>2008-07-10T12:28:13Z</updated>
-    </entry>
-
-  </atom:feed>
+</atom:feed>
 ]]></artwork>
       </figure>
 
-      <t>Publisher makes the decision as to include full body, truncated body,
-      or meta data of most recent event(s). One of:</t>
+      <t>The Publisher makes the decision as to include full body, truncated
+      body, or meta data of most recent event(s). One of:</t>
 
       <t><list style="symbols">
           <t>URL + metadata</t>
@@ -235,56 +239,38 @@
         </list></t>
 
       <t>The trade-off between including all content in outgoing notifications
-      or having the thundering herd (by clients who fetch the
-      //atom:feed/entry/link in response to a notification) is up to the
-      publisher.</t>
+      or having the thundering herd (by clients who fetch the <spanx
+      style="verb">//atom:feed/entry/link</spanx> in response to a notification)
+      is up to the publisher.</t>
 
-      <t>Entries of most recent 10 events (for recipient to know whether or
-      not they'd missed any recent items... like TCP SACK) will be provided as
-      context. This is implied by the difference between the
-      //atom:feed/updated field and the //atom:feed/entry/updated fields. The
-      //atom:feed/updated field will be set to the time of the *oldest*
-      &lt;entry&gt; in the list that is new. All &lt;entry&gt; items with
-      &lt;updated&gt; times before then are context; all with times equal to
-      or after are new. This also lets subscribers know how long it has been
-      from when the notification was first sent by the publisher to when they
-      actually received it from the hub.</t>
+      <t>Entries of most recent N events (for recipient to know whether or not
+      they'd missed any recent items-- like TCP SACK) MAY be provided as
+      context. This is implied by the difference between the <spanx
+      style="verb">//atom:feed/updated</spanx> field and the <spanx
+      style="verb">//atom:feed/entry/updated</spanx> fields.</t>
 
-      <t>The //atom:feed/link[@rel="self"] element will indicate the original
-      URL for the entire event stream with no truncation (if available).</t>
-
-      <t>Topic URLs must be unique, but multiple topics may use the same
-      hub.delegate. In this situation, the delegate URL may serve a
-      &lt;OLD_INFO&gt;MIME multipart response, each part of which will contain
-      a separate Atom document for an individual topic&lt;/OLD_INFO&gt;. The
-      hub must understand this delegation. Once it has fetched the topic URL
-      once to see this delegation is present, it will use the delegation url
-      to pull the feed. This allows the publisher to be more efficient at
-      publishing across many topics at once with a single fetch from the
-      hub.</t>
-
-      <t>TODO: How do you indicate to the hub that you no longer want to have
-      a delegate URL?</t>
-
-      <t>Requirement is that topic URLs and delegate URLs can never
-      overlap!</t>
+      <t>The <spanx style="verb">//atom:feed/link[@rel="self"]</spanx> element
+      will indicate the original URL for the entire event stream with no
+      truncation (if available).</t>
     </section>
 
     <section anchor="discovery" title="Discovery">
-      <t>A potential subscriber initiates discovery by retrieving the
-      Atom feed to which it wants to subscribe. A feed that acts as a
-      topic as per this specification MUST publish, as a child of
-      atom:feed, an atom:link element whose rel attribute has the
-      value "hub" and whose href attribute contains the hub's endpoint
-      URL. When a potential subscriber encounters such a link, that
-      subscriber MAY subscribe to the feed as described in <xref
+      <t>A potential subscriber initiates discovery by retrieving the Atom feed
+      to which it wants to subscribe. A feed that acts as a topic as per this
+      specification MUST publish, as a child of <spanx
+      style="verb">atom:feed</spanx>, an <spanx style="verb">atom:link</spanx>
+      element whose <spanx style="verb">rel</spanx> attribute has the value
+      "hub" and whose <spanx style="verb">href</spanx> attribute contains the
+      hub's endpoint URL. When a potential subscriber encounters such a link,
+      that subscriber MAY subscribe to the feed as described in <xref
       target="subscribing"></xref>.</t>
 
       <t>Example:</t>
 
       <figure>
- <artwork><![CDATA[<atom:feed>
-  ... source, title, etc ...
+ <artwork><![CDATA[<?xml version="1.0"?>
+<atom:feed>
+  <!-- Normally here would be source, title, etc ... -->
   <link rel="hub" href="http://myhub.example.com/endpoint" />
   <link rel="self" href="http://publisher.example.com/topic.xml" />
   ....
@@ -299,16 +285,27 @@
 
      </section>
 
-    <section anchor="subscribing" title="Subscribing">
+    <section anchor="subscribing" title="Subscribing and Unsubscribing">
+      <t>Subscribing to a topic URL consists of two parts that may occur
+      immediately in sequence or have a delay.</t>
+      <t><list style="symbols">
+          <t>Requesting a subscription using the hub</t>
+          <t>Confirming the subscription was actually desired</t>
+        </list></t>
+      
+      <t>Unsubscribing works in the same way, except with a single parameter
+      changed to indicate the desire to unsubscribe.</t>
+
       <section title="Subscriber Sends Subscription Request">
-        <t>Subscription is initiated by the subscriber making a POST request
-        to the Hub URL. This request has a Content-type of <spanx
-        style="verb">application/x-www-form-urlencoded</spanx> and the
+        <t>Subscription is initiated by the subscriber making an HTTP POST
+        request to the Hub URL. This request has a Content-type of <spanx
+        style="verb">application/x-www-form-urlencoded</spanx> (described in
+        Section 17.13.4 of <xref target="W3C.REC-html401-19991224"/>) and the
         following parameters in its body:</t>
 
         <t><list style="hanging">
-            <t hangText="hub.mode">REQUIRED. The literal string
-            "subscribe".</t>
+            <t hangText="hub.mode">REQUIRED. The literal string "subscribe" or
+            "unsubscribe", depending on the goal of the request.</t>
 
             <t hangText="hub.callback">REQUIRED. The subscriber's callback
             URL.</t>
@@ -332,7 +329,7 @@
         <t><list style="hanging">
             <t hangText="sync">The subscriber supports synchronous
             verification, where the verification request must occur before the
-            subscription request returns.</t>
+            subscription request's HTTP response is returned.</t>
 
             <t hangText="async">The subscriber supports asynchronous
             verification, where the verification request may occur at a later
@@ -345,33 +342,37 @@
         one of the modes indicated in the list above, but MAY include
         additional keywords defined by extension specifications.</t>
 
-        <t>The hub MUST respond to a subscription request with a 204 No
-        Content response to indicate that the request was already verified and
+        <t>The hub MUST respond to a subscription request with an HTTP 204 "No
+        Content" response to indicate that the request was already verified and
         that the subscription has been created. If the subscription has yet to
-        be verified (if the hub is using asynchronous verification), the hub
-        MUST respond with a 202 Accepted response. In the case of any error,
+        be verified (i.e., the hub is using asynchronous verification), the hub
+        MUST respond with a 202 "Accepted" response. In the case of any error,
         an appropriate HTTP error response code (4xx or 5xx) MUST be
         returned.</t>
 
         <t>In synchronous mode, the verification (<xref
         target="verifysub"></xref>) MUST be completed before the hub returns a
-        response. In asynchronous mode, the verification MAY be deferred until
-        a later time.</t>
+        response. In asynchronous mode, the verification MAY be deferred until a
+        later time. This is useful to enable hubs to defer work; this could
+        allow them to alleviate servers under heavy load or do verification work
+        in batches.</t>
       </section>
 
-      <section anchor="verifysub" title="Hub Verifies Intent to Subscribe">
-        <t>In order to prevent an attacker from creating unwanted
-        subscriptions on behalf of a subscriber, a hub must ensure that the
-        subscriber did indeed send the subscription request.</t>
+      <section anchor="verifysub" title="Hub Verifies Intent of the Subscriber">
+        <t>In order to prevent an attacker from creating unwanted subscriptions
+        on behalf of a subscriber (or unsubscribing desired ones), a hub must
+        ensure that the subscriber did indeed send the subscription request.</t>
 
-        <t>The hub verifies a subscription request by sending a GET request to
-        the subscriber's callback URL as given in the subscription request.
-        This request has the following query string arguments appended: (TODO:
-        Define how to append query string arguments)</t>
+        <t>The hub verifies a subscription request by sending an HTTP GET
+        request to the subscriber's callback URL as given in the subscription
+        request. This request has the following query string arguments appended
+        (format described in Section 17.13.4 of <xref
+        target="W3C.REC-html401-19991224"/>):</t>
 
         <t><list style="hanging">
-            <t hangText="hub.mode">REQUIRED. The literal string
-            "subverify".</t>
+            <t hangText="hub.mode">REQUIRED. The literal string "subscribe" or
+            "unsubscribe", which matches the original request to the hub from
+            the subscriber.</t>
 
             <t hangText="hub.topic">REQUIRED. The topic URL given in the
             corresponding subscription request.</t>
@@ -381,34 +382,37 @@
             provided.</t>
           </list></t>
 
-        <t>The subscriber MUST verify that the topic and verify_token
-        correspond to a pending subscription. If so, the subscriber MUST
-        respond with a HTTP success (2xx) response. If not, the subscriber
-        MUST respond with a 404 Not Found response. The hub MUST consider
-        other client and server error response codes (4xx and 5xx) to mean
-        that the subscription is <spanx style="emph">not</spanx> verified.</t>
+        <t>The subscriber MUST confirm that the topic and verify_token
+        correspond to a pending subscription or unsubscription that it wishes to
+        carry out. If so, the subscriber MUST respond with an HTTP success (2xx)
+        response. If not, the subscriber MUST respond with a 404 "Not Found"
+        response. The hub MUST consider other client and server error response
+        codes (4xx and 5xx) to mean that the subscription is <spanx
+        style="emph">not</spanx> verified.</t>
+
       </section>
     </section>
 
     <section anchor="publishing" title="Publishing">
-      <t>TODO. (this section hasn't been moved from the text file to XML
-      yet)</t>
-
-      <t>For now, see <eref
-      target="http://code.google.com/p/pubsubhubbub/source/browse/trunk/design-doc.txt">the
-      original design document</eref> text file.</t>
+      <t>A publisher pings the hub with the topic URL(s) which have been updated
+      and the hub schedules those topics to be fetched and delivered. Because
+      it's just a ping to notify the hub of the topic URL (without a payload),
+      no authentication from the publisher is required.</t>
 
       <section title="New Content Notification">
-        <t>When new content is added to a feed, a notification is sent from
-        publisher to hub. The notification request is a POST request to the
-        hub URL. This request has a Content-type of <spanx style="verb">application/x-www-form-urlencoded</spanx>
-        and the following parameters in its body:</t>
+        <t>When new content is added to a feed, a notification is sent from to
+        the hub by the publisher. The notification request is a POST request to
+        the hub URL. This request has a Content-type of <spanx
+        style="verb">application/x-www-form-urlencoded</spanx> (described in
+        Section 17.13.4 of <xref target="W3C.REC-html401-19991224"/>) and the
+        following parameters in its body:</t>
 
         <t><list style="hanging">
             <t hangText="hub.mode">REQUIRED. The literal string "publish".</t>
 
             <t hangText="hub.url">REQUIRED. The topic URL of the topic that
-            has been updated.</t>
+            has been updated. This field may be repeated to indicate multiple
+            topics that have been updated.</t>
           </list></t>
 
         <t>The new content notification is a signal to the hub that there is
@@ -422,31 +426,45 @@
 
       <section anchor="contentfetch" title="Content Fetch">
         <t>When the hub wishes to retrieve new content for a topic, the hub
-        sends a GET request to the topic URL. The request SHOULD include a
-        header field X-Hub-Subscribers whose value is an integer number,
-        possibly approximate, of subscribers on behalf of which the feed is
-        being fetched.</t>
+        sends an HTTP GET request to the topic URL. The request SHOULD include a
+        header field <spanx style="verb">X-Hub-Subscribers</spanx> whose value
+        is an integer number, possibly approximate, of subscribers on behalf of
+        which the feed is being fetched.</t>
       </section>
 
-      <section title="Content Distribution">
+      <section anchor="contentdistribution" title="Content Distribution">
         <t>If, after a content fetch, the hub determines that the topic feed
-        content has changed, the hub sends information about the changes to
-        each of the subscribers to the topic. A content distribution request
-        is a POST request from hub to the subscriber's callback URL. This
-        request has a Content-Type of application/atom+xml and its body is a
-        list of changed items expressed as an Atom feed.</t>
+        content has changed, the hub sends information about the changes to each
+        of the subscribers to the topic. A content distribution request is an
+        HTTP POST request from hub to the subscriber's callback URL. This
+        request has a Content-Type of <spanx
+        style="verb">application/atom+xml</spanx> and its body is a list of
+        changed items expressed as an Atom feed.</t>
 
-        <t>The request body is an Atom feed document. The feed-level elements
-        in this feed are not significant aside from entry elements. Each entry
-        element in the feed contains the content from an entry in a topic feed
-        that the subscriber has an active subscription for. The hub MUST
-        reproduce all of the elements from the source entry in the
-        corresponding entry in the content distribution request. In
-        particular, the atom:id value MUST be reproduced exactly. If the
-        source entry does not have an atom:source element, the hub MUST create
-        an atom:source element containing the atom:title and atom:id elements
-        and an atom:link element with rel "self" whose values are functionally
-        equivalent to the corresponding elements in the topic feed.</t>
+        <t>The request body is an Atom feed document. If the document represents
+        a single feed being replicated for the subscriber, then the feed-level
+        elements SHOULD be preserved aside from entry elements. However, the
+        <spanx style="verb">atom:id</spanx> element MUST be reproduced exactly.
+        The other <spanx style="verb">atom:updated</spanx> and <spanx
+        style="verb">atom:title</spanx> elements required by the Atom
+        specification SHOULD be present. Each entry element in the feed contains
+        the content from an entry in the single topic that the subscriber has an
+        active subscription for.</t>
+
+        <t>When the notification document represents an aggregated set of feeds,
+        the hub SHOULD reproduce all of the elements from the source feed <spanx
+        style="emph">inside</spanx> the corresponding entry in the content
+        distribution request. However, the <spanx style="verb">atom:id</spanx>
+        value MUST be reproduced exactly. If the source entry does not have an
+        <spanx style="verb">atom:source</spanx> element, the hub MUST create an
+        <spanx style="verb">atom:source</spanx> element containing the <spanx
+        style="verb">atom:id</spanx> element. The hub SHOULD also include the
+        <spanx style="verb">atom:title</spanx> element and an <spanx
+        style="verb">atom:link</spanx> element with <spanx
+        style="verb">rel</spanx> "self" whose values are functionally equivalent
+        to the corresponding elements in the topic feed.</t>
+        
+        <t>TODO: Add example of aggregated feed.</t>
       </section>
     </section>
   </middle>
@@ -599,6 +617,74 @@
 
         <seriesInfo name="RFC" value="2045" />
       </reference>
+
+      <reference anchor='RFC4287'>
+        <front>
+          <title abbrev='Atom Format'>The Atom Syndication Format</title>
+          
+          <author initials='M.' surname='Nottingham' fullname='Mark Nottingham' role='editor'>
+            <organization />
+          </author>
+
+          <author initials='R.' surname='Sayre' fullname='Robert Sayre' role='editor'>
+            <organization />
+          </author>
+        </front>
+
+        <seriesInfo name='RFC' value='4287' />
+        <format type='HTML' octets='150786' target='http://xml.resource.org/public/rfc/html/rfc4287.html' />
+      </reference>
+
+      <reference anchor='W3C.REC-html401-19991224'
+                 target='http://www.w3.org/TR/1999/REC-html401-19991224'>
+        <front>
+          <title>HTML 4.01 Specification</title>
+
+          <author initials='D.' surname='Raggett' fullname='David Raggett'>
+            <organization />
+          </author>
+
+          <author initials='A.' surname='Hors' fullname='Arnaud Le Hors'>
+            <organization />
+          </author>
+
+          <author initials='I.' surname='Jacobs' fullname='Ian Jacobs'>
+            <organization />
+          </author>
+          <date month='December' day='24' year='1999' />
+        </front>
+
+        <seriesInfo name='World Wide Web Consortium Recommendation' value='REC-html401-19991224' />
+        <format type='HTML' target='http://www.w3.org/TR/1999/REC-html401-19991224' />
+      </reference>
+
+      <reference anchor="XEP-0060">
+        <front>
+          <title>Publish-Subscribe</title>
+          <author initials="P." surname="Millard" fullname="Peter Millard">
+            <organization/>
+          </author>
+          <author initials="P." surname="Saint-Andre" fullname="Peter Saint-Andre">
+            <organization/>
+          </author>
+          <author initials="R." surname="Meijer" fullname="Ralph Meijer">
+            <organization/>
+          </author>
+        </front>
+        <seriesInfo name="XSF XEP" value="0060"/>
+        <format type="HTML" target="http://www.xmpp.org/extensions/xep-0060.html"/>
+      </reference>
+
+      <reference anchor="RSS20">
+        <front>
+          <title>RSS 2.0</title>
+          <author initials="D." surname="Winer" fullname="Dave Winer">
+            <organization />
+          </author>
+        </front>
+        <format type="HTML" target="http://cyber.law.harvard.edu/rss/rss.html"/>
+      </reference>
+
     </references>
 
     <section title="Specification Feedback">

@@ -985,6 +985,7 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
   params = {
     'hub.mode': mode,
     'hub.topic': topic,
+    # TODO: Do not include this token if it is empty.
     'hub.verify_token': verify_token,
   }
   parsed_url[4] = urllib.urlencode(params)
@@ -1034,8 +1035,10 @@ class SubscribeHandler(webapp.RequestHandler):
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
     if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
+      # TODO: Split this into a multi-valued key, not using commas.
       error_message = 'Invalid value for hub.verify: %s' % verify_type
     if not verify_token:
+      # TODO: Allow this to be empty
       error_message = 'Invalid parameter: hub.verify_token'
     if mode not in ('subscribe', 'unsubscribe'):
       error_message = 'Invalid value for hub.mode: %s' % mode
