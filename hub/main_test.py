@@ -784,6 +784,11 @@ class PublishHandlerTest(testutil.HandlerTestBase):
     finally:
       FeedToFetch.insert = old_insert
 
+
+class PublishHandlerThroughHubUrlTest(PublishHandlerTest):
+
+  handler_class = main.HubHandler
+
 ################################################################################
 
 FeedRecord = main.FeedRecord
@@ -1215,7 +1220,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.mode' in self.response_body())
 
     # Empty callback
@@ -1225,7 +1230,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.callback' in self.response_body())
 
     # Bad callback URL
@@ -1235,7 +1240,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.callback' in self.response_body())
 
     # Empty topic
@@ -1245,7 +1250,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', ''),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.topic' in self.response_body())
 
     # Bad topic URL
@@ -1255,7 +1260,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', 'httpf://example.com'),
         ('hub.verify', 'async'),
         ('hub.verify_token', self.verify_token))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.topic' in self.response_body())
 
     # Bad verify
@@ -1265,7 +1270,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.verify', 'async,async'),
         ('hub.verify_token', self.verify_token))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.verify' in self.response_body())
 
     # Bad verify
@@ -1275,7 +1280,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
         ('hub.verify_token', ''))
-    self.assertEquals(500, self.response_code())
+    self.assertEquals(400, self.response_code())
     self.assertTrue('hub.verify_token' in self.response_body())
   
   def testUnsubscribeMissingSubscription(self):
@@ -1510,6 +1515,11 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.verify', 'sync'),
         ('hub.verify_token', self.verify_token))
     self.assertEquals(503, self.response_code())
+
+
+class SubscribeHandlerThroughHubUrlTest(SubscribeHandlerTest):
+
+  handler_class = main.HubHandler
 
 ################################################################################
 

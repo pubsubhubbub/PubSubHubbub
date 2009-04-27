@@ -1045,7 +1045,7 @@ class SubscribeHandler(webapp.RequestHandler):
                    'callback = %s, verify_token = %s: %s',
                    mode, topic, callback, verify_token, error_message)
       self.response.out.write(error_message)
-      return self.response.set_status(500)
+      return self.response.set_status(400)
 
     try:
       # Retrieve any existing subscription for this callback.
@@ -1147,6 +1147,7 @@ class PublishHandler(webapp.RequestHandler):
       self.response.set_status(503)
       self.response.out.write('Transient error; please try again later')
     else:
+      # TODO: This should be 202
       self.response.set_status(204)
 
 
@@ -1327,10 +1328,33 @@ class PollBootstrapHandler(webapp.RequestHandler):
 
 ################################################################################
 
+class HubHandler(webapp.RequestHandler):
+  """Handler to multiplex subscribe and publish events on the same URL."""
+
+  def get(self):
+    self.response.out.write(open('./welcome.html').read())
+
+  def post(self):
+    mode = self.request.get('hub.mode', '').lower()
+    if mode == "publish":
+      handler = PublishHandler()
+    elif mode in ("subscribe", "unsubscribe"):
+      handler = SubscribeHandler()
+    else:
+      self.response.set_status(400)
+      self.response.out.write('hub.mode is invalid')
+      return
+
+    handler.initialize(self.request, self.response)
+    handler.post()
+
+################################################################################
+
 def main():
   application = webapp.WSGIApplication([
-    (r'/subscribe', SubscribeHandler),
+    (r'/', HubHandler),
     (r'/publish', PublishHandler),
+    (r'/subscribe', SubscribeHandler),
     (r'/work/subscriptions', SubscriptionConfirmHandler),
     (r'/work/poll_bootstrap', PollBootstrapHandler),
     (r'/work/pull_feeds', PullFeedHandler),
