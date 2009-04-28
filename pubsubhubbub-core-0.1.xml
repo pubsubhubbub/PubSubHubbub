@@ -138,15 +138,16 @@
           <t hangText="Notification:">A payload describing how a topic's
           contents have changed. This difference (or "delta") is computed by the
           hub and sent to all subscribers. The format of the notification will
-          be an Atom feed served by the publisher with only new entries present.
-          The notification can be the result of a publisher telling the hub of
-          an update, or the hub proactively polling a topic feed, perhaps for a
-          subscriber subscribing to a topic that's not pubsub-aware. Note also
-          that a notification to a subscriber can be a payload consisting of
-          updates for multiple topics. Publishers MAY choose to send multi-topic
-          notifications as an optimization for heavy subscribers, but
-          subscribers MUST understand them. See <xref
-          target="contentdistribution" /> for format details.</t>
+          be an Atom feed served by the publisher with only those entries
+          present which are new or have changed. The notification can be the
+          result of a publisher telling the hub of an update, or the hub
+          proactively polling a topic feed, perhaps for a subscriber subscribing
+          to a topic that's not pubsub-aware. Note also that a notification to a
+          subscriber can be a payload consisting of updates for multiple topics.
+          Publishers MAY choose to send multi-topic notifications as an
+          optimization for heavy subscribers, but subscribers MUST understand
+          them. See <xref target="contentdistribution" /> for format
+          details.</t>
         </list></t>
     </section>
 
@@ -170,8 +171,8 @@
     </section>
 
     <section title="Atom Details">
-      <t>Notification and source formats will be Atom. Explanation detail follows
-      this example.</t>
+      <t>Notification and source formats will be <xref
+      target="RFC4287">Atom</xref>. Explanation detail follows this example.</t>
 
       <figure>
         <artwork><![CDATA[<?xml version="1.0"?>
@@ -438,33 +439,77 @@
         of the subscribers to the topic. A content distribution request is an
         HTTP POST request from hub to the subscriber's callback URL. This
         request has a Content-Type of <spanx
-        style="verb">application/atom+xml</spanx> and its body is a list of
-        changed items expressed as an Atom feed.</t>
+        style="verb">application/atom+xml</spanx> and its request body is an
+        Atom feed document with the list of new and changed items.</t>
 
-        <t>The request body is an Atom feed document. If the document represents
-        a single feed being replicated for the subscriber, then the feed-level
-        elements SHOULD be preserved aside from entry elements. However, the
-        <spanx style="verb">atom:id</spanx> element MUST be reproduced exactly.
-        The other <spanx style="verb">atom:updated</spanx> and <spanx
+        <t>If the document represents a single feed being replicated for the
+        subscriber, then the feed-level elements SHOULD be preserved aside from
+        the <spanx style="verb">atom:entry</spanx> elements. However, the <spanx
+        style="verb">atom:id</spanx> element MUST be reproduced exactly. The
+        other <spanx style="verb">atom:updated</spanx> and <spanx
         style="verb">atom:title</spanx> elements required by the Atom
-        specification SHOULD be present. Each entry element in the feed contains
-        the content from an entry in the single topic that the subscriber has an
-        active subscription for.</t>
+        specification SHOULD be present. Each <spanx
+        style="verb">atom:entry</spanx> element in the feed contains the content
+        from an entry in the single topic that the subscriber has an active
+        subscription for. Essentially, in the single feed case the subscriber
+        will receive an Atom document that looks like the original.</t>
 
         <t>When the notification document represents an aggregated set of feeds,
         the hub SHOULD reproduce all of the elements from the source feed <spanx
-        style="emph">inside</spanx> the corresponding entry in the content
-        distribution request. However, the <spanx style="verb">atom:id</spanx>
-        value MUST be reproduced exactly. If the source entry does not have an
-        <spanx style="verb">atom:source</spanx> element, the hub MUST create an
-        <spanx style="verb">atom:source</spanx> element containing the <spanx
+        style="emph">inside</spanx> the corresponding <spanx
+        style="verb">atom:entry</spanx> in the content distribution request by
+        using an <spanx style="verb">atom:source</spanx> element. However, the
+        <spanx style="verb">atom:id</spanx> value MUST be reproduced exactly
+        within the source element. If the source entry does not have an <spanx
+        style="verb">atom:source</spanx> element, the hub MUST create an <spanx
+        style="verb">atom:source</spanx> element containing the <spanx
         style="verb">atom:id</spanx> element. The hub SHOULD also include the
         <spanx style="verb">atom:title</spanx> element and an <spanx
         style="verb">atom:link</spanx> element with <spanx
-        style="verb">rel</spanx> "self" whose values are functionally equivalent
-        to the corresponding elements in the topic feed.</t>
-        
-        <t>TODO: Add example of aggregated feed.</t>
+        style="verb">rel</spanx> "self" with values that are functionally
+        equivalent to the corresponding elements in the original topic feed.</t>
+
+        <t>Example aggregated feed:</t>
+
+      <figure>
+        <artwork><![CDATA[<?xml version="1.0"?>
+<atom:feed>
+  <title>Aggregated feed</title>
+  <updated>2008-08-11T02:17:44Z</updated>
+  <id>http://myhub.example.com/aggregated?1232427842-39823</id>
+
+  <entry>
+    <source>
+      <id>http://www.example.com/foo</id>
+      <link rel="self" href="http://publisher.example.com/foo.xml" />
+    </source>
+    <title>Testing Foo</title>
+    <link href="http://publisher.example.com/foo24.xml" />
+    <id>http://publisher.example.com/foo24.xml</id>
+    <updated>2008-08-11T02:15:01Z</updated>
+    <content>
+      This is some content from the user named foo.
+    </content>
+  </entry>
+
+  <entry>
+    <source>
+      <id>http://www.example.com/bar</id>
+      <link rel="self" href="http://publisher.example.com/bar.xml" />
+    </source>
+    <title>Testing Bar</title>
+    <link href="http://publisher.example.com/bar18.xml" />
+    <id>http://publisher.example.com/bar18.xml</id>
+    <updated>2008-08-11T02:17:44Z</updated>
+    <content>
+      Some data from the user named bar.
+    </content>
+  </entry>
+
+</atom:feed>
+]]></artwork>
+      </figure>
+
       </section>
     </section>
   </middle>

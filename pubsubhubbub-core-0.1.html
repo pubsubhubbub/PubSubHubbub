@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Draft: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Mon, 27 Apr 2009 14:58:06 +0000">
+<meta http-equiv="Expires" content="Tue, 28 Apr 2009 06:09:55 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -277,14 +277,16 @@ Definitions</h3>
 <dd>A payload describing how a topic's
           contents have changed. This difference (or "delta") is computed by the
           hub and sent to all subscribers. The format of the notification will
-          be an Atom feed served by the publisher with only new entries present.
-          The notification can be the result of a publisher telling the hub of
-          an update, or the hub proactively polling a topic feed, perhaps for a
-          subscriber subscribing to a topic that's not pubsub-aware. Note also
-          that a notification to a subscriber can be a payload consisting of
-          updates for multiple topics. Publishers MAY choose to send multi-topic
-          notifications as an optimization for heavy subscribers, but
-          subscribers MUST understand them. See <a class='info' href='#contentdistribution'>Section&nbsp;7.3<span> (</span><span class='info'>Content Distribution</span><span>)</span></a> for format details.
+          be an Atom feed served by the publisher with only those entries
+          present which are new or have changed. The notification can be the
+          result of a publisher telling the hub of an update, or the hub
+          proactively polling a topic feed, perhaps for a subscriber subscribing
+          to a topic that's not pubsub-aware. Note also that a notification to a
+          subscriber can be a payload consisting of updates for multiple topics.
+          Publishers MAY choose to send multi-topic notifications as an
+          optimization for heavy subscribers, but subscribers MUST understand
+          them. See <a class='info' href='#contentdistribution'>Section&nbsp;7.3<span> (</span><span class='info'>Content Distribution</span><span>)</span></a> for format
+          details.
 </dd>
 </dl></blockquote>
 
@@ -317,8 +319,7 @@ High-level protocol flow</h3>
 <a name="rfc.section.4"></a><h3>4.&nbsp;
 Atom Details</h3>
 
-<p>Notification and source formats will be Atom. Explanation detail follows
-      this example.
+<p>Notification and source formats will be <a class='info' href='#RFC4287'>Atom<span> (</span><span class='info'>Nottingham, M., Ed. and R. Sayre, Ed., &ldquo;The Atom Syndication Format,&rdquo; .</span><span>)</span></a> [RFC4287]. Explanation detail follows this example.
 </p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;?xml version="1.0"?&gt;
 &lt;atom:feed&gt;
   &lt;!-- Normally here would be source, title, etc ... --&gt;
@@ -616,29 +617,63 @@ Content Distribution</h3>
         content has changed, the hub sends information about the changes to each
         of the subscribers to the topic. A content distribution request is an
         HTTP POST request from hub to the subscriber's callback URL. This
-        request has a Content-Type of <tt>application/atom+xml</tt> and its body is a list of
-        changed items expressed as an Atom feed.
+        request has a Content-Type of <tt>application/atom+xml</tt> and its request body is an
+        Atom feed document with the list of new and changed items.
 </p>
-<p>The request body is an Atom feed document. If the document represents
-        a single feed being replicated for the subscriber, then the feed-level
-        elements SHOULD be preserved aside from entry elements. However, the
-        <tt>atom:id</tt> element MUST be reproduced exactly.
-        The other <tt>atom:updated</tt> and <tt>atom:title</tt> elements required by the Atom
-        specification SHOULD be present. Each entry element in the feed contains
-        the content from an entry in the single topic that the subscriber has an
-        active subscription for.
+<p>If the document represents a single feed being replicated for the
+        subscriber, then the feed-level elements SHOULD be preserved aside from
+        the <tt>atom:entry</tt> elements. However, the <tt>atom:id</tt> element MUST be reproduced exactly. The
+        other <tt>atom:updated</tt> and <tt>atom:title</tt> elements required by the Atom
+        specification SHOULD be present. Each <tt>atom:entry</tt> element in the feed contains the content
+        from an entry in the single topic that the subscriber has an active
+        subscription for. Essentially, in the single feed case the subscriber
+        will receive an Atom document that looks like the original.
 </p>
 <p>When the notification document represents an aggregated set of feeds,
-        the hub SHOULD reproduce all of the elements from the source feed <em>inside</em> the corresponding entry in the content
-        distribution request. However, the <tt>atom:id</tt>
-        value MUST be reproduced exactly. If the source entry does not have an
-        <tt>atom:source</tt> element, the hub MUST create an
-        <tt>atom:source</tt> element containing the <tt>atom:id</tt> element. The hub SHOULD also include the
-        <tt>atom:title</tt> element and an <tt>atom:link</tt> element with <tt>rel</tt> "self" whose values are functionally equivalent
-        to the corresponding elements in the topic feed.
+        the hub SHOULD reproduce all of the elements from the source feed <em>inside</em> the corresponding <tt>atom:entry</tt> in the content distribution request by
+        using an <tt>atom:source</tt> element. However, the
+        <tt>atom:id</tt> value MUST be reproduced exactly
+        within the source element. If the source entry does not have an <tt>atom:source</tt> element, the hub MUST create an <tt>atom:source</tt> element containing the <tt>atom:id</tt> element. The hub SHOULD also include the
+        <tt>atom:title</tt> element and an <tt>atom:link</tt> element with <tt>rel</tt> "self" with values that are functionally
+        equivalent to the corresponding elements in the original topic feed.
 </p>
-<p>TODO: Add example of aggregated feed.
-</p>
+<p>Example aggregated feed:
+</p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;?xml version="1.0"?&gt;
+&lt;atom:feed&gt;
+  &lt;title&gt;Aggregated feed&lt;/title&gt;
+  &lt;updated&gt;2008-08-11T02:17:44Z&lt;/updated&gt;
+  &lt;id&gt;http://myhub.example.com/aggregated?1232427842-39823&lt;/id&gt;
+
+  &lt;entry&gt;
+    &lt;source&gt;
+      &lt;id&gt;http://www.example.com/foo&lt;/id&gt;
+      &lt;link rel="self" href="http://publisher.example.com/foo.xml" /&gt;
+    &lt;/source&gt;
+    &lt;title&gt;Testing Foo&lt;/title&gt;
+    &lt;link href="http://publisher.example.com/foo24.xml" /&gt;
+    &lt;id&gt;http://publisher.example.com/foo24.xml&lt;/id&gt;
+    &lt;updated&gt;2008-08-11T02:15:01Z&lt;/updated&gt;
+    &lt;content&gt;
+      This is some content from the user named foo.
+    &lt;/content&gt;
+  &lt;/entry&gt;
+
+  &lt;entry&gt;
+    &lt;source&gt;
+      &lt;id&gt;http://www.example.com/bar&lt;/id&gt;
+      &lt;link rel="self" href="http://publisher.example.com/bar.xml" /&gt;
+    &lt;/source&gt;
+    &lt;title&gt;Testing Bar&lt;/title&gt;
+    &lt;link href="http://publisher.example.com/bar18.xml" /&gt;
+    &lt;id&gt;http://publisher.example.com/bar18.xml&lt;/id&gt;
+    &lt;updated&gt;2008-08-11T02:17:44Z&lt;/updated&gt;
+    &lt;content&gt;
+      Some data from the user named bar.
+    &lt;/content&gt;
+  &lt;/entry&gt;
+
+&lt;/atom:feed&gt;
+</pre></div>
 <a name="rfc.references1"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <h3>8.&nbsp;References</h3>
