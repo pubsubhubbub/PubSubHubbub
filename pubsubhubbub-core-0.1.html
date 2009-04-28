@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Draft: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Tue, 28 Apr 2009 06:09:55 +0000">
+<meta http-equiv="Expires" content="Tue, 28 Apr 2009 06:31:29 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -158,13 +158,12 @@
       nothing in the protocol is centralized, or Google- or App
       Engine-specific. Anybody can play.
 </p>
-<p>As opposed to more developed (and more complex) pubsub specs like
-      XEP-0060 (Jabber Publish-Subscribe) this spec's base profile (the
-      barrier-to-entry to speak it) is dead simple. The fancy bits required for
-      high-volume publishers and subscribers are optional. The base profile is
-      HTTP-based, as opposed to XMPP (see more on this below).
+<p>As opposed to more developed (and more complex) pubsub specs like <a class='info' href='#XEP-0060'>Jabber Publish-Subscribe<span> (</span><span class='info'>Millard, P., Saint-Andre, P., and R. Meijer, &ldquo;Publish-Subscribe,&rdquo; .</span><span>)</span></a> [XEP&#8209;0060] this spec's base profile
+      (the barrier-to-entry to speak it) is dead simple. The fancy bits required
+      for high-volume publishers and subscribers are optional. The base profile
+      is HTTP-based, as opposed to XMPP (see more on this below).
 </p>
-<p>To dramatically simplify the spec in several places where we had to
+<p>To dramatically simplify this spec in several places where we had to
       choose between supporting A or B, we took it upon ourselves to say "only
       A", rather than making it an implementation decision.
 </p>
@@ -228,10 +227,10 @@ Definitions</h3>
 <p></p>
 <blockquote class="text"><dl>
 <dt>Topic:</dt>
-<dd>An <a class='info' href='#RFC4287'>Atom<span> (</span><span class='info'>Nottingham, M., Ed. and R. Sayre, Ed., &ldquo;The Atom Syndication Format,&rdquo; .</span><span>)</span></a> [RFC4287] feed URL.
-          The unit to which one can subscribe to changes. <a class='info' href='#RSS20'>RSS<span> (</span><span class='info'>Winer, D., &ldquo;RSS 2.0,&rdquo; .</span><span>)</span></a> [RSS20] isn't supported for simplicity. Further, the
-          spec currently only addresses public (unauthenticated) Atom feed
-          URLs.
+<dd>An <a class='info' href='#RFC4287'>Atom<span> (</span><span class='info'>Nottingham, M., Ed. and R. Sayre, Ed., &ldquo;The Atom Syndication Format,&rdquo; .</span><span>)</span></a> [RFC4287] feed <a class='info' href='#RFC3986'>URL<span> (</span><span class='info'>Berners-Lee, T., &ldquo;Uniform Resource Identifiers (URI): Generic Syntax,&rdquo; .</span><span>)</span></a> [RFC3986]. The unit to which one can subscribe to
+          changes. <a class='info' href='#RSS20'>RSS<span> (</span><span class='info'>Winer, D., &ldquo;RSS 2.0,&rdquo; .</span><span>)</span></a> [RSS20] isn't supported for
+          simplicity. Further, this spec currently only addresses public
+          (unauthenticated) Atom feed URLs.
 </dd>
 <dt>Pubsub Hub (&quot;the hub&quot;):</dt>
 <dd>The server (URL) which
@@ -262,8 +261,8 @@ Definitions</h3>
           akin to DHCP leases which must be periodically renewed.
 </dd>
 <dt>Subscriber Callback URL:</dt>
-<dd>The URL at which a subscriber
-          wishes to receive notifications.
+<dd>The <a class='info' href='#RFC3986'>URL<span> (</span><span class='info'>Berners-Lee, T., &ldquo;Uniform Resource Identifiers (URI): Generic Syntax,&rdquo; .</span><span>)</span></a> [RFC3986] at which a subscriber wishes to receive
+          notifications.
 </dd>
 <dt>Event:</dt>
 <dd>An event that's visible to multiple topics. For
@@ -448,8 +447,8 @@ Subscribing and Unsubscribing</h3>
 <a name="rfc.section.6.1"></a><h3>6.1.&nbsp;
 Subscriber Sends Subscription Request</h3>
 
-<p>Subscription is initiated by the subscriber making an HTTP POST
-        request to the Hub URL. This request has a Content-type of <tt>application/x-www-form-urlencoded</tt> (described in
+<p>Subscription is initiated by the subscriber making an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] POST request to the Hub URL. This request
+        has a Content-type of <tt>application/x-www-form-urlencoded</tt> (described in
         Section 17.13.4 of <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>) and the
         following parameters in its body:
 </p>
@@ -526,10 +525,10 @@ Hub Verifies Intent of the Subscriber</h3>
         on behalf of a subscriber (or unsubscribing desired ones), a hub must
         ensure that the subscriber did indeed send the subscription request.
 </p>
-<p>The hub verifies a subscription request by sending an HTTP GET
-        request to the subscriber's callback URL as given in the subscription
-        request. This request has the following query string arguments appended
-        (format described in Section 17.13.4 of <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>):
+<p>The hub verifies a subscription request by sending an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] GET request to the subscriber's callback
+        URL as given in the subscription request. This request has the following
+        query string arguments appended (format described in Section 17.13.4 of
+        <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>):
 </p>
 <p></p>
 <blockquote class="text"><dl>
@@ -678,9 +677,6 @@ Content Distribution</h3>
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <h3>8.&nbsp;References</h3>
 <table width="99%" border="0">
-<tr><td class="author-text" valign="top"><a name="RFC2045">[RFC2045]</a></td>
-<td class="author-text">Freed, N. and N. Borenstein, &ldquo;<a href="http://tools.ietf.org/html/rfc2045">Multipurpose Internet Mail Extensions (MIME) Part One: Format
-          of Internet Message Bodies</a>,&rdquo; RFC&nbsp;2045.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC2119">[RFC2119]</a></td>
 <td class="author-text">Bradner, B., &ldquo;<a href="http://tools.ietf.org/html/rfc2119">Key words for use in RFCs to Indicate Requirement
           Levels</a>,&rdquo; RFC&nbsp;2119.</td></tr>
@@ -688,12 +684,6 @@ Content Distribution</h3>
 <td class="author-text">Eastlake, D. and A. Panitz, &ldquo;<a href="http://tools.ietf.org/html/rfc2606">Reserved Top Level DNS Names</a>,&rdquo; RFC&nbsp;2606.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC2616">[RFC2616]</a></td>
 <td class="author-text">Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;<a href="http://tools.ietf.org/html/rfc2616">Hypertext Transfer Protocol -- HTTP/1.1</a>,&rdquo; RFC&nbsp;2616.</td></tr>
-<tr><td class="author-text" valign="top"><a name="RFC2617">[RFC2617]</a></td>
-<td class="author-text">Franks, J., Hallam-Baker, P., Hostetler, J., Lawrence, S., Leach, P., Luotonen, A., and L. Stewart, &ldquo;<a href="http://tools.ietf.org/html/rfc2617">HTTP Authentication: Basic and Digest Access
-          Authentication</a>,&rdquo; RFC&nbsp;2617.</td></tr>
-<tr><td class="author-text" valign="top"><a name="RFC3629">[RFC3629]</a></td>
-<td class="author-text">Yergeau, F., &ldquo;<a href="http://tools.ietf.org/html/rfc3629">UTF-8, a transformation format of Unicode and ISO
-          10646</a>,&rdquo; RFC&nbsp;3629.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC3986">[RFC3986]</a></td>
 <td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC4287">[RFC4287]</a></td>

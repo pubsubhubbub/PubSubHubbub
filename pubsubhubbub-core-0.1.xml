@@ -21,7 +21,7 @@
 
   <?rfc sortrefs="yes"?>
 
-  <?rfc strict="yes" ?>
+  <?rfc strict="no" ?>
 
   <?rfc iprnotified="no" ?>
 
@@ -62,13 +62,13 @@
       nothing in the protocol is centralized, or Google- or App
       Engine-specific. Anybody can play.</t>
 
-      <t>As opposed to more developed (and more complex) pubsub specs like
-      XEP-0060 (Jabber Publish-Subscribe) this spec's base profile (the
-      barrier-to-entry to speak it) is dead simple. The fancy bits required for
-      high-volume publishers and subscribers are optional. The base profile is
-      HTTP-based, as opposed to XMPP (see more on this below).</t>
+      <t>As opposed to more developed (and more complex) pubsub specs like <xref
+      target="XEP-0060">Jabber Publish-Subscribe</xref> this spec's base profile
+      (the barrier-to-entry to speak it) is dead simple. The fancy bits required
+      for high-volume publishers and subscribers are optional. The base profile
+      is HTTP-based, as opposed to XMPP (see more on this below).</t>
 
-      <t>To dramatically simplify the spec in several places where we had to
+      <t>To dramatically simplify this spec in several places where we had to
       choose between supporting A or B, we took it upon ourselves to say "only
       A", rather than making it an implementation decision.</t>
 
@@ -93,11 +93,11 @@
 
     <section title="Definitions">
       <t><list style="hanging">
-          <t hangText="Topic:">An <xref target="RFC4287">Atom</xref> feed URL.
-          The unit to which one can subscribe to changes. <xref
-          target="RSS20">RSS</xref> isn't supported for simplicity. Further, the
-          spec currently only addresses public (unauthenticated) Atom feed
-          URLs.</t>
+          <t hangText="Topic:">An <xref target="RFC4287">Atom</xref> feed <xref
+          target="RFC3986">URL</xref>. The unit to which one can subscribe to
+          changes. <xref target="RSS20">RSS</xref> isn't supported for
+          simplicity. Further, this spec currently only addresses public
+          (unauthenticated) Atom feed URLs.</t>
 
           <t hangText="Pubsub Hub (&quot;the hub&quot;):">The server (URL) which
           implements both sides of this protocol. We have implemented this and
@@ -125,8 +125,9 @@
           URL). Subscriptions may (at the hub's decision) have expiration times
           akin to DHCP leases which must be periodically renewed.</t>
 
-          <t hangText="Subscriber Callback URL:">The URL at which a subscriber
-          wishes to receive notifications.</t>
+          <t hangText="Subscriber Callback URL:">The <xref
+          target="RFC3986">URL</xref> at which a subscriber wishes to receive
+          notifications.</t>
 
           <t hangText="Event:">An event that's visible to multiple topics. For
           each event that happens (e.g. "Brad posted to the Linux Community."),
@@ -298,8 +299,9 @@
       changed to indicate the desire to unsubscribe.</t>
 
       <section title="Subscriber Sends Subscription Request">
-        <t>Subscription is initiated by the subscriber making an HTTP POST
-        request to the Hub URL. This request has a Content-type of <spanx
+        <t>Subscription is initiated by the subscriber making an <xref
+        target="RFC2616">HTTP</xref> POST request to the Hub URL. This request
+        has a Content-type of <spanx
         style="verb">application/x-www-form-urlencoded</spanx> (described in
         Section 17.13.4 of <xref target="W3C.REC-html401-19991224"/>) and the
         following parameters in its body:</t>
@@ -364,11 +366,11 @@
         on behalf of a subscriber (or unsubscribing desired ones), a hub must
         ensure that the subscriber did indeed send the subscription request.</t>
 
-        <t>The hub verifies a subscription request by sending an HTTP GET
-        request to the subscriber's callback URL as given in the subscription
-        request. This request has the following query string arguments appended
-        (format described in Section 17.13.4 of <xref
-        target="W3C.REC-html401-19991224"/>):</t>
+        <t>The hub verifies a subscription request by sending an <xref
+        target="RFC2616">HTTP</xref> GET request to the subscriber's callback
+        URL as given in the subscription request. This request has the following
+        query string arguments appended (format described in Section 17.13.4 of
+        <xref target="W3C.REC-html401-19991224"/>):</t>
 
         <t><list style="hanging">
             <t hangText="hub.mode">REQUIRED. The literal string "subscribe" or
@@ -582,57 +584,6 @@
         <seriesInfo name="RFC" value="2616" />
       </reference>
 
-      <reference anchor="RFC2617">
-        <front>
-          <title>HTTP Authentication: Basic and Digest Access
-          Authentication</title>
-
-          <author fullname="J. Franks" initials="J.F" surname="Franks">
-            <organization />
-          </author>
-
-          <author fullname="P. Hallam-Baker" initials="P.HB"
-                  surname="Hallam-Baker">
-            <organization />
-          </author>
-
-          <author fullname="J. Hostetler" initials="J.H" surname="Hostetler">
-            <organization />
-          </author>
-
-          <author fullname="S. Lawrence" initials="S.L" surname="Lawrence">
-            <organization />
-          </author>
-
-          <author fullname="P. Leach" initials="P.L" surname="Leach">
-            <organization />
-          </author>
-
-          <author fullname="A. Luotonen" initials="A.L" surname="Luotonen">
-            <organization />
-          </author>
-
-          <author fullname="L. Stewart" initials="L.S" surname="Stewart">
-            <organization />
-          </author>
-        </front>
-
-        <seriesInfo name="RFC" value="2617" />
-      </reference>
-
-      <reference anchor="RFC3629">
-        <front>
-          <title>UTF-8, a transformation format of Unicode and ISO
-          10646</title>
-
-          <author fullname="Francois Yergeau" initials="F.Y" surname="Yergeau">
-            <organization />
-          </author>
-        </front>
-
-        <seriesInfo name="RFC" value="3629" />
-      </reference>
-
       <reference anchor="RFC3986">
         <front>
           <title>Uniform Resource Identifiers (URI): Generic Syntax</title>
@@ -644,23 +595,6 @@
         </front>
 
         <seriesInfo name="RFC" value="3986" />
-      </reference>
-
-      <reference anchor="RFC2045">
-        <front>
-          <title>Multipurpose Internet Mail Extensions (MIME) Part One: Format
-          of Internet Message Bodies</title>
-
-          <author fullname="N. Freed" initials="N.F" surname="Freed">
-            <organization>Innosoft</organization>
-          </author>
-
-          <author fullname="N. Borenstein" initials="N.B" surname="Borenstein">
-            <organization>First Virtual</organization>
-          </author>
-        </front>
-
-        <seriesInfo name="RFC" value="2045" />
       </reference>
 
       <reference anchor='RFC4287'>
