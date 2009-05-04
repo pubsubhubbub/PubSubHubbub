@@ -21,7 +21,7 @@
 #
 # - Improve polling algorithm to keep stats on each feed.
 #
-# - Do not poll a feed if we've gotten an even from the publisher in less
+# - Do not poll a feed if we've gotten an event from the publisher in less
 #   than the polling period.
 #
 # - Add Publisher diagnostics, so they can see the last time their feed was
@@ -961,6 +961,59 @@ class PollingMarker(db.Model):
     else:
       return False
 
+
+class FeedPollingInfo(db.Model):
+  """Tracks information about a feed that has been polled.
+  
+  Key name is :topic_hash.
+  """
+
+  topic = db.TextProperty(required=True)
+  last_poll_time = db.DateTimeProperty(auto_now=True)
+  last_modified = db.TextProperty()
+  etag = db.TextProperty()
+
+  @classmethod
+  def get_or_create(cls, topic):
+    """Retrieves a FeedPollingInfo or creates it if it doesn't exist.
+
+    Args:
+      topic: The feed's topic URL.
+
+    Returns:
+      The FeedPollingInfo instance.
+    """
+    key_name = get_hash_key_name(topic)
+    info = cls.get_by_key_name(key_name)
+    if info is None:
+      info = cls(key_name=key_name, topic=topic)
+    return info
+
+  def get_request_headers(self):
+    """Returns the request headers that should be used to pull this feed.
+
+    Returns:
+      Dictionary of request header values.
+    """
+    headers = {}
+    if self.last_modified:
+      headers['If-Modified-Since'] = self.last_modified
+    if self.etag:
+      headers['If-None-Match'] = self.etag
+    return headers
+
+  def update(self, headers):
+    """Updates the polling record of this feed.
+
+    This method will *not* insert this instance into the Datastore.
+
+    Args:
+      headers: Dictionary of response headers from the feed that should be used
+        to determine how to poll the feed in the future.
+    """
+    self.last_modified = headers.get('Last-Modified')
+    self.etag = headers.get('ETag')
+
 ################################################################################
 # Subscription handlers and workers
 
@@ -1154,14 +1207,64 @@ class PublishHandler(webapp.RequestHandler):
       self.response.set_status(204)
 
 
+def find_feed_updates(topic, feed_content, filter_feed=feed_diff.filter):
+  """Determines the updated entries for a feed and returns their records.
+
+  Args:
+    topic: The topic URL of the feed.
+    feed_content: The content of the feed.
+    filter_feed: Used for dependency injection.
+
+  Returns:
+    Tuple (header_footer, entry_list) where:
+      header_footer: The header/footer data of the feed.
+      entry_list: List of FeedEntryRecord instances, if any, that represent
+        the changes that have occurred on the feed.
+
+  Raises:
+    xml.sax.SAXException if there is a parse error.
+    feed_diff.Error if the feed could not be diffed for any other reason.
+  """
+  header_footer, entries_map = filter_feed('', feed_content)
+
+  # Find the new entries we've never seen before, and any entries that we
+  # knew about that have been updated.
+  existing_entries = FeedEntryRecord.get_entries_for_topic(
+      topic, entries_map.keys())
+  existing_dict = dict((e.entry_id, (e.entry_updated, e.entry_payload))
+                       for e in existing_entries if e)
+
+  logging.info('Retrieved %d feed entries, %d of which have been seen before',
+               len(entries_map), len(existing_dict))
+
+  entities_to_save = []
+  for entry_id, (new_updated, new_content) in entries_map.iteritems():
+    try:
+      old_updated, old_content = existing_dict[entry_id]
+      # Only mark the entry as new if the update time is newer.
+      if old_updated >= new_updated:
+        continue
+    except KeyError:
+      pass
+
+    entities_to_save.append(FeedEntryRecord.create_entry_for_topic(
+        topic, entry_id, new_updated, new_content))
+
+  return header_footer, entities_to_save
+
+
 class PullFeedHandler(webapp.RequestHandler):
   """Background worker for pulling feeds."""
   
-  def __init__(self, filter_feed=feed_diff.filter):
-    """Initializer."""
+  def __init__(self, find_feed_updates=find_feed_updates):
+    """Initializer.
+
+    Args:
+      find_feed_updates: Used for dependency injection.
+    """
     webapp.RequestHandler.__init__(self)
-    self.filter_feed = filter_feed
-  
+    self.find_feed_updates = find_feed_updates
+
   @work_queue_only
   def get(self):
     work = FeedToFetch.get_work()
@@ -1178,73 +1281,54 @@ class PullFeedHandler(webapp.RequestHandler):
       return
 
     logging.info('Fetching topic %s', work.topic)
+    polling_info = FeedPollingInfo.get_or_create(work.topic)
     try:
       # Specifically follow redirects here. Many feeds are often just redirects
       # to the actual feed contents or a distribution server.
-      response = urlfetch.fetch(work.topic, follow_redirects=True)
+      response = urlfetch.fetch(work.topic,
+                                headers=polling_info.get_request_headers(),
+                                follow_redirects=True)
     except (apiproxy_errors.Error, urlfetch.Error):
       logging.exception('Failed to fetch feed')
       work.fetch_failed()
       return
 
-    if response.status_code != 200:
+    if response.status_code not in (200, 304):
       logging.error('Received bad status_code=%s', response.status_code)
       work.fetch_failed()
       return
 
+    polling_info.update(response.headers)
+    if response.status_code == 304:
+      logging.info('Feed publisher returned 304 response (cache hit)')
+      work.delete()
+      return
+
     # Parse the feed. If this fails we will give up immediately.
     try:
-      header_footer, entries_map = self.filter_feed('', response.content)
+      header_footer, entities_to_save = self.find_feed_updates(
+          work.topic, response.content)
     except (xml.sax.SAXException, feed_diff.Error):
       logging.exception('Could not get entries for content of %d bytes: %s',
                         len(response.content), response.content)
       work.fetch_failed()
       return
 
-    # Find the new entries we've never seen before, and any entries that we
-    # knew about that have been updated.
-    existing_entries = FeedEntryRecord.get_entries_for_topic(
-        work.topic, entries_map.keys())
-    existing_dict = dict((e.entry_id, (e.entry_updated, e.entry_payload))
-                         for e in existing_entries if e)
-
-    logging.info('Retrieved %d feed entries, %d of which have been seen before',
-                 len(entries_map), len(existing_dict))
-
-    entities_to_save = []
-    for entry_id, (new_updated, new_content) in entries_map.iteritems():
-      try:
-        old_updated, old_content = existing_dict[entry_id]
-        # Only mark the entry as new if the update time is newer.
-        if old_updated >= new_updated:
-          continue
-      except KeyError:
-        pass
-
-      entities_to_save.append(FeedEntryRecord.create_entry_for_topic(
-          work.topic, entry_id, new_updated, new_content))
-
-    # If there are no new entries, then we're done. Otherwise, we need to
-    # mark the whole feed as updated.
     if not entities_to_save:
       logging.info('No new entries found')
     else:
       logging.info('Saving %d new/updated entries', len(entities_to_save))
-      # Ensure the entries are in descending date order, newest first.
-      entities_to_save.sort(key=lambda x: getattr(x, 'entry_updated'),
-                            reverse=True)
-
-      # Batch put all of this data and complete the work.
-      # NOTE: This put will not happen at the same time as the subsequent
-      # delete, but that's okay. The worst thing that could happen here is
-      # a refetch of the same feed, which then finds that all feed entries
-      # are already present and no event needs to be delivered.
       entities_to_save.append(EventToDeliver.create_event_for_topic(
           work.topic, header_footer, entities_to_save))
-      entities_to_save.append(FeedRecord.create_record(
-          work.topic, header_footer))
-      db.put(entities_to_save)
 
+    # NOTE: This put will not happen at the same time as the subsequent
+    # delete, but that's okay. The worst thing that could happen here is
+    # a refetch of the same feed, which then finds that all feed entries
+    # are already present and no event needs to be delivered (because the
+    # previous EventToDeliver was already created).
+    entities_to_save.extend([
+        FeedRecord.create_record(work.topic, header_footer), polling_info])
+    db.put(entities_to_save)
     work.delete()
 
 ################################################################################

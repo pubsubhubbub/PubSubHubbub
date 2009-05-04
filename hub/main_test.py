@@ -791,13 +791,11 @@ class PublishHandlerThroughHubUrlTest(PublishHandlerTest):
 
 ################################################################################
 
-FeedRecord = main.FeedRecord
-
-
-class PullFeedHandlerTest(testutil.HandlerTestBase):
+class FindFeedUpdatesTest(unittest.TestCase):
 
   def setUp(self):
-    """Sets up the test harness."""    
+    """Sets up the test harness."""
+    testutil.setup_for_testing()
     self.topic = 'http://example.com/my-topic-here'
     self.header_footer = '<feed>this is my test header footer</feed>'
     self.entries_map = {
@@ -805,14 +803,90 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         'id2': ('time2', 'content2'),
         'id3': ('time3', 'content3'),
     }
-
-    self.expected_response = 'the expected response data'
+    self.content = 'the expected response data'
     def my_filter(ignored, content):
-      self.assertEquals(self.expected_response, content)
+      self.assertEquals(self.content, content)
       return self.header_footer, self.entries_map
+    self.my_filter = my_filter
+
+  def run_test(self):
+    """Runs a test."""
+    header_footer, entry_list = main.find_feed_updates(
+        self.topic, self.content, filter_feed=self.my_filter)
+    self.assertEquals(self.header_footer, header_footer)
+    return entry_list
+
+  @staticmethod
+  def get_entry(entry_id, entry_list):
+    """Finds the entry with the given ID in the list of entries."""
+    return [e for e in entry_list if e.entry_id == entry_id][0]
+
+  def testAllNewContent(self):
+    """Tests when al pulled feed content is new."""
+    entry_list = self.run_test()
+    entry_id_set = set(f.entry_id for f in entry_list)
+    self.assertEquals(set(self.entries_map.keys()), entry_id_set)
+
+  def testSomeExistingEntries(self):
+    """Tests when some entries are already known."""
+    FeedEntryRecord.create_entry_for_topic(
+        self.topic, 'id1', 'time1', 'oldcontent1').put()
+    FeedEntryRecord.create_entry_for_topic(
+        self.topic, 'id2', 'time2', 'oldcontent2').put()
+    
+    entry_list = self.run_test()
+    entry_id_set = set(f.entry_id for f in entry_list)
+    self.assertEquals(set(['id3']), entry_id_set)
+
+  def testPulledEntryNewer(self):
+    """Tests when an entry is already known but has been updated recently."""
+    FeedEntryRecord.create_entry_for_topic(
+        self.topic, 'id1', 'time1', 'oldcontent1').put()
+    FeedEntryRecord.create_entry_for_topic(
+        self.topic, 'id2', 'time2', 'oldcontent2').put()
+    self.entries_map['id1'] = ('time4', 'newcontent1')
+
+    entry_list = self.run_test()
+    entry_id_set = set(f.entry_id for f in entry_list)
+    self.assertEquals(set(['id1', 'id3']), entry_id_set)
+
+    # Verify the old entry would be overwritten.
+    entry1 = self.get_entry('id1', entry_list)
+    self.assertEquals('newcontent1', entry1.entry_payload)
+    self.assertEquals('time4', entry1.entry_updated)
+
+################################################################################
+
+FeedRecord = main.FeedRecord
+FeedPollingInfo = main.FeedPollingInfo
+
+
+class PullFeedHandlerTest(testutil.HandlerTestBase):
+
+  def setUp(self):
+    """Sets up the test harness."""
+    self.topic = 'http://example.com/my-topic-here'
+    self.header_footer = '<feed>this is my test header footer</feed>'
+    self.all_ids = ['1', '2', '3']
+    self.entry_list = [
+        FeedEntryRecord.create_entry_for_topic(
+            self.topic, entry_id, 'update_time', 'content%s' % entry_id)
+        for entry_id in self.all_ids
+    ]
+    self.expected_response = 'the expected response data'
+    self.etag = 'something unique'
+    self.last_modified = 'some time'
+    self.cache_headers = {
+      'ETag': self.etag,
+      'Last-Modified': self.last_modified,
+    }
+
+    def my_find_updates(ignored, content):
+      self.assertEquals(self.expected_response, content)
+      return self.header_footer, self.entry_list
     def create_handler():
-      return main.PullFeedHandler(filter_feed=my_filter)
-    self.handler_class = create_handler    
+      return main.PullFeedHandler(find_feed_updates=my_find_updates)
+    self.handler_class = create_handler
     testutil.HandlerTestBase.setUp(self)
     self.callback = 'http://example.com/my-subscriber'
     self.assertTrue(Subscription.insert(self.callback, self.topic))
@@ -824,83 +898,69 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
   def testNoWork(self):
     self.handle('get')
 
-  def testAllNewContent(self):
-    """Tests when all pulled feed content is new."""
+  def testNewEntries(self):
+    """Tests when new entries are found."""
     FeedToFetch.insert([self.topic])
     urlfetch_test_stub.instance.expect(
-        'get', self.topic, 200, self.expected_response)
+        'get', self.topic, 200, self.expected_response,
+        response_headers=self.cache_headers)
     self.handle('get')
-    
+
     # Verify that all feed entry records have been written along with the
-    # EventToDeliver and FeedRecord.
+    # EventToDeliver, FeedRecord, and FeedPollingInfo.
     feed_entries = FeedEntryRecord.get_entries_for_topic(
-        self.topic, self.entries_map.keys())
-    entry_id_set = set(f.entry_id for f in feed_entries)
-    self.assertEquals(set(self.entries_map.keys()), entry_id_set)
-    
+        self.topic, self.all_ids)
+    self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
+
     work = EventToDeliver.get_work()
     self.assertEquals(self.topic, work.topic)
-    self.assertTrue('content3\ncontent2\ncontent1' in work.payload)
+    self.assertTrue('content1\ncontent2\ncontent3' in work.payload)
     work.delete()
 
     record = FeedRecord.get_by_topic(self.topic)
     self.assertEquals(self.header_footer, record.header_footer)
-  
-    # Verify that fetching the same feed again will do nothing.
+
+    info = FeedPollingInfo.get_or_create(self.topic)
+    self.assertEquals(info.etag, self.etag)
+    self.assertEquals(info.last_modified, self.last_modified)
+
+  def testCacheHit(self):
+    """Tests when the fetched feed matches the last cached version of it."""
+    info = FeedPollingInfo.get_or_create(self.topic)
+    info.update(self.cache_headers)
+    info.put()
+
+    request_headers = {
+      'If-None-Match': self.etag,
+      'If-Modified-Since': self.last_modified,
+    }
+
     FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 304, '',
+        request_headers=request_headers,
+        response_headers=self.cache_headers)
     self.handle('get')
+
+  def testNoNewEntries(self):
+    """Tests when there are no new entries."""
+    FeedToFetch.insert([self.topic])
+    self.entry_list = []
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response,
+        response_headers=self.cache_headers)
+    self.handle('get')
+
+    # There will be no event to deliver, but the feed records will be written.
     self.assertTrue(EventToDeliver.get_work() is None)
-  
-  def testSomeExistingEntries(self):
-    """Tests when some entries are already known."""
-    FeedEntryRecord.create_entry_for_topic(
-        self.topic, 'id1', 'time1', 'oldcontent1').put()
-    FeedEntryRecord.create_entry_for_topic(
-        self.topic, 'id2', 'time2', 'oldcontent2').put()
 
-    FeedToFetch.insert([self.topic])
-    urlfetch_test_stub.instance.expect(
-        'get', self.topic, 200, self.expected_response)
-    self.handle('get')
-    
-    # Verify that the old feed entries were not overwritten.
-    entry1 = FeedEntryRecord.get_entries_for_topic(self.topic, ['id1'])[0]
-    self.assertEquals('oldcontent1', entry1.entry_payload)
-    entry2 = FeedEntryRecord.get_entries_for_topic(self.topic, ['id2'])[0]
-    self.assertEquals('oldcontent2', entry2.entry_payload)
-    entry3 = FeedEntryRecord.get_entries_for_topic(self.topic, ['id3'])[0]
-    self.assertEquals('content3', entry3.entry_payload)
-    
-    # Verify that the event payload only contains the new one.
-    work = EventToDeliver.get_work()
-    self.assertTrue('content3' in work.payload)
-    self.assertTrue('content2' not in work.payload)
-    self.assertTrue('content1' not in work.payload)
+    record = FeedRecord.get_by_topic(self.topic)
+    self.assertEquals(self.header_footer, record.header_footer)
 
-  def testPulledEntryNewer(self):
-    """Tests when an entry is already known but has been updated recently."""
-    FeedEntryRecord.create_entry_for_topic(
-        self.topic, 'id1', 'time1', 'oldcontent1').put()
-    FeedEntryRecord.create_entry_for_topic(
-        self.topic, 'id2', 'time2', 'oldcontent2').put()
-    self.entries_map['id1'] = ('time4', 'newcontent1')
-    
-    FeedToFetch.insert([self.topic])
-    urlfetch_test_stub.instance.expect(
-        'get', self.topic, 200, self.expected_response)
-    self.handle('get')
-    
-    # Verify the old entry was overwritten.
-    entry1 = FeedEntryRecord.get_entries_for_topic(self.topic, ['id1'])[0]
-    self.assertEquals('newcontent1', entry1.entry_payload)
-    self.assertEquals('time4', entry1.entry_updated)
+    info = FeedPollingInfo.get_or_create(self.topic)
+    self.assertEquals(info.etag, self.etag)
+    self.assertEquals(info.last_modified, self.last_modified)
 
-    # Verify that the event payload contains the new one and the updated one.
-    work = EventToDeliver.get_work()
-    self.assertTrue('content3' in work.payload)
-    self.assertTrue('content2' not in work.payload)
-    self.assertTrue('newcontent1' in work.payload)
-  
   def testPullError(self):
     """Tests when URLFetch raises an exception."""
     FeedToFetch.insert([self.topic])
@@ -933,12 +993,13 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.remove(self.callback, self.topic))
     db.put(KnownFeed.create(self.topic))
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.entry_list = []
     FeedToFetch.insert([self.topic])
     self.handle('get')
 
     # Verify that *no* feed entry records have been written.
     self.assertEquals([], FeedEntryRecord.get_entries_for_topic(
-                               self.topic, self.entries_map.keys()))
+                               self.topic, self.all_ids))
 
     # And any KnownFeeds were deleted.
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
@@ -1026,7 +1087,6 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         '<entry>article3</entry>\n'
         '</feed>'
     )
-    
 
   def tearDown(self):
     """Resets any external modules modified for testing."""

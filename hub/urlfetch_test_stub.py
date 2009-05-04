@@ -32,8 +32,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
   def __init__(self):
     """Initializer."""
     super(URLFetchServiceTestStub, self).__init__()
-    # Maps (method, url) keys to (request_payload, response_code,
-    # response_data, error_instance)
+    # Maps (method, url) keys to (request_payload, request_headers,
+    # response_code, response_data, response_headers, error_instance)
     self._expectations = {}
   
   def clear(self):
@@ -41,8 +41,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     self._expectations.clear()
   
   def expect(self, method, url, response_code, response_data,
-             request_payload='', urlfetch_error=False, apiproxy_error=False,
-             deadline_error=False):
+             response_headers=None, request_payload='', request_headers=None,
+             urlfetch_error=False, apiproxy_error=False, deadline_error=False):
     """Expects a certain request and response.
     
     Overrides any existing expectations for this stub.
@@ -52,7 +52,9 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
       url: The expected URL to access.
       response_code: The expected response code.
       response_data: The expected response data.
+      response_headers: Headers to serve back, if any.
       request_payload: The expected request payload, if any.
+      request_headers: Any expected request headers.
       urlfetch_error: Set to True if this call should raise a
         urlfetch_errors.Error exception when made.
       apiproxy_error: Set to True if this call should raise an
@@ -70,7 +72,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
       error_instance = runtime.DeadlineExceededError()
 
     self._expectations[(method.lower(), url)] = (
-        request_payload, response_code, response_data, error_instance)
+        request_payload, request_headers, response_code,
+        response_data, response_headers, error_instance)
   
   def verify_and_reset(self):
     """Verify that all expectations have been met and clear any remaining."""
@@ -87,12 +90,13 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     Args:
       All override super-class's parameters.
     """
+    header_dict = dict((h.key(), h.value()) for h in headers)
     header_text = None
     if headers:
-      header_text = ', '.join('%s=%s' % (h.key(), h.value()) for h in headers)
+      header_text = ', '.join(
+          '%s="%s"' % (k, v) for (k, v) in header_dict.iteritems())
     logging.info('Received URLFetch request:\n%s %s\nHeaders: %r\nPayload: %r',
-        method, url,
-        header_text, payload)
+        method, url, header_text, payload)
 
     key = (method.lower(), url)
     try:
@@ -100,15 +104,28 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     except:
       assert False, 'Did not expect: %s %s' % key
 
-    if expected[0]:
-      assert payload == expected[0], (
-        'Request payload: "%s" did not match expected: "%s"' %
-        (expected[0], payload))
-    if expected[3] is not None:
-      raise expected[3]
+    (request_payload, request_headers, response_code,
+     response_data, response_headers, error_instance) = expected
 
-    response.set_statuscode(expected[1])
-    response.set_content(expected[2])
+    if request_payload:
+      assert payload == request_payload, (
+        'Request payload: "%s" did not match expected: "%s"' %
+        (request_payload, payload))
+    if request_headers:
+      for key, expected in request_headers.iteritems():
+        found = header_dict.get(key)
+        assert found == expected, ('Value for request header %s was '
+            '"%s", expected "%s"' % (key, found, expected))
+    if error_instance is not None:
+      raise error_instance
+
+    response.set_statuscode(response_code)
+    response.set_content(response_data)
+    if response_headers:
+      for key, value in response_headers.iteritems():
+        header = response.add_header()
+        header.set_key(key)
+        header.set_value(value)
 
 
 instance = URLFetchServiceTestStub()
