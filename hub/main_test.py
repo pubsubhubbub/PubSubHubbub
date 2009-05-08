@@ -75,10 +75,10 @@ class WorkQueueOnlyTest(testutil.HandlerTestBase):
 
   handler_class = TestWorkQueueHandler
 
-  def testNotAllowedHandler(self):
+  def testNotLoggedIn(self):
     os.environ['SERVER_SOFTWARE'] = 'Production'
     self.handle('get')
-    self.assertEquals(401, self.response_code())
+    self.assertEquals(302, self.response_code())
 
   def testCronHeader(self):
     os.environ['SERVER_SOFTWARE'] = 'Production'
@@ -96,10 +96,21 @@ class WorkQueueOnlyTest(testutil.HandlerTestBase):
 
   def testAdminUser(self):
     os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['USER_EMAIL'] = 'foo@example.com'
     os.environ['USER_IS_ADMIN'] = '1'
     try:
       self.handle('get')
       self.assertEquals('Pass', self.response_body())
+    finally:
+      del os.environ['USER_IS_ADMIN']
+
+  def testNonAdminUser(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['USER_EMAIL'] = 'foo@example.com'
+    os.environ['USER_IS_ADMIN'] = '0'
+    try:
+      self.handle('get')
+      self.assertEquals(401, self.response_code())
     finally:
       del os.environ['USER_IS_ADMIN']
 
@@ -412,6 +423,19 @@ class FeedToFetchTest(unittest.TestCase):
     for i in xrange(len(all_topics)):
       feed = FeedToFetch.get_work()
       found_topics.add(feed.topic)
+    self.assertEquals(set(all_topics), found_topics)
+    self.assertTrue(FeedToFetch.get_work() is None)
+
+  def testDuplicates(self):
+    """Tests duplicate urls."""
+    all_topics = [self.topic, self.topic, self.topic2, self.topic2]
+    self.assertTrue(FeedToFetch.get_work() is None)
+    FeedToFetch.insert(all_topics)
+    found_topics = set()
+    for i in xrange(len(set(all_topics))):
+      feed = FeedToFetch.get_work()
+      found_topics.add(feed.topic)
+    print found_topics
     self.assertEquals(set(all_topics), found_topics)
     self.assertTrue(FeedToFetch.get_work() is None)
 
@@ -764,7 +788,34 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                          'http://example.com/second-url',
                          'http://example.com/third-url'])
     self.assertEquals(expected_urls, inserted_urls)
-  
+    self.assertTrue(FeedToFetch.get_work() is None)
+
+  def testDuplicateUrls(self):
+    self.handle('post',
+                ('hub.mode', 'PuBLisH'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/first-url'),
+                ('hub.url', 'http://example.com/second-url'),
+                ('hub.url', 'http://example.com/second-url'),
+                ('hub.url', 'http://example.com/second-url'),
+                ('hub.url', 'http://example.com/second-url'),
+                ('hub.url', 'http://example.com/second-url'),
+                ('hub.url', 'http://example.com/second-url'),
+                ('hub.url', 'http://example.com/second-url'))
+    self.assertEquals(204, self.response_code())
+    work1 = FeedToFetch.get_work()
+    work2 = FeedToFetch.get_work()
+    inserted_urls = set(w.topic for w in (work1, work2))
+    expected_urls = set(['http://example.com/first-url',
+                         'http://example.com/second-url'])
+    self.assertEquals(expected_urls, inserted_urls)
+    self.assertTrue(FeedToFetch.get_work() is None)
+
   def testInsertFailure(self):
     """Tests when a publish event fails insertion."""
     old_insert = FeedToFetch.insert
@@ -858,7 +909,6 @@ class FindFeedUpdatesTest(unittest.TestCase):
 ################################################################################
 
 FeedRecord = main.FeedRecord
-FeedPollingInfo = main.FeedPollingInfo
 
 
 class PullFeedHandlerTest(testutil.HandlerTestBase):
@@ -876,9 +926,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.expected_response = 'the expected response data'
     self.etag = 'something unique'
     self.last_modified = 'some time'
-    self.cache_headers = {
+    self.headers = {
       'ETag': self.etag,
       'Last-Modified': self.last_modified,
+      'Content-Type': 'application/atom+xml',
     }
 
     def my_find_updates(ignored, content):
@@ -903,11 +954,11 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     FeedToFetch.insert([self.topic])
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
-        response_headers=self.cache_headers)
+        response_headers=self.headers)
     self.handle('get')
 
     # Verify that all feed entry records have been written along with the
-    # EventToDeliver, FeedRecord, and FeedPollingInfo.
+    # EventToDeliver and FeedRecord.
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
     self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
@@ -917,17 +968,16 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue('content1\ncontent2\ncontent3' in work.payload)
     work.delete()
 
-    record = FeedRecord.get_by_topic(self.topic)
+    record = FeedRecord.get_or_create(self.topic)
     self.assertEquals(self.header_footer, record.header_footer)
-
-    info = FeedPollingInfo.get_or_create(self.topic)
-    self.assertEquals(info.etag, self.etag)
-    self.assertEquals(info.last_modified, self.last_modified)
+    self.assertEquals(self.etag, record.etag)
+    self.assertEquals(self.last_modified, record.last_modified)
+    self.assertEquals('application/atom+xml', record.content_type)
 
   def testCacheHit(self):
     """Tests when the fetched feed matches the last cached version of it."""
-    info = FeedPollingInfo.get_or_create(self.topic)
-    info.update(self.cache_headers)
+    info = FeedRecord.get_or_create(self.topic)
+    info.update(self.headers)
     info.put()
 
     request_headers = {
@@ -939,7 +989,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 304, '',
         request_headers=request_headers,
-        response_headers=self.cache_headers)
+        response_headers=self.headers)
     self.handle('get')
 
   def testNoNewEntries(self):
@@ -948,18 +998,17 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.entry_list = []
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
-        response_headers=self.cache_headers)
+        response_headers=self.headers)
     self.handle('get')
 
     # There will be no event to deliver, but the feed records will be written.
     self.assertTrue(EventToDeliver.get_work() is None)
 
-    record = FeedRecord.get_by_topic(self.topic)
+    record = FeedRecord.get_or_create(self.topic)
     self.assertEquals(self.header_footer, record.header_footer)
-
-    info = FeedPollingInfo.get_or_create(self.topic)
-    self.assertEquals(info.etag, self.etag)
-    self.assertEquals(info.last_modified, self.last_modified)
+    self.assertEquals(self.etag, record.etag)
+    self.assertEquals(self.last_modified, record.last_modified)
+    self.assertEquals('application/atom+xml', record.content_type)
 
   def testPullError(self):
     """Tests when URLFetch raises an exception."""

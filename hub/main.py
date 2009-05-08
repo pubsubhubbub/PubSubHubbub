@@ -218,12 +218,14 @@ def work_queue_only(func):
     Function that will return a 401 error if not from an authorized source.
   """
   def decorated(myself, *args, **kwargs):
-    if not ('X-AppEngine-Cron' in myself.request.headers or
-            users.is_current_user_admin() or is_dev_env()):
+    if ('X-AppEngine-Cron' in myself.request.headers or is_dev_env() or
+        users.is_current_user_admin()):
+      return func(myself, *args, **kwargs)
+    elif users.get_current_user() is None:
+      myself.redirect(users.create_login_url(myself.request.url))
+    else:
       myself.response.set_status(401)
       myself.response.out.write('Handler only accessible for work queues')
-    else:
-      return func(myself, *args, **kwargs)
   return decorated
 
 
@@ -521,7 +523,7 @@ class FeedToFetch(db.Model):
       topic_list: List of the topic URLs of feeds that need to be fetched.
     """
     feed_list = [cls(key_name=get_hash_key_name(topic), topic=topic)
-                 for topic in topic_list]
+                 for topic in set(topic_list)]
     db.put(feed_list)
 
   def fetch_failed(self, max_failures=MAX_FEED_PULL_FAILURES,
@@ -567,52 +569,67 @@ class FeedToFetch(db.Model):
 
 
 class FeedRecord(db.Model):
-  """Represents the content of a feed without any entries.
+  """Represents record of the feed from when it has been polled.
 
-  This is everything in a feed except for the entry data. That means any
+  This contains everything in a feed except for the entry data. That means any
   footers, top-level XML elements, namespace declarations, etc, will be
-  captured in this entity. We keep these around just to have an idea of how
-  many feeds there are in existence being tracked by the system. In the future
-  we could use these records to track interesting statistics.
+  captured in this entity.
 
   The key name of this entity is a get_hash_key_name() of the topic URL.
   """
 
+
   topic = db.TextProperty(required=True)
-  topic_hash = db.StringProperty(required=True)
-  header_footer = db.TextProperty(required=True)
-  last_updated = db.DateTimeProperty(auto_now=True)
+  header_footer = db.TextProperty()
+  last_updated = db.DateTimeProperty(auto_now=True)  # The last polling time.
+
+  # Content-related headers.
+  content_type = db.TextProperty()
+  last_modified = db.TextProperty()
+  etag = db.TextProperty()
 
   @classmethod
-  def get_by_topic(cls, topic):
-    """Retrieves a FeedRecord entity by its topic.
+  def get_or_create(cls, topic):
+    """Retrieves a FeedRecord by its topic or creates it if non-existent.
 
     Args:
       topic: The topic URL to retrieve the FeedRecord for.
 
     Returns:
-      The FeedRecord for this topic, or None if it could not be found.
+      The FeedRecord found for this topic or a new one if it did not already
+      exist.
     """
-    return cls.get_by_key_name(get_hash_key_name(topic))
+    return cls.get_or_insert(get_hash_key_name(topic), topic=topic)
 
-  @classmethod
-  def create_record(cls, topic, header_footer):
-    """Creates a FeedRecord representing its current state.
+  def update(self, headers, header_footer=None):
+    """Updates the polling record of this feed.
 
-    This does not insert the new entity into the Datastore. It is just returned
-    so it can be submitted later as part of a batch put().
+    This method will *not* insert this instance into the Datastore.
 
     Args:
-      topic: The topic URL to update the header_footer for.
-      header_footer: Contents of the feed's XML document minus the entry data.
+      headers: Dictionary of response headers from the feed that should be used
+        to determine how to poll the feed in the future.
+      header_footer: Contents of the feed's XML document minus the entry data;
+        if not supplied, the old value will remain.
+    """
+    self.content_type = headers.get('Content-Type', '').lower()
+    self.last_modified = headers.get('Last-Modified')
+    self.etag = headers.get('ETag')
+    if header_footer is not None:
+      self.header_footer = header_footer
+
+  def get_request_headers(self):
+    """Returns the request headers that should be used to pull this feed.
 
     Returns:
-      A FeedRecord instance with the supplied parameters.
+      Dictionary of request header values.
     """
-    return cls(key_name=get_hash_key_name(topic),
-               topic=topic,
-               topic_hash=sha1_hash(topic),
-               header_footer=header_footer)
+    headers = {}
+    if self.last_modified:
+      headers['If-Modified-Since'] = self.last_modified
+    if self.etag:
+      headers['If-None-Match'] = self.etag
+    return headers
 
 
 class FeedEntryRecord(db.Model):
@@ -961,59 +978,6 @@ class PollingMarker(db.Model):
     else:
       return False
 
-
-class FeedPollingInfo(db.Model):
-  """Tracks information about a feed that has been polled.
-  
-  Key name is :topic_hash.
-  """
-
-  topic = db.TextProperty(required=True)
-  last_poll_time = db.DateTimeProperty(auto_now=True)
-  last_modified = db.TextProperty()
-  etag = db.TextProperty()
-
-  @classmethod
-  def get_or_create(cls, topic):
-    """Retrieves a FeedPollingInfo or creates it if it doesn't exist.
-
-    Args:
-      topic: The feed's topic URL.
-
-    Returns:
-      The FeedPollingInfo instance.
-    """
-    key_name = get_hash_key_name(topic)
-    info = cls.get_by_key_name(key_name)
-    if info is None:
-      info = cls(key_name=key_name, topic=topic)
-    return info
-
-  def get_request_headers(self):
-    """Returns the request headers that should be used to pull this feed.
-
-    Returns:
-      Dictionary of request header values.
-    """
-    headers = {}
-    if self.last_modified:
-      headers['If-Modified-Since'] = self.last_modified
-    if self.etag:
-      headers['If-None-Match'] = self.etag
-    return headers
-
-  def update(self, headers):
-    """Updates the polling record of this feed.
-
-    This method will *not* insert this instance into the Datastore.
-
-    Args:
-      headers: Dictionary of response headers from the feed that should be used
-        to determine how to poll the feed in the future.
-    """
-    self.last_modified = headers.get('Last-Modified')
-    self.etag = headers.get('ETag')
-
 ################################################################################
 # Subscription handlers and workers
 
@@ -1178,7 +1142,7 @@ class PublishHandler(webapp.RequestHandler):
       self.response.out.write('hub.mode MUST be "publish"')
       return
 
-    urls = self.request.get_all('hub.url')
+    urls = set(self.request.get_all('hub.url'))
     if not urls:
       self.response.set_status(400)
       self.response.out.write('MUST supply at least one hub.url parameter')
@@ -1281,12 +1245,12 @@ class PullFeedHandler(webapp.RequestHandler):
       return
 
     logging.info('Fetching topic %s', work.topic)
-    polling_info = FeedPollingInfo.get_or_create(work.topic)
+    feed_record = FeedRecord.get_or_create(work.topic)
     try:
       # Specifically follow redirects here. Many feeds are often just redirects
       # to the actual feed contents or a distribution server.
       response = urlfetch.fetch(work.topic,
-                                headers=polling_info.get_request_headers(),
+                                headers=feed_record.get_request_headers(),
                                 follow_redirects=True)
     except (apiproxy_errors.Error, urlfetch.Error):
       logging.exception('Failed to fetch feed')
@@ -1298,8 +1262,8 @@ class PullFeedHandler(webapp.RequestHandler):
       work.fetch_failed()
       return
 
-    polling_info.update(response.headers)
     if response.status_code == 304:
+      feed_record.update(response.headers)
       logging.info('Feed publisher returned 304 response (cache hit)')
       work.delete()
       return
@@ -1326,8 +1290,8 @@ class PullFeedHandler(webapp.RequestHandler):
     # a refetch of the same feed, which then finds that all feed entries
     # are already present and no event needs to be delivered (because the
     # previous EventToDeliver was already created).
-    entities_to_save.extend([
-        FeedRecord.create_record(work.topic, header_footer), polling_info])
+    feed_record.update(response.headers, header_footer)
+    entities_to_save.append(feed_record)
     db.put(entities_to_save)
     work.delete()
 

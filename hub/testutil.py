@@ -119,9 +119,19 @@ class HandlerTestBase(unittest.TestCase):
     """
     from google.appengine.ext import webapp
     before_software = os.environ.get('SERVER_SOFTWARE')
+    before_auth_domain = os.environ.get('AUTH_DOMAIN')
+    before_email = os.environ.get('USER_EMAIL')
+
+    os.environ['wsgi.url_scheme'] = 'http'
+    os.environ['SERVER_NAME'] = 'example.com'
+    os.environ['SERVER_PORT'] = ''
     try:
       if not before_software:
         os.environ['SERVER_SOFTWARE'] = 'Development/1.0'
+      if not before_auth_domain:
+        os.environ['AUTH_DOMAIN'] = 'example.com'
+      if not before_email:
+        os.environ['USER_EMAIL'] = ''
       self.resp = webapp.Response()
       self.req = create_test_request(method, *params)
       handler = self.handler_class()
@@ -131,6 +141,8 @@ class HandlerTestBase(unittest.TestCase):
                    self.response_code(), self.response_body())
     finally:
       del os.environ['SERVER_SOFTWARE']
+      del os.environ['AUTH_DOMAIN']
+      del os.environ['USER_EMAIL']
 
   def response_body(self):
     """Returns the response body after the request is handled."""
