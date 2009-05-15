@@ -193,20 +193,57 @@ class KnownFeedTest(unittest.TestCase):
   def setUp(self):
     """Sets up the test harness."""
     testutil.setup_for_testing()
+    self.topic = 'http://example.com/my-topic'
+    self.topic2 = 'http://example.com/my-topic2'
+    self.topic3 = 'http://example.com/my-topic3'
 
   def testCreateAndDelete(self):
-    topic = 'http://example.com/my-topic'
-    known_feed = KnownFeed.create(topic)
-    self.assertEquals(topic, known_feed.topic)
+    known_feed = KnownFeed.create(self.topic)
+    self.assertEquals(self.topic, known_feed.topic)
     db.put(known_feed)
 
-    found_feed = db.get(KnownFeed.create_key(topic))
+    found_feed = db.get(KnownFeed.create_key(self.topic))
     self.assertEquals(found_feed.key(), known_feed.key())
     self.assertEquals(found_feed.topic, known_feed.topic)
 
-    db.delete(KnownFeed.create_key(topic))
-    self.assertTrue(db.get(KnownFeed.create_key(topic)) is None)
+    db.delete(KnownFeed.create_key(self.topic))
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
+  def testCheckExistsMissing(self):
+    self.assertEquals([], KnownFeed.check_exists([]))
+    self.assertEquals([], KnownFeed.check_exists([self.topic]))
+    self.assertEquals([], KnownFeed.check_exists(
+        [self.topic, self.topic2, self.topic3]))
+    self.assertEquals([], KnownFeed.check_exists(
+        [self.topic, self.topic, self.topic, self.topic2, self.topic2]))
+
+  def testCheckExists(self):
+    KnownFeed.create(self.topic).put()
+    KnownFeed.create(self.topic2).put()
+    KnownFeed.create(self.topic3).put()
+    self.assertEquals([self.topic], KnownFeed.check_exists([self.topic]))
+    self.assertEquals([self.topic2], KnownFeed.check_exists([self.topic2]))
+    self.assertEquals([self.topic3], KnownFeed.check_exists([self.topic3]))
+    self.assertEquals(
+        sorted([self.topic, self.topic2, self.topic3]),
+        sorted(KnownFeed.check_exists([self.topic, self.topic2, self.topic3])))
+    self.assertEquals(
+        sorted([self.topic, self.topic2]),
+        sorted(KnownFeed.check_exists(
+            [self.topic, self.topic, self.topic, self.topic2, self.topic2])))
+
+  def testCheckExistsSubset(self):
+    KnownFeed.create(self.topic).put()
+    KnownFeed.create(self.topic3).put()
+    self.assertEquals(
+        sorted([self.topic, self.topic3]),
+        sorted(KnownFeed.check_exists([self.topic, self.topic2, self.topic3])))
+    self.assertEquals(
+        sorted([self.topic, self.topic3]),
+        sorted(KnownFeed.check_exists(
+            [self.topic, self.topic, self.topic,
+             self.topic2, self.topic2,
+             self.topic3, self.topic3])))
 
 ################################################################################
 
@@ -424,6 +461,11 @@ class FeedToFetchTest(unittest.TestCase):
       feed = FeedToFetch.get_work()
       found_topics.add(feed.topic)
     self.assertEquals(set(all_topics), found_topics)
+    self.assertTrue(FeedToFetch.get_work() is None)
+
+  def testEmpty(self):
+    """Tests when the list of urls is empty."""
+    FeedToFetch.insert([])
     self.assertTrue(FeedToFetch.get_work() is None)
 
   def testDuplicates(self):
@@ -750,6 +792,12 @@ class PublishHandlerTest(testutil.HandlerTestBase):
 
   handler_class = main.PublishHandler
 
+  def setUp(self):
+    testutil.HandlerTestBase.setUp(self)
+    self.topic = 'http://example.com/first-url'
+    self.topic2 = 'http://example.com/second-url'
+    self.topic3 = 'http://example.com/third-url'
+
   def testDebugFormRenders(self):
     self.handle('get')
     self.assertTrue('<html>' in self.response_body())
@@ -774,45 +822,56 @@ class PublishHandlerTest(testutil.HandlerTestBase):
     self.assertTrue('hub.url invalid' in self.response_body())
 
   def testInsertion(self):
+    db.put([KnownFeed.create(self.topic),
+            KnownFeed.create(self.topic2),
+            KnownFeed.create(self.topic3)])
     self.handle('post',
                 ('hub.mode', 'PuBLisH'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/third-url'))
+                ('hub.url', self.topic),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic3))
     self.assertEquals(204, self.response_code())
     work1 = FeedToFetch.get_work()
     work2 = FeedToFetch.get_work()
     work3 = FeedToFetch.get_work()
     inserted_urls = set(w.topic for w in (work1, work2, work3))
-    expected_urls = set(['http://example.com/first-url',
-                         'http://example.com/second-url',
-                         'http://example.com/third-url'])
+    expected_urls = set([self.topic, self.topic2, self.topic3])
     self.assertEquals(expected_urls, inserted_urls)
     self.assertTrue(FeedToFetch.get_work() is None)
 
-  def testDuplicateUrls(self):
+  def testIgnoreUnknownFeed(self):
     self.handle('post',
                 ('hub.mode', 'PuBLisH'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/first-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/second-url'),
-                ('hub.url', 'http://example.com/second-url'))
+                ('hub.url', self.topic),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic3))
+    self.assertEquals(204, self.response_code())
+    self.assertTrue(FeedToFetch.get_work() is None)
+
+  def testDuplicateUrls(self):
+    db.put([KnownFeed.create(self.topic),
+            KnownFeed.create(self.topic2)])
+    self.handle('post',
+                ('hub.mode', 'PuBLisH'),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic2))
     self.assertEquals(204, self.response_code())
     work1 = FeedToFetch.get_work()
     work2 = FeedToFetch.get_work()
     inserted_urls = set(w.topic for w in (work1, work2))
-    expected_urls = set(['http://example.com/first-url',
-                         'http://example.com/second-url'])
+    expected_urls = set([self.topic, self.topic2])
     self.assertEquals(expected_urls, inserted_urls)
     self.assertTrue(FeedToFetch.get_work() is None)
 

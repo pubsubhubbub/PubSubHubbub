@@ -84,7 +84,7 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
           len(old_expectations), old_expectations)
 
   def _RetrieveURL(self, url, payload, method, headers, response,
-                   follow_redirects=True):
+                   follow_redirects=True, deadline=None):
     """Test implementation of retrieving a URL.
 
     Args:

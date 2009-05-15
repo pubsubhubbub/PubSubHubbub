@@ -522,6 +522,8 @@ class FeedToFetch(db.Model):
     Args:
       topic_list: List of the topic URLs of feeds that need to be fetched.
     """
+    if not topic_list:
+      return
     feed_list = [cls(key_name=get_hash_key_name(topic), topic=topic)
                  for topic in set(topic_list)]
     db.put(feed_list)
@@ -932,7 +934,24 @@ class KnownFeed(db.Model):
     Returns:
       Key instance for this feed.
     """
-    return datastore_types.Key.from_path(cls.__name__, get_hash_key_name(topic))
+    return datastore_types.Key.from_path(cls.kind(), get_hash_key_name(topic))
+
+  @classmethod
+  def check_exists(cls, topics):
+    """Checks if the supplied topic URLs are known feeds.
+
+    Args:
+      topics: Iterable of topic URLs.
+
+    Returns:
+      List of topic URLs with KnownFeed entries. If none are known, this list
+      will be empty. The returned order is arbitrary.
+    """
+    result = []
+    for known_feed in cls.get([cls.create_key(url) for url in set(topics)]):
+      if known_feed is not None:
+        result.append(known_feed.topic)
+    return result
 
 
 class PollingMarker(db.Model):
@@ -949,7 +968,7 @@ class PollingMarker(db.Model):
       now: Returns the current time as a UTC datetime.
     """
     key_name = 'The Mark'
-    the_mark = db.get(datastore_types.Key.from_path(cls.__name__, key_name))
+    the_mark = db.get(datastore_types.Key.from_path(cls.kind(), key_name))
     if the_mark is None:
       next_start = now() - datetime.timedelta(seconds=60)
       the_mark = PollingMarker(key_name=key_name,
@@ -1148,7 +1167,7 @@ class PublishHandler(webapp.RequestHandler):
       self.response.out.write('MUST supply at least one hub.url parameter')
       return
 
-    logging.info('Publish event for URLs: %s', urls)
+    logging.info('Publish event for %d URLs: %s', len(urls), urls)
 
     for url in urls:
       if not is_valid_url(url):
@@ -1156,9 +1175,14 @@ class PublishHandler(webapp.RequestHandler):
         self.response.out.write('hub.url invalid: %s' % url)
         return
 
+    # Only insert FeedToFetch entities for feeds that are known to have
+    # subscribers. The rest will be ignored.
+    urls = KnownFeed.check_exists(urls)
+    logging.info('%d topics have known subscribers', len(urls))
+
     # Record all FeedToFetch requests here. The background Pull worker will
-    # verify if there are any subscribers that need event delivery and will
-    # skip any unused feeds.
+    # double-check if there are any subscribers that need event delivery and
+    # will skip any unused feeds.
     try:
       FeedToFetch.insert(urls)
     except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
@@ -1241,6 +1265,9 @@ class PullFeedHandler(webapp.RequestHandler):
                    work.topic)
       # If there are no subscribers then we should also delete the record of
       # this being a known feed. This will clean up after the periodic polling.
+      # TODO(bslatkin): Remove possibility of race-conditions here, where a
+      # user starts subscribing to a feed immediately at the same time we do
+      # this kind of pruning.
       db.delete([work, KnownFeed.create_key(work.topic)])
       return
 
