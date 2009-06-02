@@ -26,53 +26,64 @@ import unittest
 import feed_diff
 
 
-class FeedDiffTest(unittest.TestCase):
+class TestBase(unittest.TestCase):
+
+  format = None
+  feed_open = None
+  feed_close = None
+  entry_open = None
+  entry_close = None
 
   def setUp(self):
-    """Sets up the test harness."""
     self.testdata = os.path.join(os.path.dirname(__file__),
                                  'feed_diff_testdata')
 
-  def testUptimeTimeFiltering(self):
-    """Tests filtering by update time."""
-    data = open(os.path.join(self.testdata, 'update_filtering.xml')).read()
-    header_footer, entries = feed_diff.filter('2008-07-12T04:28:45Z', data)
-
-    expected_list = [
-      (u'tag:diveintomark.org,2008-07-12:/archives/20080712042845',
-       u'2008-07-12T04:28:45Z'),
-      (u'tag:diveintomark.org,2008-07-13:/archives/20080713011654',
-       u'2008-07-13T04:19:40Z'),
-      (u'tag:diveintomark.org,2008-07-17:/archives/20080717044506',
-       u'2008-07-17T04:47:24Z'),
-      (u'tag:diveintomark.org,2008-07-23:/archives/20080723030709',
-       u'2008-07-23T16:55:41Z'),
-      (u'tag:diveintomark.org,2008-07-29:/archives/20080729021401',
-       u'2008-08-01T00:05:25Z'),
-      (u'tag:diveintomark.org,2008-08-05:/archives/20080805020410',
-       u'2008-08-05T02:04:10Z'),
-      (u'tag:diveintomark.org,2008-08-05:/archives/20080805155619',
-       u'2008-08-05T19:09:22Z'),
-      (u'tag:diveintomark.org,2008-08-06:/archives/20080806144009',
-       u'2008-08-06T14:40:09Z'),
-      (u'tag:diveintomark.org,2008-08-07:/archives/20080807025755',
-       u'2008-08-07T02:57:55Z'),
-      (u'tag:diveintomark.org,2008-08-07:/archives/20080807233337',
-       u'2008-08-12T01:23:03Z'),
-      (u'tag:diveintomark.org,2008-08-12:/archives/20080812160843',
-       u'2008-08-12T16:08:43Z'),
-      (u'tag:diveintomark.org,2008-08-14:/archives/20080814215936',
-       u'2008-08-14T23:08:54Z'),
-    ]
-
+  def verify_entries(self, expected_list, entries):
     found_entries = sorted(entries.items())
     self.assertEqual(len(expected_list), len(found_entries))
-    for expected, found in zip(expected_list, found_entries):
-      expected_key, expected_updated = expected
-      found_key, (found_updated, found_content) = found
+    for expected_key, found in zip(expected_list, found_entries):
+      found_key, found_content = found
       self.assertEqual(expected_key, found_key)
-      self.assertEqual(expected_updated, found_updated)
-      self.assertTrue(found_content)
+      self.assertTrue(found_content.startswith(self.entry_open))
+      self.assertTrue(found_content.endswith(self.entry_close))
+
+  def load_feed(self, path):
+    data = open(os.path.join(self.testdata, path)).read()
+    header_footer, entries = feed_diff.filter(data, self.format)
+    self.assertTrue(header_footer.startswith(self.feed_open))
+    self.assertTrue(header_footer.endswith(self.feed_close))
+    return header_footer, entries
+
+
+class AtomFeedDiffTest(TestBase):
+
+  format = 'atom'
+  feed_open = '<feed'
+  feed_close = '</feed>'
+  entry_open = '<entry>'
+  entry_close = '</entry>'
+
+  def testParsing(self):
+    """Tests parsing."""
+    header_footer, entries = self.load_feed('parsing.xml')
+    expected_list = [
+        u'tag:diveintomark.org,2008-06-29:/archives/20080629044756',
+        u'tag:diveintomark.org,2008-07-04:/archives/20080704050619',
+        u'tag:diveintomark.org,2008-07-06:/archives/20080706022239',
+        u'tag:diveintomark.org,2008-07-12:/archives/20080712042845',
+        u'tag:diveintomark.org,2008-07-13:/archives/20080713011654',
+        u'tag:diveintomark.org,2008-07-17:/archives/20080717044506',
+        u'tag:diveintomark.org,2008-07-23:/archives/20080723030709',
+        u'tag:diveintomark.org,2008-07-29:/archives/20080729021401',
+        u'tag:diveintomark.org,2008-08-05:/archives/20080805020410',
+        u'tag:diveintomark.org,2008-08-05:/archives/20080805155619',
+        u'tag:diveintomark.org,2008-08-06:/archives/20080806144009',
+        u'tag:diveintomark.org,2008-08-07:/archives/20080807025755',
+        u'tag:diveintomark.org,2008-08-07:/archives/20080807233337',
+        u'tag:diveintomark.org,2008-08-12:/archives/20080812160843',
+        u'tag:diveintomark.org,2008-08-14:/archives/20080814215936',
+    ]
+    self.verify_entries(expected_list, entries)
 
   def testEntityEscaping(self):
     """Tests when certain external entities show up in the feed.
@@ -80,10 +91,9 @@ class FeedDiffTest(unittest.TestCase):
     Example: '&amp;nbsp' will be converted to '&nbsp;' by the parser, but then
     the new output entity won't be resolved.
     """
-    data = open(os.path.join(self.testdata, 'entity_escaping.xml')).read()
-    header_footer, entries = feed_diff.filter('', data)
+    header_footer, entries = self.load_feed('entity_escaping.xml')
     self.assertTrue('&#x27;' not in header_footer)
-    entity_id, (updated, content) = entries.items()[0]
+    entity_id, content = entries.items()[0]
     self.assertTrue('&amp;nbsp;' in content)
 
   def testAttributeEscaping(self):
@@ -93,46 +103,124 @@ class FeedDiffTest(unittest.TestCase):
     gd:foo=""blah"" by the parser, which is not valid XML when reconstructing
     the result.
     """
-    data = open(os.path.join(self.testdata, 'attribute_escaping.xml')).read()
-    header_footer, entries = feed_diff.filter('', data)
-    print header_footer
+    header_footer, entries = self.load_feed('attribute_escaping.xml')
     self.assertTrue('foo:myattribute="&quot;\'foobar\'&quot;"' in header_footer)
 
   def testInvalidFeed(self):
     """Tests when the feed is not a valid Atom document."""
     data = open(os.path.join(self.testdata, 'bad_atom_feed.xml')).read()
     try:
-      feed_diff.filter('', data)
+      feed_diff.filter(data, 'atom')
     except feed_diff.Error, e:
       self.assertTrue('Enclosing tag is not <feed></feed>' in str(e))
     else:
       self.fail()
-  
+
   def testNoXmlHeader(self):
     """Tests that feeds with no XML header are accepted."""
     data = open(os.path.join(self.testdata, 'no_xml_header.xml')).read()
-    header_footer, entries = feed_diff.filter('', data)
+    header_footer, entries = feed_diff.filter(data, 'atom')
     self.assertEquals(1, len(entries))
 
   def testMissingId(self):
     """Tests when an Atom entry is missing its ID field."""
     data = open(os.path.join(self.testdata, 'missing_entry_id.xml')).read()
     try:
-      feed_diff.filter('', data)
+      feed_diff.filter(data, 'atom')
     except feed_diff.Error, e:
-      self.assertTrue('<entry> element missing Id' in str(e))
+      self.assertTrue('<entry> element missing <id>' in str(e))
     else:
       self.fail()
 
-  def testMissingUpdated(self):
-    """Tests when an Atom entry is missing its updated field."""
-    data = open(os.path.join(self.testdata, 'missing_entry_updated.xml')).read()
+  def testFailsOnRss(self):
+    """Tests that parsing an RSS feed as Atom will fail."""
+    data = open(os.path.join(self.testdata, 'rss2sample.xml')).read()
     try:
-      feed_diff.filter('', data)
+      feed_diff.filter(data, 'atom')
     except feed_diff.Error, e:
-      self.assertTrue('<entry> element missing updated' in str(e))
+      self.assertTrue('Enclosing tag is not <feed></feed>' in str(e))
     else:
       self.fail()
+
+
+
+class RssFeedDiffTest(TestBase):
+
+  format = 'rss'
+  feed_open = '<rss'
+  feed_close = '</rss>'
+  entry_open = '<item>'
+  entry_close = '</item>'
+
+  def testParsingRss20(self):
+    """Tests parsing RSS 2.0."""
+    header_footer, entries = self.load_feed('rss2sample.xml')
+    expected_list = [
+        u'http://liftoff.msfc.nasa.gov/2003/05/20.html#item570',
+        u'http://liftoff.msfc.nasa.gov/2003/05/27.html#item571',
+        u'http://liftoff.msfc.nasa.gov/2003/05/30.html#item572',
+        u'http://liftoff.msfc.nasa.gov/2003/06/03.html#item573',
+    ]
+    self.verify_entries(expected_list, entries)
+
+  def testParsingRss091(self):
+    """Tests parsing RSS 0.91."""
+    header_footer, entries = self.load_feed('sampleRss091.xml')
+    expected_list = [
+        u'http://writetheweb.com/read.php?item=19',
+        u'http://writetheweb.com/read.php?item=20',
+        u'http://writetheweb.com/read.php?item=21',
+        u'http://writetheweb.com/read.php?item=22',
+        u'http://writetheweb.com/read.php?item=23',
+        u'http://writetheweb.com/read.php?item=24',
+    ]
+    self.verify_entries(expected_list, entries)
+
+  def testParsingRss092(self):
+    """Tests parsing RSS 0.92 with enclosures and only descriptions."""
+    header_footer, entries = self.load_feed('sampleRss092.xml')
+    expected_list = [
+        u'&lt;a href="http://arts.ucsc.edu/GDead/AGDL/other1.html"&gt;The Other One&lt;/a&gt;, live instrumental, One From The Vault. Very rhythmic very spacy, you can listen to it many times, and enjoy something new every time.',
+        u'&lt;a href="http://www.cs.cmu.edu/~mleone/gdead/dead-lyrics/Franklin\'s_Tower.txt"&gt;Franklin\'s Tower&lt;/a&gt;, a live version from One From The Vault.',
+        u'&lt;a href="http://www.scripting.com/mp3s/youWinAgain.mp3"&gt;The news is out&lt;/a&gt;, all over town..&lt;p&gt;\nYou\'ve been seen, out runnin round. &lt;p&gt;\nThe lyrics are &lt;a href="http://www.cs.cmu.edu/~mleone/gdead/dead-lyrics/You_Win_Again.txt"&gt;here&lt;/a&gt;, short and sweet. &lt;p&gt;\n&lt;i&gt;You win again!&lt;/i&gt;',
+        u"It's been a few days since I added a song to the Grateful Dead channel. Now that there are all these new Radio users, many of whom are tuned into this channel (it's #16 on the hotlist of upstreaming Radio users, there's no way of knowing how many non-upstreaming users are subscribing, have to do something about this..). Anyway, tonight's song is a live version of Weather Report Suite from Dick's Picks Volume 7. It's wistful music. Of course a beautiful song, oft-quoted here on Scripting News. &lt;i&gt;A little change, the wind and rain.&lt;/i&gt;",
+        u'Kevin Drennan started a &lt;a href="http://deadend.editthispage.com/"&gt;Grateful Dead Weblog&lt;/a&gt;. Hey it\'s cool, he even has a &lt;a href="http://deadend.editthispage.com/directory/61"&gt;directory&lt;/a&gt;. &lt;i&gt;A Frontier 7 feature.&lt;/i&gt;',
+        u'Moshe Weitzman says Shakedown Street is what I\'m lookin for for tonight. I\'m listening right now. It\'s one of my favorites. "Don\'t tell me this town ain\'t got no heart." Too bright. I like the jazziness of Weather Report Suite. Dreamy and soft. How about The Other One? "Spanish lady come to me.."',
+        u'The HTML rendering almost &lt;a href="http://validator.w3.org/check/referer"&gt;validates&lt;/a&gt;. Close. Hey I wonder if anyone has ever published a style guide for ALT attributes on images? What are you supposed to say in the ALT attribute? I sure don\'t know. If you\'re blind send me an email if u cn rd ths.',
+        u'This is a test of a change I just made. Still diggin..',
+    ]
+    self.verify_entries(expected_list, entries)
+
+  def testOnlyLink(self):
+    """Tests when an RSS item only has a link element."""
+    header_footer, entries = self.load_feed('rss2_only_link.xml')
+    expected_list = [
+        u'http://liftoff.msfc.nasa.gov/news/2003/news-VASIMR.asp',
+        u'http://liftoff.msfc.nasa.gov/news/2003/news-laundry.asp',
+        u'http://liftoff.msfc.nasa.gov/news/2003/news-starcity.asp',
+    ]
+    self.verify_entries(expected_list, entries)
+
+  def testOnlyTitle(self):
+    """Tests when an RSS item only has a title element."""
+    header_footer, entries = self.load_feed('rss2_only_title.xml')
+    expected_list = [
+        u"Astronauts' Dirty Laundry",
+        u'Star City',
+        u'The Engine That Does More',
+    ]
+    self.verify_entries(expected_list, entries)
+
+  def testFailsOnAtom(self):
+    """Tests that parsing an Atom feed as RSS will fail."""
+    data = open(os.path.join(self.testdata, 'parsing.xml')).read()
+    try:
+      feed_diff.filter(data, 'rss')
+    except feed_diff.Error, e:
+      self.assertTrue('Enclosing tag is not <rss></rss>' in str(e))
+    else:
+      self.fail()
+
 
 
 if __name__ == '__main__':

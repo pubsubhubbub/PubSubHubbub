@@ -17,7 +17,7 @@
 
 __author__ = 'bslatkin@gmail.com (Brett Slatkin)'
 
-"""Atom feed parser that quickly filters entries by update time."""
+"""Atom/RSS feed parser that quickly extracts entry/item elements."""
 
 import cStringIO
 import logging
@@ -35,18 +35,15 @@ class Error(Exception):
 
 
 class FeedContentHandler(xml.sax.handler.ContentHandler):
-  """Sax content handler for quickly parsing Atom feeds."""
+  """Sax content handler for quickly parsing Atom and RSS feeds."""
 
-  def __init__(self, parser, updated_cutoff):
+  def __init__(self, parser):
     """Initializer.
 
     Args:
       parser: Instance of the xml.sax parser being used with this handler.
-      updated_cutoff: A string containing the ISO 8601 timestamp before which
-        Atom entries should be ignored. Pass an empty string to get all entries.
     """
     self.parser = parser
-    self.updated_cutoff = updated_cutoff
     self.header_footer = ""
     self.entries_map = {}
 
@@ -55,7 +52,9 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.output_stack = []
     self.current_level = None
     self.last_id = ''
-    self.last_updated = ''
+    self.last_link = ''
+    self.last_title = ''
+    self.last_description = ''
 
   # Helper methods
   def emit(self, data):
@@ -97,28 +96,7 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     content = self.pop()
     self.emit(content)
     self.emit(['</', name, '>'])
-
-    if event[0] == 1:
-      if event[1] != 'feed':
-        raise Error('Enclosing tag is not <feed></feed>')
-      else:
-        self.header_footer = ''.join(self.pop())
-    elif event == (2, 'entry'):
-      if self.last_updated < self.updated_cutoff:
-        if DEBUG: logging.debug('Not saving content due to update cutoff')
-        self.pop()
-      else:
-        self.entries_map[self.last_id] = (self.last_updated,
-                                          ''.join(self.pop()))
-    elif event == (3, 'updated'):
-      self.last_updated = ''.join(content).strip()
-      self.emit(self.pop())
-    elif event == (3, 'id'):
-      self.last_id = ''.join(content).strip()
-      self.emit(self.pop())
-    else:
-      self.emit(self.pop())
-
+    self.handleEvent(event, content)
     self.stack_level -= 1
 
   def characters(self, content):
@@ -130,40 +108,93 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.emit(xml.sax.saxutils.escape(content))
 
 
-def filter(updated_cutoff, data):
-  """Filter a feed by an update cutoff time.
+class AtomFeedHandler(FeedContentHandler):
+  """Sax content handler for Atom feeds."""
+
+  def handleEvent(self, event, content):
+    if event[0] == 1:
+      if event[1] != 'feed':
+        raise Error('Enclosing tag is not <feed></feed>')
+      else:
+        self.header_footer = ''.join(self.pop())
+    elif event == (2, 'entry'):
+      self.entries_map[self.last_id] = ''.join(self.pop())
+    elif event == (3, 'id'):
+      self.last_id = ''.join(content).strip()
+      self.emit(self.pop())
+    else:
+      self.emit(self.pop())
+
+
+class RssFeedHandler(FeedContentHandler):
+  """Sax content handler for RSS feeds."""
+
+  def handleEvent(self, event, content):
+    if event[0] == 1:
+      if event[1] != 'rss':
+        raise Error('Enclosing tag is not <rss></rss>')
+      else:
+        self.header_footer = ''.join(self.pop())
+    elif event == (3, 'item'):
+      item_id = (self.last_id or self.last_link or
+                 self.last_title or self.last_description)
+      self.entries_map[item_id] = ''.join(self.pop())
+      self.last_id, self.last_link, self.last_title, self.last_description = (
+          '', '', '', '')
+    elif event == (4, 'guid'):
+      self.last_id = ''.join(content).strip()
+      self.emit(self.pop())
+    elif event == (4, 'link'):
+      self.last_link = ''.join(content).strip()
+      self.emit(self.pop())
+    elif event == (4, 'title'):
+      self.last_title = ''.join(content).strip()
+      self.emit(self.pop())
+    elif event == (4, 'description'):
+      self.last_description = ''.join(content).strip()
+      self.emit(self.pop())
+    else:
+      self.emit(self.pop())
+
+
+def filter(data, format):
+  """Filter a feed through the parser.
 
   Args:
-    updated_cutoff: Cutoff time as a string containing an ISO 8601 datetime.
-    data: String containing the data of the XML feed to parse. For now, this
-      must be an Atom feed.
+    data: String containing the data of the XML feed to parse.
+    format: String naming the format of the data. Should be 'rss' or 'atom'.
 
   Returns:
     Tuple (header_footer, entries_map) where:
       header_footer: String containing everything else in the feed document
-        that is specifically *not* an <entry>.
-      entries_map: Dictionary mapping entry_id to tuple (updated, content)
-        where updated is a string with the ISO 8601 timestamp of when the entry
-        was updated, and content is a string containing the entry XML data.
+        that is specifically *not* an <entry> or <item>.
+      entries_map: Dictionary mapping entry_id to the entry's XML data.
 
   Raises:
     xml.sax.SAXException on parse errors. feed_diff.Error if the diff could not
-    be derived due to bad content (e.g., a good XML doc that is not Atom) or
-    any of the Atom entries are missing required fields.
+    be derived due to bad content (e.g., a good XML doc that is not Atom or RSS)
+    or any of the feed entries are missing required fields.
   """
   data_stream = cStringIO.StringIO(data)
   parser = xml.sax.make_parser()
-  handler = FeedContentHandler(parser, updated_cutoff)
+
+  if format == 'atom':
+    handler = AtomFeedHandler(parser)
+  elif format == 'rss':
+    handler = RssFeedHandler(parser)
+  else:
+    raise Error('Invalid feed format "%s"' % format)
+
   parser.setContentHandler(handler)
   parser.parse(data_stream)
-  
-  for entry_id, (updated, content) in handler.entries_map.iteritems():
-    if not entry_id:
-      raise Error('<entry> element missing Id: %s' % content)
-    if not updated:
-      raise Error('<entry> element missing updated: %s' % content)
+
+  for entry_id, content in handler.entries_map.iteritems():
+    if format == 'atom' and not entry_id:
+      raise Error('<entry> element missing <id>: %s' % content)
+    elif format == 'rss' and not entry_id:
+      raise Error('<item> element missing <guid> or <link>: %s' % content)
 
   return handler.header_footer, handler.entries_map
 
 
-__all__ = ['filter', 'DEBUG']
+__all__ = ['filter', 'DEBUG', 'Error']

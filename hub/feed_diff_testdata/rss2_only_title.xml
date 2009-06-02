@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+   <channel>
+      <title>Liftoff News</title>
+      <link>http://liftoff.msfc.nasa.gov/</link>
+      <description>Liftoff to Space Exploration.</description>
+      <language>en-us</language>
+      <pubDate>Tue, 10 Jun 2003 04:00:00 GMT</pubDate>
+      <lastBuildDate>Tue, 10 Jun 2003 09:41:01 GMT</lastBuildDate>
+      <docs>http://blogs.law.harvard.edu/tech/rss</docs>
+      <generator>Weblog Editor 2.0</generator>
+      <managingEditor>editor@example.com</managingEditor>
+      <webMaster>webmaster@example.com</webMaster>
+      <item>
+         <title>Star City</title>
+      </item>
+      <item>
+         <title>The Engine That Does More</title>
+      </item>
+      <item>
+         <title>Astronauts' Dirty Laundry</title>
+      </item>
+   </channel>
+</rss>

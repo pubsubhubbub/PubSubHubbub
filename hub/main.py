@@ -19,6 +19,10 @@
 
 # Bigger TODOs (now in priority order)
 #
+# - Move FeedRecord entries into the same entity group as KnownFeed entries so
+#   they can be written transactionally along with EventToDeliver entries. This
+#   way we will never lose any feed updates in case of failures.
+#
 # - Improve polling algorithm to keep stats on each feed.
 #
 # - Do not poll a feed if we've gotten an event from the publisher in less
@@ -42,13 +46,6 @@
 #   will save that total back on the FeedRecord instance.
 #
 # - Add maximum subscription count per callback domain.
-#
-# - Add more intelligent Feed difference calculations. Maybe mark all updated
-#   time changes as interesting? Maybe mark an event as updated if only the
-#   content has changed. Maybe digest an Entry's content to quickly figure out
-#   when the content changes?
-#
-# - Support RSS in addition to Atom?
 #
 
 import datetime
@@ -120,11 +117,17 @@ BOOSTRAP_FEED_CHUNK_SIZE = 200
 POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
 
 ################################################################################
+# Constants
+
+ATOM = 'atom'
+RSS = 'rss'
+
+################################################################################
 # Helper functions
 
 def sha1_hash(value):
   """Returns the sha1 hash of the supplied value."""
-  return hashlib.sha1(value).hexdigest()
+  return hashlib.sha1(value.encode('utf-8')).hexdigest()
 
 
 def get_hash_key_name(value):
@@ -547,7 +550,7 @@ class FeedToFetch(db.Model):
       self.put()
     else:
       retry_delay = retry_period * (2 ** self.fetching_failures)
-      logging.info('Will retry in %s seconds', retry_delay)
+      logging.error('Fetching failed. Will retry in %s seconds', retry_delay)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.fetching_failures += 1
       self.put()
@@ -580,9 +583,8 @@ class FeedRecord(db.Model):
   The key name of this entity is a get_hash_key_name() of the topic URL.
   """
 
-
   topic = db.TextProperty(required=True)
-  header_footer = db.TextProperty()
+  header_footer = db.TextProperty()  # Save this for debugging.
   last_updated = db.DateTimeProperty(auto_now=True)  # The last polling time.
 
   # Content-related headers.
@@ -645,8 +647,7 @@ class FeedEntryRecord(db.Model):
   topic_hash = db.StringProperty(required=True)
   entry_id = db.TextProperty(required=True)
   entry_id_hash = db.StringProperty(required=True)
-  entry_updated = db.StringProperty(required=True)  # ISO 8601
-  entry_payload = db.TextProperty(required=True)
+  entry_content_hash = db.StringProperty()
 
   @staticmethod
   def create_key_name(topic, entry_id):
@@ -678,7 +679,7 @@ class FeedEntryRecord(db.Model):
     return [r for r in results if r]
 
   @classmethod
-  def create_entry_for_topic(cls, topic, entry_id, updated, xml_data):
+  def create_entry_for_topic(cls, topic, entry_id, content_hash):
     """Creates multiple FeedEntryRecords entities for a topic.
 
     Does not actually insert the entities into the Datastore. This is left to
@@ -687,11 +688,10 @@ class FeedEntryRecord(db.Model):
     Args:
       topic: The topic URL to insert entities for.
       entry_id: String containing the ID of the entry.
-      updated: String containing the ISO 8601 timestamp of when the entry
-        was last updated.
-      xml_data: String containing the entry XML data. For example, with Atom
-        this would be everything from <entry> to </entry> with the surrounding
-        tags included.
+      content_hash: Sha1 hash of the entry's entire XML content. For example,
+        with Atom this would apply to everything from <entry> to </entry> with
+        the surrounding tags included. With RSS it would be everything from
+        <item> to </item>.
 
     Returns:
       A new FeedEntryRecord that should be inserted into the Datastore.
@@ -701,8 +701,7 @@ class FeedEntryRecord(db.Model):
                topic_hash=sha1_hash(topic),
                entry_id=entry_id,
                entry_id_hash=sha1_hash(entry_id),
-               entry_updated=updated,
-               entry_payload=xml_data)
+               entry_content_hash=content_hash)
 
 
 class EventToDeliver(db.Model):
@@ -738,28 +737,36 @@ class EventToDeliver(db.Model):
   totally_failed = db.BooleanProperty(default=False)
 
   @classmethod
-  def create_event_for_topic(cls, topic, header_footer, entry_list,
+  def create_event_for_topic(cls, topic, format, header_footer, entry_payloads,
                              now=datetime.datetime.utcnow):
     """Creates an event to deliver for a topic and set of published entries.
     
     Args:
       topic: The topic that had the event.
+      format: Format of the feed, either 'atom' or 'rss'.
       header_footer: The header and footer of the published feed into which
         the entry list will be spliced.
-      entry_list: List of FeedEntryRecord entities to deliver in this event,
-        in order of newest to oldest.
+      entry_payloads: List of strings containing entry payloads (i.e., all
+        XML data for each entry, including surrounding tags) in order of newest
+        to oldest.
       now: Returns the current time as a UTC datetime.
     
     Returns:
       A new EventToDeliver instance that has not been stored.
     """
-    close_index = header_footer.rfind('</feed>')
-    assert close_index != -1, 'Could not find </feed> in header/footer data'
+    if format == ATOM:
+      close_tag = '</feed>'
+    elif format == RSS:
+      close_tag = '</channel>'
+    else:
+      assert False, 'Invalid format "%s"' % format
+    
+    close_index = header_footer.rfind(close_tag)
+    assert close_index != -1, 'Could not find %s in feed envelope' % close_tag
     payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
                     header_footer[:close_index]]
-    for entry in entry_list:
-      payload_list.append(entry.entry_payload)
-    payload_list.append('</feed>')
+    payload_list.extend(entry_payloads)
+    payload_list.append(header_footer[close_index:])
     payload = '\n'.join(payload_list)
 
     return cls(topic=topic,
@@ -1059,8 +1066,8 @@ class SubscribeHandler(webapp.RequestHandler):
   def post(self):
     self.response.headers['Content-Type'] = 'text/plain'
 
-    callback = self.request.get('hub.callback', '').lower()
-    topic = self.request.get('hub.topic', '').lower()
+    callback = self.request.get('hub.callback', '')
+    topic = self.request.get('hub.topic', '')
     verify_type = self.request.get('hub.verify', 'sync').lower()
     verify_token = self.request.get('hub.verify_token', '')
     mode = self.request.get('hub.mode', '').lower()
@@ -1195,50 +1202,58 @@ class PublishHandler(webapp.RequestHandler):
       self.response.set_status(204)
 
 
-def find_feed_updates(topic, feed_content, filter_feed=feed_diff.filter):
+def find_feed_updates(topic, format, feed_content,
+                      filter_feed=feed_diff.filter):
   """Determines the updated entries for a feed and returns their records.
 
   Args:
     topic: The topic URL of the feed.
-    feed_content: The content of the feed.
+    format: The string 'atom' or 'rss'.
+    feed_content: The content of the feed, which may include unicode characters.
     filter_feed: Used for dependency injection.
 
   Returns:
-    Tuple (header_footer, entry_list) where:
+    Tuple (header_footer, entry_list, entry_payloads) where:
       header_footer: The header/footer data of the feed.
       entry_list: List of FeedEntryRecord instances, if any, that represent
-        the changes that have occurred on the feed.
+        the changes that have occurred on the feed. These records do *not*
+        include the payload data for the entry.
+      entry_payloads: List of strings containing entry payloads (i.e., the XML
+        data for the Atom <entry> or <item>).
 
   Raises:
     xml.sax.SAXException if there is a parse error.
     feed_diff.Error if the feed could not be diffed for any other reason.
   """
-  header_footer, entries_map = filter_feed('', feed_content)
+  header_footer, entries_map = filter_feed(feed_content, format)
 
   # Find the new entries we've never seen before, and any entries that we
   # knew about that have been updated.
   existing_entries = FeedEntryRecord.get_entries_for_topic(
       topic, entries_map.keys())
-  existing_dict = dict((e.entry_id, (e.entry_updated, e.entry_payload))
+  existing_dict = dict((e.entry_id, e.entry_content_hash)
                        for e in existing_entries if e)
 
   logging.info('Retrieved %d feed entries, %d of which have been seen before',
                len(entries_map), len(existing_dict))
 
   entities_to_save = []
-  for entry_id, (new_updated, new_content) in entries_map.iteritems():
+  entry_payloads = []
+  for entry_id, new_content in entries_map.iteritems():
+    new_content_hash = sha1_hash(new_content)
+    # Mark the entry as new if the sha1 hash is different.
     try:
-      old_updated, old_content = existing_dict[entry_id]
-      # Only mark the entry as new if the update time is newer.
-      if old_updated >= new_updated:
+      old_content_hash = existing_dict[entry_id]
+      if old_content_hash == new_content_hash:
         continue
     except KeyError:
       pass
 
+    entry_payloads.append(new_content)
     entities_to_save.append(FeedEntryRecord.create_entry_for_topic(
-        topic, entry_id, new_updated, new_content))
+        topic, entry_id, new_content_hash))
 
-  return header_footer, entities_to_save
+  return header_footer, entities_to_save, entry_payloads
 
 
 class PullFeedHandler(webapp.RequestHandler):
@@ -1295,13 +1310,31 @@ class PullFeedHandler(webapp.RequestHandler):
       work.delete()
       return
 
-    # Parse the feed. If this fails we will give up immediately.
-    try:
-      header_footer, entities_to_save = self.find_feed_updates(
-          work.topic, response.content)
-    except (xml.sax.SAXException, feed_diff.Error):
-      logging.exception('Could not get entries for content of %d bytes: %s',
-                        len(response.content), response.content)
+    # The content-type header is extremely unreliable for determining the feed's
+    # content-type. Using a regex search for "<rss" could work, but an RE is
+    # just another thing to maintain. Instead, try to parse the content twice
+    # and use any hints from the content-type as best we can. This has
+    # a bias towards Atom content (let's cross our fingers!).
+    # TODO(bslatkin): Do something more efficient.
+    if 'rss' in (feed_record.content_type or ''):
+      order = (RSS, ATOM)
+    else:
+      order = (ATOM, RSS)
+
+    parse_failures = 0
+    for format in order:
+      # Parse the feed. If this fails we will give up immediately.
+      try:
+        header_footer, entities_to_save, entry_payloads = \
+            self.find_feed_updates(work.topic, format, response.content)
+        break
+      except (xml.sax.SAXException, feed_diff.Error):
+        logging.exception(
+            'Could not get entries for content of %d bytes in format "%s"',
+            len(response.content), format)
+        parse_failures += 1
+
+    if parse_failures == len(order):
       work.fetch_failed()
       return
 
@@ -1310,13 +1343,17 @@ class PullFeedHandler(webapp.RequestHandler):
     else:
       logging.info('Saving %d new/updated entries', len(entities_to_save))
       entities_to_save.append(EventToDeliver.create_event_for_topic(
-          work.topic, header_footer, entities_to_save))
+          work.topic, format, header_footer, entry_payloads))
 
     # NOTE: This put will not happen at the same time as the subsequent
     # delete, but that's okay. The worst thing that could happen here is
     # a refetch of the same feed, which then finds that all feed entries
     # are already present and no event needs to be delivered (because the
     # previous EventToDeliver was already created).
+    #
+    # TODO(bslatkin): Actually, this isn't quite right. We need to do some
+    # re-entity grouping here to make sure we don't potentially lose pulled
+    # updates.
     feed_record.update(response.headers, header_footer)
     entities_to_save.append(feed_record)
     db.put(entities_to_save)
