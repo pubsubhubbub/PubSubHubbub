@@ -15,35 +15,81 @@
 # limitations under the License.
 #
 
-"""Publish-subscribe hub implementation built on Google App Engine."""
+"""PubSubHubbub protocol Hub implementation built on Google App Engine.
+
+=== Model classes:
+
+* Subscription: A single subscriber's lease on a topic URL. Also represents a
+  work item of a subscription that is awaiting confirmation (sub. or unsub).
+
+* FeedToFetch: Work item inserted when a publish event occurs. This will be
+  moved to the Task Queue API once available.
+
+* KnownFeed: Materialized view of all distinct topic URLs. Written blindly on
+  successful subscriptions; may be out of date after unsubscription. Used for
+  doing bootstrap polling of feeds that are not Hub aware.
+
+* FeedRecord: Metadata information about a feed, the last time it was polled,
+  and any headers that may affect future polling. Also contains any debugging
+  information about the last feed fetch and why it may have failed.
+
+* FeedEntryRecord: Record of a single entry in a single feed. May eventually
+  be garbage collected after enough time has passed since it was last seen.
+
+* EventToDeliver: Work item that contains the content to deliver for a feed
+  event. Maintains current position in subscribers and number of delivery
+  failures. Used to coordinate delivery retries. Will be deleted in successful
+  cases or stick around in the event of complete failures for debugging.
+
+* PollingMarker: Work item that keeps track of a position in the list of
+  KnownFeed instances. Used to do bootstrap polling.
+
+
+=== Entity groups:
+
+Subscription entities are in their own entity group to allow for a high number
+of simultaneous subscriptions for the same topic URL. FeedToFetch is also in
+its own entity group for the same reason. FeedRecord, FeedEntryRecord, and
+EventToDeliver entries are all in the same entity group, however, to ensure that
+each feed polling is either full committed and delivered to subscribers or fails
+and will be retried at a later time.
+
+                  ------------
+                 | FeedRecord |
+                  -----+------
+                       |
+                       |
+         +-------------+-------------+
+         |                           |
+         |                           |
+ --------+--------           --------+-------
+| FeedEntryRecord |         | EventToDeliver |
+ -----------------           ----------------
+"""
 
 # Bigger TODOs (now in priority order)
 #
-# - Move FeedRecord entries into the same entity group as KnownFeed entries so
-#   they can be written transactionally along with EventToDeliver entries. This
-#   way we will never lose any feed updates in case of failures.
+# - Add Publisher diagnostics, so they can see the last time their feed was
+#   pulled, see any errors that were encountered while pulling the feed, see
+#   when the next retry will be.
+#
+# - Add Subscription delivery diagnostics, so subscribers can understand what
+#   error the hub has been seeing when we try to deliver a feed to them.
+#
+# - Add subscription counting to PushEventHandler so we can deliver a header
+#   with the number of subscribers the feed has. This will simply just keep
+#   count of the subscribers seen so far and then when the pushing is done it
+#   will save that total back on the FeedRecord instance.
+#
+# - Add Publisher rate-limiting (by IP of the publishing host and/or the
+#   target feed URL).
 #
 # - Improve polling algorithm to keep stats on each feed.
 #
 # - Do not poll a feed if we've gotten an event from the publisher in less
 #   than the polling period.
 #
-# - Add Publisher diagnostics, so they can see the last time their feed was
-#   pulled, see any errors that were encountered while pulling the feed, see
-#   when the next retry will be.
-#
-# - Add Publisher rate-limiting (by IP of the publishing host and/or the
-#   target feed URL).
-#
-# - Add Subscription delivery diagnostics, so subscribers can understand what
-#   error the hub has been seeing when we try to deliver a feed to them.
-#
 # - Add Subscription expiration cronjob to clean up expired subscriptions.
-#
-# - Add subscription counting to PushEventHandler so we can deliver a header
-#   with the number of subscribers the feed has. This will simply just keep
-#   count of the subscribers seen so far and then when the pushing is done it
-#   will save that total back on the FeedRecord instance.
 #
 # - Add maximum subscription count per callback domain.
 #
@@ -592,6 +638,18 @@ class FeedRecord(db.Model):
   last_modified = db.TextProperty()
   etag = db.TextProperty()
 
+  @staticmethod
+  def create_key_name(topic):
+    """Creates a key name for a FeedRecord for a topic.
+
+    Args:
+      topic: The topic URL for the FeedRecord.
+
+    Returns:
+      String containing the key name.
+    """
+    return get_hash_key_name(topic)
+
   @classmethod
   def get_or_create(cls, topic):
     """Retrieves a FeedRecord by its topic or creates it if non-existent.
@@ -603,7 +661,7 @@ class FeedRecord(db.Model):
       The FeedRecord found for this topic or a new one if it did not already
       exist.
     """
-    return cls.get_or_insert(get_hash_key_name(topic), topic=topic)
+    return cls.get_or_insert(FeedRecord.create_key_name(topic), topic=topic)
 
   def update(self, headers, header_footer=None):
     """Updates the polling record of this feed.
@@ -643,24 +701,27 @@ class FeedEntryRecord(db.Model):
   of the topic URL and the entry_id.
   """
 
-  topic = db.TextProperty(required=True)
-  topic_hash = db.StringProperty(required=True)
-  entry_id = db.TextProperty(required=True)
+  entry_id = db.TextProperty(required=True)  # To allow 500+ length entry IDs.
   entry_id_hash = db.StringProperty(required=True)
   entry_content_hash = db.StringProperty()
+  update_time = db.DateTimeProperty(auto_now=True)
 
-  @staticmethod
-  def create_key_name(topic, entry_id):
-    """Creates a new key name for a FeedEntryRecord entity.
+  @classmethod
+  def create_key(cls, topic, entry_id):
+    """Creates a new Key for a FeedEntryRecord entity.
 
     Args:
       topic: The topic URL to retrieve entries for.
       entry_id: String containing the entry_id.
 
     Returns:
-      String containing the corresponding key name.
+      Key instance for this FeedEntryRecord.
     """
-    return get_hash_key_name('%s\n%s' % (topic, entry_id))
+    return db.Key.from_path(
+        FeedRecord.kind(),
+        FeedRecord.create_key_name(topic),
+        cls.kind(),
+        get_hash_key_name(entry_id))
 
   @classmethod
   def get_entries_for_topic(cls, topic, entry_id_list):
@@ -673,8 +734,8 @@ class FeedEntryRecord(db.Model):
     Returns:
       List of FeedEntryRecords that were found, if any.
     """
-    results = cls.get_by_key_name([cls.create_key_name(topic, entry_id)
-                                   for entry_id in entry_id_list])
+    results = cls.get([cls.create_key(topic, entry_id)
+                       for entry_id in entry_id_list])
     # Filter out those pesky Nones.
     return [r for r in results if r]
 
@@ -696,9 +757,9 @@ class FeedEntryRecord(db.Model):
     Returns:
       A new FeedEntryRecord that should be inserted into the Datastore.
     """
-    return cls(key_name=cls.create_key_name(topic, entry_id),
-               topic=topic,
-               topic_hash=sha1_hash(topic),
+    key = cls.create_key(topic, entry_id)
+    return cls(key_name=key.name(),
+               parent=key.parent(),
                entry_id=entry_id,
                entry_id_hash=sha1_hash(entry_id),
                entry_content_hash=content_hash)
@@ -769,10 +830,13 @@ class EventToDeliver(db.Model):
     payload_list.append(header_footer[close_index:])
     payload = '\n'.join(payload_list)
 
-    return cls(topic=topic,
-               topic_hash=sha1_hash(topic),
-               payload=payload,
-               last_modified=now())
+    return cls(
+        parent=db.Key.from_path(
+            FeedRecord.kind(), FeedRecord.create_key_name(topic)),
+        topic=topic,
+        topic_hash=sha1_hash(topic),
+        payload=payload,
+        last_modified=now())
 
   def get_next_subscribers(self, chunk_size=None):
     """Retrieve the next set of subscribers to attempt delivery for this event.
@@ -1305,7 +1369,6 @@ class PullFeedHandler(webapp.RequestHandler):
       return
 
     if response.status_code == 304:
-      feed_record.update(response.headers)
       logging.info('Feed publisher returned 304 response (cache hit)')
       work.delete()
       return
@@ -1345,18 +1408,15 @@ class PullFeedHandler(webapp.RequestHandler):
       entities_to_save.append(EventToDeliver.create_event_for_topic(
           work.topic, format, header_footer, entry_payloads))
 
-    # NOTE: This put will not happen at the same time as the subsequent
-    # delete, but that's okay. The worst thing that could happen here is
-    # a refetch of the same feed, which then finds that all feed entries
-    # are already present and no event needs to be delivered (because the
-    # previous EventToDeliver was already created).
-    #
-    # TODO(bslatkin): Actually, this isn't quite right. We need to do some
-    # re-entity grouping here to make sure we don't potentially lose pulled
-    # updates.
     feed_record.update(response.headers, header_footer)
     entities_to_save.append(feed_record)
-    db.put(entities_to_save)
+
+    # Doing this put in a transaction ensures that we have written all
+    # FeedEntryRecords, updated the FeedRecord, and written the EventToDeliver
+    # at the same time. Otherwise, if any of these fails individually we could
+    # drop messages on the floor. If this transaction fails, the whole fetch
+    # will be redone and find the same entries again (thus it is idempotent).
+    db.run_in_transaction(lambda: db.put(entities_to_save))
     work.delete()
 
 ################################################################################

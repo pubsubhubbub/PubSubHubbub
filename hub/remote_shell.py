@@ -30,15 +30,17 @@ from google.appengine.ext import db
 def auth_func():
   return raw_input('Username:'), getpass.getpass('Password:')
 
-if len(sys.argv) > 2:
-  print "Usage: %s [host]" % (sys.argv[0],)
+if len(sys.argv) > 3:
+  print "Usage: %s [app_id] [host]" % (sys.argv[0],)
   sys.exit(1)
 
 app_id = 'pubsubhubbub'
-if len(sys.argv) == 2:
-  host = sys.argv[1]
-else:
-  host = '%s.appspot.com' % app_id
+if len(sys.argv) >= 2:
+  app_id = sys.argv[1]
+
+host = '%s.appspot.com' % app_id
+if len(sys.argv) == 3:
+  host = sys.argv[2]
 
 remote_api_stub.ConfigureRemoteDatastore(app_id, '/remote_api', auth_func, host)
 

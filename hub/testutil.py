@@ -26,6 +26,13 @@ import unittest
 import urllib
 
 
+TEST_APP_ID = 'my-app-id'
+
+# Assign the application ID up front here so we can create db.Key instances
+# before doing any other test setup.
+os.environ['APPLICATION_ID'] = TEST_APP_ID
+
+
 def fix_path():
   """Finds the google_appengine directory and fixes Python imports to use it."""
   all_paths = os.environ.get('PATH').split(os.pathsep)
@@ -51,7 +58,7 @@ def setup_for_testing():
   try:
     logging.getLogger().setLevel(100)
     dev_appserver.SetupStubs(
-        'my-app-id',
+        TEST_APP_ID,
         login_url='',
         datastore_path=tempfile.mktemp(suffix='datastore_stub'),
         history_path=tempfile.mktemp(suffix='datastore_history'),
