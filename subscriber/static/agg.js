@@ -30,7 +30,7 @@ function gotStuff(status, text) {
   }
 
   document.getElementById("content").innerHTML = content;
-  window.setTimeout(showStuff, 500);
+  window.setTimeout(showStuff, 5000);
 }
 
 window.onload = showStuff;

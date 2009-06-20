@@ -17,12 +17,14 @@ Nothing yet.
 {% for entry in entries %}
 <div class="entry">
   <div>
-    <strong>{{entry.title}}</strong>
+    <strong>{% if entry.title %}{{entry.title}}{% else %}No title{% endif %}</strong>
     at <em>{{entry.updated}}</em>
-    <div>from <a href="{{entry.source}}">{{entry.source}}</a></div>
+    {% if entry.link %}
+      <div>from <a href="{{entry.link}}">{{entry.link}}</a></div>
+    {% endif %}
   </div>
   <div>
-    {{entry.content}}
+    {% if entry.content %}{{entry.content}}{% else %}No content{% endif %}
   </div>
 </div>
 {% endfor %}

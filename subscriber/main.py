@@ -34,10 +34,10 @@ class SomeUpdate(db.Model):
   
   Key name will be a hash of the feed source and item ID.
   """
-  title = db.TextProperty(required=True)
-  content = db.TextProperty(required=True)
-  updated = db.StringProperty(required=True)  # ISO 8601 date
-  source = db.TextProperty(required=True)
+  title = db.TextProperty()
+  content = db.TextProperty()
+  updated = db.DateTimeProperty(auto_now_add=True)
+  link = db.TextProperty()
 
 
 class InputHandler(webapp.RequestHandler):
@@ -64,23 +64,29 @@ class InputHandler(webapp.RequestHandler):
         logging.info('Body segment with error: %r', segment.decode('utf-8'))
       return self.response.set_status(500)
 
-    source = 'Source not supplied'
-    if hasattr(data.feed, 'links'):
-      for link in data.feed.links:
-        if link.rel == 'self' and 'atom' in link.type:
-          source = link.href
-          break
-    if not source:
-      logging.error('Could not find feed source link: %s', data.links)
-
     update_list = []
+    logging.info('Found %d entries', len(data.entries))
     for entry in data.entries:
+      if hasattr(entry, 'content'):
+        # This is Atom.
+        entry_id = entry.id
+        content = entry.content[0].value
+        link = entry.get('link', '')
+        title = entry.get('title', '')
+      else:
+        content = entry.get('description', '')
+        title = entry.get('title', '')
+        link = entry.get('link', '')
+        entry_id = (entry.get('id', '') or link or title or content)
+
+      logging.info('Found entry with title = "%s", id = "%s", '
+                   'link = "%s", content = "%s"',
+                   title, entry_id, link, content)
       update_list.append(SomeUpdate(
-          key_name='key_' + hashlib.sha1(source + '\n' + entry.id).hexdigest(),
-          title=entry.title,
-          content=entry.content[0].value,
-          updated=entry.updated,
-          source=source))
+          key_name='key_' + hashlib.sha1(link + '\n' + entry_id).hexdigest(),
+          title=title,
+          content=content,
+          link=link))
     db.put(update_list)
     self.response.set_status(200)
     self.response.out.write("Aight.  Saved.");
@@ -116,7 +122,7 @@ class ItemsHandler(webapp.RequestHandler):
   def get(self):
     encoder = simplejson.JSONEncoder()
     stuff = []
-    for update in SomeUpdate.gql('ORDER BY updated DESC').fetch(50):
+    for update in SomeUpdate.gql('ORDER BY updated DESC').fetch(10):
       stuff.append({'time': update.updated,
                     'title': update.title,
                     'content': update.content,
