@@ -2,6 +2,7 @@
 # -*-perl-*-
 
 use strict;
+use lib 'lib';
 use Net::PubSubHubbub::Publisher;
 use Getopt::Long;
 use LWP::Simple ();
