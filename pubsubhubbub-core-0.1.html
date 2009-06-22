@@ -1,6 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Draft: PubSubHubbub Core 0.1 -- Working Draft</title>
-<meta http-equiv="Expires" content="Tue, 28 Apr 2009 06:31:29 +0000">
+<meta http-equiv="Expires" content="Mon, 22 Jun 2009 07:25:11 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.1 -- Working Draft">
 <meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
@@ -147,7 +147,7 @@
 <tr><td class="header">&nbsp;</td><td class="header">Google, Inc</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">M. Atkins</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">Six Apart Ltd.</td></tr>
-<tr><td class="header">&nbsp;</td><td class="header">April 13, 2009</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">June 21, 2009</td></tr>
 </table></td></tr></table>
 <h1><br />PubSubHubbub Core 0.1 -- Working Draft</h1>
 
@@ -201,6 +201,8 @@ New Content Notification<br />
 Content Fetch<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#contentdistribution">7.3.</a>&nbsp;
 Content Distribution<br />
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#aggregatedistribution">7.4.</a>&nbsp;
+Aggregated Content Distribution<br />
 <a href="#rfc.references1">8.</a>&nbsp;
 References<br />
 <a href="#anchor8">Appendix&nbsp;A.</a>&nbsp;
@@ -232,7 +234,7 @@ Definitions</h3>
           simplicity. Further, this spec currently only addresses public
           (unauthenticated) Atom feed URLs.
 </dd>
-<dt>Pubsub Hub (&quot;the hub&quot;):</dt>
+<dt>Hub (&quot;the hub&quot;):</dt>
 <dd>The server (URL) which
           implements both sides of this protocol. We have implemented this and
           are running a server at <a href='http://pubsubhubbub.appspot.com/'>http://pubsubhubbub.appspot.com</a> that's at least for now open
@@ -404,9 +406,13 @@ Discovery</h3>
       to which it wants to subscribe. A feed that acts as a topic as per this
       specification MUST publish, as a child of <tt>atom:feed</tt>, an <tt>atom:link</tt>
       element whose <tt>rel</tt> attribute has the value
-      "hub" and whose <tt>href</tt> attribute contains the
-      hub's endpoint URL. When a potential subscriber encounters such a link,
-      that subscriber MAY subscribe to the feed as described in <a class='info' href='#subscribing'>Section&nbsp;6<span> (</span><span class='info'>Subscribing and Unsubscribing</span><span>)</span></a>.
+      <tt>hub</tt> and whose <tt>href</tt>
+      attribute contains the hub's endpoint URL. Feeds MAY contain multiple
+      <tt>atom:link[@rel="hub"]</tt> elements if the
+      publisher wishes to notify multiple hubs. When a potential subscriber
+      encounters one or more such links, that subscriber MAY subscribe to the
+      feed using one or more hubs as described in
+      <a class='info' href='#subscribing'>Section&nbsp;6<span> (</span><span class='info'>Subscribing and Unsubscribing</span><span>)</span></a>.
 </p>
 <p>Example:
 </p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;?xml version="1.0"?&gt;
@@ -447,7 +453,7 @@ Subscribing and Unsubscribing</h3>
 <a name="rfc.section.6.1"></a><h3>6.1.&nbsp;
 Subscriber Sends Subscription Request</h3>
 
-<p>Subscription is initiated by the subscriber making an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] POST request to the Hub URL. This request
+<p>Subscription is initiated by the subscriber making an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] POST request to the hub URL. This request
         has a Content-type of <tt>application/x-www-form-urlencoded</tt> (described in
         Section 17.13.4 of <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>) and the
         following parameters in its body:
@@ -460,16 +466,17 @@ Subscriber Sends Subscription Request</h3>
 </dd>
 <dt>hub.callback</dt>
 <dd>REQUIRED. The subscriber's callback
-            URL.
+            URL. This URL should not contain query-string parameters or an
+            anchor fragment.
 </dd>
 <dt>hub.topic</dt>
 <dd>REQUIRED. The topic URL that the
             subscriber wishes to subscribe to.
 </dd>
 <dt>hub.verify</dt>
-<dd>REQUIRED. Comma-separated list of
-            keywords describing verification modes supported by this
-            subscriber, as described below.
+<dd>REQUIRED. Keyword describing verification
+            modes supported by this subscriber, as described below. This
+            parameter may be repeated to indicate multiple supported modes.
 </dd>
 <dt>hub.verify_token</dt>
 <dd>A subscriber-provided opaque token
@@ -500,15 +507,19 @@ Subscriber Sends Subscription Request</h3>
         subscriber's order of preference. Hubs MUST ignore verify mode
         keywords that they do not understand. Subscribers MUST use at least
         one of the modes indicated in the list above, but MAY include
-        additional keywords defined by extension specifications.
+        additional keywords defined by extension specifications. Hubs MUST
+        ignore any verify modes they do not understand.
 </p>
 <p>The hub MUST respond to a subscription request with an HTTP 204 "No
         Content" response to indicate that the request was already verified and
         that the subscription has been created. If the subscription has yet to
         be verified (i.e., the hub is using asynchronous verification), the hub
-        MUST respond with a 202 "Accepted" response. In the case of any error,
+        MUST respond with a 202 "Accepted" code. In the case of any error,
         an appropriate HTTP error response code (4xx or 5xx) MUST be
-        returned.
+        returned. In the event of an error, hubs SHOULD return a description of
+        the error in the response body as plain text. Hubs MAY decide to reject
+        some callback URLs or topic URLs based on their own policies
+        (e.g., domain authorization, topic URL port numbers).
 </p>
 <p>In synchronous mode, the verification (<a class='info' href='#verifysub'>Section&nbsp;6.2<span> (</span><span class='info'>Hub Verifies Intent of the Subscriber</span><span>)</span></a>) MUST be completed before the hub returns a
         response. In asynchronous mode, the verification MAY be deferred until a
@@ -541,19 +552,36 @@ Hub Verifies Intent of the Subscriber</h3>
 <dd>REQUIRED. The topic URL given in the
             corresponding subscription request.
 </dd>
+<dt>hub.challenge</dt>
+<dd>REQUIRED. A hub-generated, random string
+            that MUST be echoed by the subscriber to verify the
+            subscription.
+</dd>
 <dt>hub.verify_token</dt>
 <dd>The subscriber-provided opaque
             token from the corresponding subscription request, if one was
             provided.
 </dd>
+<dt>hub.lease_seconds</dt>
+<dd>The hub-determined number of seconds
+            that the subscription will stay active before expiring. If the
+            subscriber wishes to keep a persistent subscription, they MUST
+            re-request the subscription before this many seconds has
+            elapsed.
+</dd>
 </dl></blockquote>
 
-<p>The subscriber MUST confirm that the topic and verify_token
-        correspond to a pending subscription or unsubscription that it wishes to
-        carry out. If so, the subscriber MUST respond with an HTTP success (2xx)
-        response. If not, the subscriber MUST respond with a 404 "Not Found"
-        response. The hub MUST consider other client and server error response
-        codes (4xx and 5xx) to mean that the subscription is <em>not</em> verified.
+<p>The subscriber MUST confirm that the <tt>topic
+        </tt> and <tt>verify_token</tt> correspond to a
+        pending subscription or unsubscription that it wishes to carry out.
+        If so, the subscriber MUST respond with an HTTP success (2xx)
+        code with a response body equal to the <tt>challenge
+        </tt> parameter. If the subscriber does not agree with the action,
+        the subscriber MUST respond with a 404 "Not Found" response. The hub
+        MUST consider other client and server response codes (3xx, 4xx, and 5xx)
+        to mean that the subscription is <em>not</em>
+        verified, meaning the hub SHOULD retry verification until a definite
+        acknowledgement (positive or negative) is received.
 </p>
 <a name="publishing"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
@@ -615,8 +643,8 @@ Content Distribution</h3>
 <p>If, after a content fetch, the hub determines that the topic feed
         content has changed, the hub sends information about the changes to each
         of the subscribers to the topic. A content distribution request is an
-        HTTP POST request from hub to the subscriber's callback URL. This
-        request has a Content-Type of <tt>application/atom+xml</tt> and its request body is an
+        <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] POST request from hub to the
+        subscriber's callback URL. This request has a Content-Type of <tt>application/atom+xml</tt> and its request body is an
         Atom feed document with the list of new and changed items.
 </p>
 <p>If the document represents a single feed being replicated for the
@@ -628,6 +656,25 @@ Content Distribution</h3>
         subscription for. Essentially, in the single feed case the subscriber
         will receive an Atom document that looks like the original.
 </p>
+<p>The response from the subscriber's callback URL MUST be an HTTP
+        success (2xx) code. The hub MUST consider all other subscriber response
+        codes as failures. The response body will be ignored. Hubs SHOULD retry
+        notifications repeatedly until successful (up to some reasonable
+        maximum).
+</p>
+<p>The subscriber's callback response SHOULD include the header
+        field <tt>X-Hub-On-Behalf-Of</tt> whose value is
+        an integer number, possibly approximate, representing the number of
+        subscribers on behalf of which this feed notification was delivered.
+        This value SHOULD be aggregated by the hub across all subscribers and
+        used to provide the <tt>X-Hub-Subscribers</tt>
+        header to feed publishers.
+</p>
+<a name="aggregatedistribution"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.7.4"></a><h3>7.4.&nbsp;
+Aggregated Content Distribution</h3>
+
 <p>When the notification document represents an aggregated set of feeds,
         the hub SHOULD reproduce all of the elements from the source feed <em>inside</em> the corresponding <tt>atom:entry</tt> in the content distribution request by
         using an <tt>atom:source</tt> element. However, the
