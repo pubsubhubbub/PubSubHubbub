@@ -168,6 +168,10 @@ POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
 ATOM = 'atom'
 RSS = 'rss'
 
+VALID_PORTS = frozenset([
+    '80', '443', '4443', '8080', '8081', '8082', '8083', '8084', '8085',
+    '8086', '8087', '8088', '8089', '8188', '8444', '8990'])
+
 ################################################################################
 # Helper functions
 
@@ -286,7 +290,7 @@ def is_valid_url(url):
     return False
 
   netloc, port = (split.netloc.split(':', 1) + [''])[:2]
-  if port and not is_dev_env() and port not in ('80', '443'):
+  if port and not is_dev_env() and port not in VALID_PORTS:
     logging.info('URL port is invalid: %s', url)
     return False
 

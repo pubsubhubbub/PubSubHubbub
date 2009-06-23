@@ -66,8 +66,9 @@ class UtilityFunctionTest(unittest.TestCase):
   def testIsValidUrl(self):
     self.assertTrue(main.is_valid_url(
         'https://example.com:443/path/to?handler=1&b=2'))
+    self.assertTrue(main.is_valid_url('http://example.com:8080'))
     self.assertFalse(main.is_valid_url('httpm://example.com'))
-    self.assertFalse(main.is_valid_url('http://example.com:8080'))
+    self.assertFalse(main.is_valid_url('http://example.com:9999'))
     self.assertFalse(main.is_valid_url('http://example.com/blah#bad'))
 
 ################################################################################
