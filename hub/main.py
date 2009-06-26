@@ -99,6 +99,7 @@ import hashlib
 import logging
 import os
 import random
+import time
 import urllib
 import urlparse
 import wsgiref.handlers
@@ -110,6 +111,7 @@ from google.appengine.api import memcache
 from google.appengine.api import urlfetch
 from google.appengine.api import urlfetch_errors
 from google.appengine.api import users
+from google.appengine.api.labs import taskqueue
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
@@ -131,9 +133,6 @@ if DEBUG:
 
 # How long a subscription will last before it must be renewed by the subscriber.
 EXPIRATION_DELTA = datetime.timedelta(days=90)
-
-# How long to hold a lock after query_and_own(), in seconds.
-LEASE_PERIOD_SECONDS = 15
 
 # How many subscribers to contact at a time when delivering events.
 EVENT_SUBSCRIBER_CHUNK_SIZE = 10
@@ -172,6 +171,14 @@ VALID_PORTS = frozenset([
     '80', '443', '4443', '8080', '8081', '8082', '8083', '8084', '8085',
     '8086', '8087', '8088', '8089', '8188', '8444', '8990'])
 
+EVENT_QUEUE = 'event-delivery'
+
+FEED_QUEUE = 'feed-pulls'
+
+POLLING_QUEUE = 'polling'
+
+SUBSCRIPTION_QUEUE = 'subscriptions'
+
 ################################################################################
 # Helper functions
 
@@ -185,94 +192,26 @@ def get_hash_key_name(value):
   return 'hash_' + sha1_hash(value)
 
 
-def query_and_own(model_class, gql_query, lease_period,
-                  work_count=1, sample_ratio=20, lock_ratio=4, **gql_bindings):
-  """Query for work to do and temporarily own it.
-
-  Args:
-    model_class: The db.Model sub-class that contains the work to do.
-    gql_query: String containing the GQL query that will retrieve the work
-      to do in order of priority for this model_class.
-    lease_period: How long in seconds that the newly retrieved worked should
-      be owned before being retried later.
-    work_count: Maximum number of owned items to retrieve.
-    sample_ratio: How many times work_count items to query for before randomly
-      selecting up to work_count of them to take ownership of. Increase this
-      ratio if there are a lot of workers (and thus more contention).
-    lock_ratio: How many times work_count items to try to lock at a time.
-      Increase this ratio if the lease period is low and the overall work
-      throughput is high.
-    **gql_bindings: Any other keyword-based GQL bindings to use in the query
-      for more work;
-
-  Returns:
-    If work_count is greater than 1, this function returns a list of model_class
-    instances up to work_count in length if work could be retrieved. An empty
-    list will be returned if there is no work to do or work could not be
-    retrieved (due to collisions, etc).
-    
-    If work_count is 1, this function will return a single model_class if work
-    could be retrieved. If there is no work left to do or work could not be
-    retrieved, this function will return None.
-  """
-  sample_size = work_count * sample_ratio
-  work_to_do = model_class.gql(gql_query, **gql_bindings).fetch(sample_size)
-  if not work_to_do:
-    if work_count == 1:
-      return None
-    else:
-      return []
-
-  # Attempt to lock more work than we actually need to do, since there likely
-  # will be conflicts if the number of workers is high or the work_count is
-  # high. If we've acquired more than we can use, we'll just delete the memcache
-  # key and unlock the work. This is much better than an iterative solution,
-  # since a single locking API call per worker reduces the locking window.
-  possible_work = random.sample(work_to_do,
-      min(len(work_to_do), lock_ratio * work_count))
-  work_map = dict((str(w.key()), w) for w in possible_work)
-  try_lock_map = dict((k, 'owned') for k in work_map)
-  not_set_keys = set(memcache.add_multi(try_lock_map, time=lease_period))
-  if len(not_set_keys) == len(try_lock_map):
-    logging.debug(
-        'Conflict; failed to acquire any locks for model %s. Tried: %s',
-        model_class.kind(), not_set_keys)
-  
-  locked_keys = [k for k in work_map if k not in not_set_keys]
-  reset_keys = locked_keys[work_count:]
-  if reset_keys and not memcache.delete_multi(reset_keys):
-    logging.warning('Could not reset acquired work for model %s: %s',
-                    model_class.kind(), reset_keys)
-
-  work = [work_map[k] for k in locked_keys[:work_count]]
-  if work_count == 1:
-    if work:
-      return work[0]
-    else:
-      return None
-  else:
-    return work
-
-
 def is_dev_env():
   """Returns True if we're running in the development environment."""
   return 'Dev' in os.environ.get('SERVER_SOFTWARE', '')
 
 
 def work_queue_only(func):
-  """Decorator that only allows a request if from cron job or an admin.
-  
+  """Decorator that only allows a request if from cron job, task, or an admin.
+
   Also allows access if running in development server environment.
-  
+
   Args:
     func: A webapp.RequestHandler method.
-  
+
   Returns:
     Function that will return a 401 error if not from an authorized source.
   """
   def decorated(myself, *args, **kwargs):
-    if ('X-AppEngine-Cron' in myself.request.headers or is_dev_env() or
-        users.is_current_user_admin()):
+    if ('X-AppEngine-Cron' in myself.request.headers or
+        'X-AppEngine-TaskName' in myself.request.headers or
+        is_dev_env() or users.is_current_user_admin()):
       return func(myself, *args, **kwargs)
     elif users.get_current_user() is None:
       myself.redirect(users.create_login_url(myself.request.url))
@@ -404,6 +343,7 @@ class Subscription(db.Model):
                   verify_token=verify_token,
                   expiration_time=datetime.datetime.now() + EXPIRATION_DELTA)
         sub.put()
+        sub._enqueue_task()
       return sub_is_new
     return db.run_in_transaction(txn)
 
@@ -455,6 +395,7 @@ class Subscription(db.Model):
         sub.subscription_state = cls.STATE_TO_DELETE
         sub.verify_token = verify_token
         sub.put()
+        sub._enqueue_task()
         return True
       return False
     return db.run_in_transaction(txn)
@@ -486,7 +427,7 @@ class Subscription(db.Model):
         to when retrieving more subscribers. The callback at the given offset
         *will* be included in the results. If None, then subscribers will
         be retrieved from the beginning.
-    
+
     Returns:
       List of Subscription objects that were found, or an empty list if none
       were found.
@@ -500,18 +441,44 @@ class Subscription(db.Model):
 
     return query.fetch(count)
 
+  def _enqueue_task(self):
+    """Enqueues a task to confirm this Subscription."""
+    # TODO(bslatkin): Remove these retries when they're not needed in userland.
+    RETRIES = 3
+    for i in xrange(RETRIES):
+      try:
+        taskqueue.Task(
+            url='/work/subscriptions',
+            eta=self.eta,
+            params={'subscription_key_name': self.key().name()}
+            ).add(SUBSCRIPTION_QUEUE)
+      except (taskqueue.Error, apiproxy_errors.Error):
+        logging.exception('Could not insert task to confirm '
+                          'topic = %s, callback = %s',
+                          self.topic, self.callback)
+        if i == (RETRIES - 1):
+          raise
+      else:
+        return
+
   def confirm_failed(self, max_failures=MAX_SUBSCRIPTION_CONFIRM_FAILURES,
                      retry_period=SUBSCRIPTION_RETRY_PERIOD,
                      now=datetime.datetime.utcnow):
     """Reports that an asynchronous confirmation request has failed.
-    
+
     This will delete this entity if the maximum number of failures has been
     exceeded.
-    
+
     Args:
       max_failures: Maximum failures to allow before giving up.
       retry_period: Initial period for doing exponential (base-2) backoff.
       now: Returns the current time as a UTC datetime.
+
+    Returns:
+      True if this Subscription confirmation should be retried again; in this
+      case the caller should use the 'eta' field to insert the next Task for
+      confirming the subscription. Returns False if we should give up and never
+      try again.
     """
     if self.confirm_failures >= max_failures:
       logging.info('Max subscription failures exceeded, giving up.')
@@ -521,25 +488,27 @@ class Subscription(db.Model):
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.confirm_failures += 1
       self.put()
+      # TODO(bslatkin): Do this enqueuing transactionally.
+      self._enqueue_task()
 
   @classmethod
-  def get_confirm_work(cls, now=datetime.datetime.utcnow):
+  def get_confirm_work(cls, confirm_key_name):
     """Retrieves a Subscription to verify or remove asynchronously.
 
     Args:
-      now: Returns the current time as a UTC datetime.
+      confirm_key_name: Key name of the Subscription entity to verify.
 
     Returns:
-      A Subscription instance, or None if no work is available. The returned
-      instance needs to have its status updated by confirming the subscription
-      is still desired by the callback URL.
+      The Subscription instance, or None if it is not available or already has
+      been confirmed. The returned instance needs to have its status updated
+      by confirming the subscription is still desired by the callback URL.
     """
-    return query_and_own(cls,
-        'WHERE eta <= :now AND subscription_state IN :valid_states '
-        'ORDER BY eta ASC',
-        LEASE_PERIOD_SECONDS,
-        now=now(),
-        valid_states=[cls.STATE_NOT_VERIFIED, cls.STATE_TO_DELETE])
+    CONFIRM_STATES = (cls.STATE_NOT_VERIFIED, cls.STATE_TO_DELETE)
+    sub = cls.get_by_key_name(confirm_key_name)
+    if sub is not None and sub.subscription_state in CONFIRM_STATES:
+      return sub
+    else:
+      return None
 
 
 class FeedToFetch(db.Model):
@@ -580,15 +549,19 @@ class FeedToFetch(db.Model):
     feed_list = [cls(key_name=get_hash_key_name(topic), topic=topic)
                  for topic in set(topic_list)]
     db.put(feed_list)
+    # TODO(bslatkin): Use a bulk interface or somehow merge combined fetches
+    # into a single task.
+    for feed in feed_list:
+      feed._enqueue_task()
 
   def fetch_failed(self, max_failures=MAX_FEED_PULL_FAILURES,
                    retry_period=FEED_PULL_RETRY_PERIOD,
                    now=datetime.datetime.utcnow):
     """Reports that feed fetching failed.
-    
+
     This will mark this feed as failing to fetch. This feed will not be
     refetched until insert() is called again.
-    
+
     Args:
       max_failures: Maximum failures to allow before giving up.
       retry_period: Initial period for doing exponential (base-2) backoff.
@@ -604,23 +577,52 @@ class FeedToFetch(db.Model):
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.fetching_failures += 1
       self.put()
+      # TODO(bslatkin): Do this enqueuing transactionally.
+      self._enqueue_task()
 
-  @classmethod
-  def get_work(cls, now=datetime.datetime.utcnow):
-    """Retrieves a feed to fetch and owns it by acquiring a temporary lock.
+  def done(self):
+    """The feed fetch has completed successfully.
 
-    Args:
-      now: Returns the current time as a UTC datetime.
+    This will delete this FeedToFetch entity iff the ETA has not changed,
+    meaning a subsequent publish event did not happen for this topic URL. If
+    the ETA has changed, then we can safely assume there is a pending Task to
+    take care of this FeedToFetch and we should leave the entry.
 
     Returns:
-      A FeedToFetch entity that has been owned, or None if there is currently
-      no work to do. Callers should invoke delete() on the entity once the
-      work has been completed.
+      True if the entity was deleted, False otherwise.
     """
-    return query_and_own(cls,
-        'WHERE eta <= :now AND totally_failed = False ORDER BY eta ASC',
-        LEASE_PERIOD_SECONDS,
-        now=now())
+    def txn():
+      other = db.get(self.key())
+      if other and other.eta == self.eta:
+        other.delete()
+        return True
+      else:
+        return False
+    return db.run_in_transaction(txn)
+
+  def _enqueue_task(self):
+    """Enqueues a task to fetch this feed."""
+    # TODO(bslatkin): Remove these retries when they're not needed in userland.
+    RETRIES = 3
+    # TODO(bslatkin): If this request is already running in a background
+    # task, then reenqueue this work on the same queue as the source.
+    # This lets us run some flows at a lower priority (such as the
+    # periodic polling fetches).
+    target_queue = os.environ.get('X_APPENGINE_QUEUENAME', FEED_QUEUE)
+    for i in xrange(RETRIES):
+      try:
+        taskqueue.Task(
+            url='/work/pull_feeds',
+            eta=self.eta,
+            params={'topic': self.topic}
+            ).add(target_queue)
+      except (taskqueue.Error, apiproxy_errors.Error):
+        logging.exception('Could not insert task to fetch topic = %s',
+                          self.topic)
+        if i == (RETRIES - 1):
+          raise
+      else:
+        return
 
 
 class FeedRecord(db.Model):
@@ -771,14 +773,14 @@ class FeedEntryRecord(db.Model):
 
 class EventToDeliver(db.Model):
   """Represents a publishing event to deliver to subscribers.
-  
+
   This model is meant to be used together with Subscription entities. When a
   feed has new published data and needs to be pushed to subscribers, one of
   these entities will be inserted. The background worker should iterate
   through all Subscription entities for this topic, sending them the event
   payload. The update() method should be used to track the progress of the
   background worker as well as any Subscription entities that failed delivery.
-  
+
   The key_name for each of these entities is unique. It is up to the event
   injection side of the system to de-dupe events to deliver. For example, when
   a publish event comes in, that publish request should be de-duped immediately.
@@ -786,7 +788,7 @@ class EventToDeliver(db.Model):
   a single event to deliver, collapsing any overlapping publish events during
   the delay from publish time to feed pulling time.
   """
-  
+
   DELIVERY_MODES = ('normal', 'retry')
   NORMAL = 'normal'
   RETRY = 'retry'
@@ -805,7 +807,7 @@ class EventToDeliver(db.Model):
   def create_event_for_topic(cls, topic, format, header_footer, entry_payloads,
                              now=datetime.datetime.utcnow):
     """Creates an event to deliver for a topic and set of published entries.
-    
+
     Args:
       topic: The topic that had the event.
       format: Format of the feed, either 'atom' or 'rss'.
@@ -815,7 +817,7 @@ class EventToDeliver(db.Model):
         XML data for each entry, including surrounding tags) in order of newest
         to oldest.
       now: Returns the current time as a UTC datetime.
-    
+
     Returns:
       A new EventToDeliver instance that has not been stored.
     """
@@ -825,7 +827,7 @@ class EventToDeliver(db.Model):
       close_tag = '</channel>'
     else:
       assert False, 'Invalid format "%s"' % format
-    
+
     close_index = header_footer.rfind(close_tag)
     assert close_index != -1, 'Could not find %s in feed envelope' % close_tag
     payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
@@ -848,7 +850,7 @@ class EventToDeliver(db.Model):
     Args:
       chunk_size: How many subscribers to retrieve at a time while delivering
         the event. Defaults to EVENT_SUBSCRIBER_CHUNK_SIZE.
-    
+
     Returns:
       Tuple (more_subscribers, subscription_list) where:
         more_subscribers: True if there are more subscribers to deliver to
@@ -911,10 +913,9 @@ class EventToDeliver(db.Model):
              max_failures=MAX_DELIVERY_FAILURES,
              retry_period=DELIVERY_RETRY_PERIOD):
     """Updates an event with work progress or deletes it if it's done.
-    
-    Also deletes the ownership memcache entry for this work item so it will
-    be picked up again the next time get_work() is called.
-    
+
+    Reschedules another Task to run to handle this event delivery if needed.
+
     Args:
       more_callbacks: True if there are more callbacks to deliver, False if
         there are no more subscribers to deliver for this feed.
@@ -949,7 +950,7 @@ class EventToDeliver(db.Model):
         logging.info('Normal delivery done; %d broken callbacks remain',
                      len(self.failed_callbacks))
         self.delivery_mode = EventToDeliver.RETRY
-      else:        
+      else:
         logging.info('End of attempt %d; topic = %s, subscribers = %d, '
                      'waiting until %s or totally_failed = %s',
                      self.retry_attempts, self.topic,
@@ -957,28 +958,33 @@ class EventToDeliver(db.Model):
                      self.totally_failed)
 
     self.put()
-    memcache.delete(str(self.key()))
+    if not self.totally_failed:
+      # TODO(bslatkin): Do this enqueuing transactionally.
+      self.enqueue()
 
-  @classmethod
-  def get_work(cls, now=datetime.datetime.utcnow):
-    """Retrieves a pending event to deliver.
-
-    Args:
-      now: Returns the current time as a UTC datetime.
-
-    Returns:
-      An EventToDeliver instance, or None if no work is available.
-    """
-    return query_and_own(cls,
-        'WHERE last_modified <= :now AND totally_failed = False '
-        'ORDER BY last_modified ASC',
-        LEASE_PERIOD_SECONDS,
-        now=now())
+  def enqueue(self):
+    """Enqueues a Task that will execute this EventToDeliver."""
+    # TODO(bslatkin): Remove these retries when they're not needed in userland.
+    RETRIES = 3
+    for i in xrange(RETRIES):
+      try:
+        taskqueue.Task(
+            url='/work/push_events',
+            eta=self.last_modified,
+            params={'event_key': self.key()}
+            ).add(EVENT_QUEUE)
+      except (taskqueue.Error, apiproxy_errors.Error):
+        logging.exception('Could not insert task to deliver '
+                          'events for topic = %s', self.topic)
+        if i == (RETRIES - 1):
+          raise
+      else:
+        return
 
 
 class KnownFeed(db.Model):
   """Represents a feed that we know exists.
-  
+
   This entity will be overwritten anytime someone subscribes to this feed. The
   benefit is we have a single entity per known feed, allowing us to quickly
   iterate through all of them. This may have issues if the subscription rate
@@ -1005,7 +1011,7 @@ class KnownFeed(db.Model):
 
     Args:
       topic: The feed's topic URL.
-    
+
     Returns:
       Key instance for this feed.
     """
@@ -1032,8 +1038,8 @@ class KnownFeed(db.Model):
 class PollingMarker(db.Model):
   """Keeps track of the current position in the bootstrap polling process."""
 
+  last_start = db.DateTimeProperty()
   next_start = db.DateTimeProperty(required=True)
-  current_key = db.TextProperty()
 
   @classmethod
   def get(cls, now=datetime.datetime.utcnow):
@@ -1052,8 +1058,8 @@ class PollingMarker(db.Model):
     return the_mark
 
   def should_progress(self,
-                     period=POLLING_BOOTSTRAP_PERIOD,
-                     now=datetime.datetime.utcnow):
+                      period=POLLING_BOOTSTRAP_PERIOD,
+                      now=datetime.datetime.utcnow):
     """Returns True if the bootstrap polling should progress.
 
     May modify this PollingMarker to when the next polling should start.
@@ -1064,10 +1070,9 @@ class PollingMarker(db.Model):
     """
     now_time = now()
     if self.next_start < now_time:
-      logging.info('Polling starting afresh!')
+      logging.info('Polling starting afresh for start time %s', self.next_start)
+      self.last_start = self.next_start
       self.next_start = now_time + datetime.timedelta(seconds=period)
-      return True
-    elif self.current_key:
       return True
     else:
       return False
@@ -1077,13 +1082,13 @@ class PollingMarker(db.Model):
 
 def ConfirmSubscription(mode, topic, callback, verify_token):
   """Confirms a subscription request and updates a Subscription instance.
-  
+
   Args:
     mode: The mode of subscription confirmation ('subscribe' or 'unsubscribe').
     topic: URL of the topic being subscribed to.
     callback: URL of the callback handler to confirm the subscription with.
     verify_token: Opaque token passed to the callback.
-  
+
   Returns:
     True if the subscription was confirmed properly, False if the subscription
     request encountered an error or any other error has hit.
@@ -1096,7 +1101,7 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
   params = {
     'hub.mode': mode,
     'hub.topic': topic,
-    # TODO: Do not include this token if it is empty.
+    # TODO(bslatkin): Do not include this token if it is empty.
     'hub.verify_token': verify_token,
   }
   parsed_url[4] = urllib.urlencode(params)
@@ -1146,10 +1151,10 @@ class SubscribeHandler(webapp.RequestHandler):
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
     if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
-      # TODO: Split this into a multi-valued key, not using commas.
+      # TODO(bslatkin): Split this into a multi-valued key, not using commas.
       error_message = 'Invalid value for hub.verify: %s' % verify_type
     if not verify_token:
-      # TODO: Allow this to be empty
+      # TODO(bslatkin): Allow this to be empty
       error_message = 'Invalid parameter: hub.verify_token'
     if mode not in ('subscribe', 'unsubscribe'):
       error_message = 'Invalid value for hub.mode: %s' % mode
@@ -1183,8 +1188,8 @@ class SubscribeHandler(webapp.RequestHandler):
           Subscription.request_insert(callback, topic, verify_token)
         else:
           Subscription.request_remove(callback, topic, verify_token)
-        logging.info('Queued %s request for callback %s on '
-                     'topic %s with verify_token = "%s"',
+        logging.info('Queued %s request for callback = %s, '
+                     'topic = %s, verify_token = "%s"',
                      mode, callback, topic, verify_token)
         return self.response.set_status(202)
 
@@ -1198,12 +1203,13 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
   """Background worker for asynchronously confirming subscriptions."""
 
   @work_queue_only
-  def get(self):
-    sub = Subscription.get_confirm_work()
+  def post(self):
+    sub_key_name = self.request.get('subscription_key_name')
+    sub = Subscription.get_confirm_work(sub_key_name)
     if not sub:
       logging.debug('No subscriptions to confirm')
       return
-    
+
     if sub.subscription_state == Subscription.STATE_NOT_VERIFIED:
       mode = 'subscribe'
     else:
@@ -1216,7 +1222,6 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
         Subscription.remove(sub.callback, sub.topic)
     else:
       sub.confirm_failed()
-      return self.response.set_status(500)
 
 ################################################################################
 # Publishing handlers and workers
@@ -1266,7 +1271,7 @@ class PublishHandler(webapp.RequestHandler):
       self.response.set_status(503)
       self.response.out.write('Transient error; please try again later')
     else:
-      # TODO: This should be 202
+      # TODO(bslatkin): This should be 202
       self.response.set_status(204)
 
 
@@ -1326,7 +1331,7 @@ def find_feed_updates(topic, format, feed_content,
 
 class PullFeedHandler(webapp.RequestHandler):
   """Background worker for pulling feeds."""
-  
+
   def __init__(self, find_feed_updates=find_feed_updates):
     """Initializer.
 
@@ -1337,10 +1342,11 @@ class PullFeedHandler(webapp.RequestHandler):
     self.find_feed_updates = find_feed_updates
 
   @work_queue_only
-  def get(self):
-    work = FeedToFetch.get_work()
+  def post(self):
+    topic = self.request.get('topic')
+    work = FeedToFetch.get_by_topic(topic)
     if not work:
-      logging.debug('No feeds to fetch.')
+      logging.warning('No feeds to fetch for topic = %s', topic)
       return
 
     if not Subscription.has_subscribers(work.topic):
@@ -1351,7 +1357,8 @@ class PullFeedHandler(webapp.RequestHandler):
       # TODO(bslatkin): Remove possibility of race-conditions here, where a
       # user starts subscribing to a feed immediately at the same time we do
       # this kind of pruning.
-      db.delete([work, KnownFeed.create_key(work.topic)])
+      if work.done():
+        db.delete(KnownFeed.create_key(work.topic))
       return
 
     logging.info('Fetching topic %s', work.topic)
@@ -1374,7 +1381,7 @@ class PullFeedHandler(webapp.RequestHandler):
 
     if response.status_code == 304:
       logging.info('Feed publisher returned 304 response (cache hit)')
-      work.delete()
+      work.done()
       return
 
     # The content-type header is extremely unreliable for determining the feed's
@@ -1407,10 +1414,12 @@ class PullFeedHandler(webapp.RequestHandler):
 
     if not entities_to_save:
       logging.info('No new entries found')
+      event_to_deliver = None
     else:
       logging.info('Saving %d new/updated entries', len(entities_to_save))
-      entities_to_save.append(EventToDeliver.create_event_for_topic(
-          work.topic, format, header_footer, entry_payloads))
+      event_to_deliver = EventToDeliver.create_event_for_topic(
+          work.topic, format, header_footer, entry_payloads)
+      entities_to_save.append(event_to_deliver)
 
     feed_record.update(response.headers, header_footer)
     entities_to_save.append(feed_record)
@@ -1421,7 +1430,10 @@ class PullFeedHandler(webapp.RequestHandler):
     # drop messages on the floor. If this transaction fails, the whole fetch
     # will be redone and find the same entries again (thus it is idempotent).
     db.run_in_transaction(lambda: db.put(entities_to_save))
-    work.delete()
+    # TODO(bslatkin): Make this transactional
+    if event_to_deliver:
+      event_to_deliver.enqueue()
+    work.done()
 
 ################################################################################
 
@@ -1433,8 +1445,8 @@ class PushEventHandler(webapp.RequestHandler):
     self.now = now
 
   @work_queue_only
-  def get(self):
-    work = EventToDeliver.get_work(now=self.now)
+  def post(self):
+    work = EventToDeliver.get(self.request.get('event_key'))
     if not work:
       logging.debug('No events to deliver.')
       return
@@ -1454,7 +1466,7 @@ class PushEventHandler(webapp.RequestHandler):
       if exception or result.status_code not in (200, 204):
         logging.warning('Could not deliver to target url %s: '
                         'Exception = %r, status_code = %s',
-                        sub.callback, exception, result.status_code)
+                        sub.callback, exception, result)
       else:
         failed_callbacks.remove(sub)
 
@@ -1485,25 +1497,55 @@ class PollBootstrapHandler(webapp.RequestHandler):
   @work_queue_only
   def get(self):
     the_mark = PollingMarker.get()
-    if not the_mark.should_progress():
-      return
+    if the_mark.should_progress():
+      # Naming the task based on the current start time here allows us to
+      # enqueue the *next* task in the polling chain before we've enqueued
+      # any of the actual FeedToFetch tasks. This is great because it lets us
+      # queue up a ton of tasks in parallel (since the task queue is reentrant).
+      #
+      # Without the task name present, each intermittent failure in the polling
+      # chain would cause an *alternate* sequence of tasks to execute. This
+      # causes exponential explosion in the number of tasks (think of an
+      # NP diagram or the "multiverse" of time/space). Yikes.
+      name = str(int(time.mktime(the_mark.last_start.utctimetuple())))
+      try:
+        taskqueue.Task(
+            url='/work/poll_bootstrap',
+            name=name, params=dict(sequence=name)).add(POLLING_QUEUE)
+      except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
+        logging.exception('Could not enqueue FIRST polling task')
+
+      the_mark.put()
+
+  @work_queue_only
+  def post(self):
+    sequence = self.request.get('sequence')
+    current_key = self.request.get('current_key')
+    logging.info('Handling polling for sequence = %s, current_key = %s',
+                 sequence, current_key)
 
     query = KnownFeed.all()
-    if the_mark.current_key is not None:
-      query.filter('__key__ >', datastore_types.Key(the_mark.current_key))
+    if current_key:
+      query.filter('__key__ >', datastore_types.Key(current_key))
     known_feeds = query.fetch(BOOSTRAP_FEED_CHUNK_SIZE)
 
     if known_feeds:
-      the_mark.current_key = str(known_feeds[-1].key())
+      current_key = str(known_feeds[-1].key())
       logging.info('Found %s more feeds to poll, ended at %s',
                    len(known_feeds), known_feeds[-1].topic)
-    else:
-      logging.info('Polling cycle complete; starting again at %s',
-                   the_mark.next_start)
-      the_mark.current_key = None
+      try:
+        taskqueue.Task(
+            url='/work/poll_bootstrap',
+            name='%s-%s' % (sequence, sha1_hash(current_key)),
+            params=dict(sequence=sequence,
+                        current_key=current_key)).add(POLLING_QUEUE)
+      except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
+        logging.exception('Could not enqueue continued polling task')
 
-    FeedToFetch.insert([k.topic for k in known_feeds])
-    db.put(the_mark)
+      FeedToFetch.insert([k.topic for k in known_feeds])
+    else:
+      logging.info('Polling cycle complete')
+      current_key = None
 
 ################################################################################
 

@@ -1,0 +1,11 @@
+queue:
+  - name: subscriptions
+    rate: 0.5/s
+  - name: polling
+    rate: 1/s
+  - name: feed-pulls
+    rate: 3/s
+  - name: event-delivery
+    rate: 5/s
+  - name: default
+    rate: 0/s

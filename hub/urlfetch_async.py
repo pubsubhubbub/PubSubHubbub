@@ -93,8 +93,9 @@ def fetch(url, payload=None, method=urlfetch.GET, headers={},
     apiproxy_stub_map.MakeSyncCall('urlfetch', 'Fetch', request, response)
   except apiproxy_errors.ApplicationError, e:
     user_exception = e
-    
-  result, user_exception = HandleResult(response, e, allow_truncated)
+
+  result, user_exception = HandleResult(
+      response, user_exception, allow_truncated)
   if user_exception:
     raise user_exception
   else:
@@ -107,23 +108,23 @@ def HandleResult(response, urlfetch_exception, allow_truncated):
   user_exception = None
 
   if urlfetch_exception:
-    if (urlfetch_exception.application_error ==
-        urlfetch_service_pb.URLFetchServiceError.INVALID_URL):
-      user_exception = urlfetch.InvalidURLError(str(e))
-    elif (urlfetch_exception.application_error ==
-        urlfetch_service_pb.URLFetchServiceError.UNSPECIFIED_ERROR):
-      user_exception = urlfetch.DownloadError(str(e))
-    elif (urlfetch_exception.application_error ==
-        urlfetch_service_pb.URLFetchServiceError.FETCH_ERROR):
-      user_exception = urlfetch.DownloadError(str(e))
-    elif (urlfetch_exception.application_error ==
-        urlfetch_service_pb.URLFetchServiceError.RESPONSE_TOO_LARGE):
-      user_exception = urlfetch.ResponseTooLargeError(None)
-    else:
-      user_exception = urlfetch_exception
+    user_exception = urlfetch_exception
+    if hasattr(urlfetch_exception, 'application_error'):
+      if (urlfetch_exception.application_error ==
+          urlfetch_service_pb.URLFetchServiceError.INVALID_URL):
+        user_exception = urlfetch.InvalidURLError(str(urlfetch_exception))
+      elif (urlfetch_exception.application_error ==
+          urlfetch_service_pb.URLFetchServiceError.UNSPECIFIED_ERROR):
+        user_exception = urlfetch.DownloadError(str(urlfetch_exception))
+      elif (urlfetch_exception.application_error ==
+          urlfetch_service_pb.URLFetchServiceError.FETCH_ERROR):
+        user_exception = urlfetch.DownloadError(str(urlfetch_exception))
+      elif (urlfetch_exception.application_error ==
+          urlfetch_service_pb.URLFetchServiceError.RESPONSE_TOO_LARGE):
+        user_exception = urlfetch.ResponseTooLargeError(None)
   else:
     result = urlfetch._URLFetchResult(response)
     if not allow_truncated and response.contentwastruncated():
-      user_exception = urlfetch.ResponseTooLargeError(result)    
-  
+      user_exception = urlfetch.ResponseTooLargeError(result)
+
   return result, user_exception

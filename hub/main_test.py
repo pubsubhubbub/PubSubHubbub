@@ -30,6 +30,7 @@ testutil.fix_path()
 
 from google.appengine import runtime
 from google.appengine.api import memcache
+from google.appengine.api.labs.taskqueue import taskqueue_stub
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.runtime import apiproxy_errors
@@ -43,6 +44,7 @@ import urlfetch_test_stub
 # For convenience
 
 sha1_hash = main.sha1_hash
+get_hash_key_name = main.get_hash_key_name
 
 FUNNY = '/CaSeSeNsItIvE'
 
@@ -61,7 +63,7 @@ class UtilityFunctionTest(unittest.TestCase):
 
   def testGetHashKeyName(self):
     self.assertEquals('hash_54f6638eb67ad389b66bbc3fa65f7392b0c2d270',
-                      main.get_hash_key_name('and now testing a key'))
+                      get_hash_key_name('and now testing a key'))
 
   def testIsValidUrl(self):
     self.assertTrue(main.is_valid_url(
@@ -123,74 +125,14 @@ class WorkQueueOnlyTest(testutil.HandlerTestBase):
     finally:
       del os.environ['USER_IS_ADMIN']
 
-################################################################################
-
-class TestWork(db.Model):
-  index = db.IntegerProperty(required=True)
-
-
-class QueryAndOwnTest(unittest.TestCase):
-
-  def setUp(self):
-    """Sets up the test harness."""
-    testutil.setup_for_testing()
-    self.test_work = [TestWork(index=0), TestWork(index=1), TestWork(index=2)]
-    self.query = 'ORDER BY index DESC'
-
-  def put_test_work(self):
-    for work in self.test_work:
-      work.put()
-
-  def testQueryAndOwn_noWork(self):
-    work = main.query_and_own(TestWork, self.query, 60, work_count=1)
-    self.assertTrue(work is None)
-    work = main.query_and_own(TestWork, self.query, 60, work_count=5)
-    self.assertEquals([], work)
-
-  def testQueryAndOwn_singleItem(self):
-    self.put_test_work()
-    # Retrieve work successfully.
-    work = main.query_and_own(TestWork, self.query, 60)
-    work_key = str(work.key())
-    self.assertEquals('owned', memcache.get(work_key))
-
-    # Verify that the work cannot be owned again without memcache expiry.
-    other_query = 'WHERE index = %d' % work.index
-    other_work = main.query_and_own(TestWork, other_query, 60)
-    self.assertTrue(other_work is None)
-    self.assertTrue(memcache.delete(work_key))
-    other_work = main.query_and_own(TestWork, other_query, 60)
-    self.assertEquals(other_work.key(), work.key())
-    self.assertEquals('owned', memcache.get(work_key))
-
-    # Verify that other work that's not already owned can be owned. We know
-    # this test is valid because the lock_ratio means that we will try to lock
-    # them all.
-    more_work = main.query_and_own(TestWork, self.query, 60,
-                                  lock_ratio=len(self.test_work))
-    self.assertNotEquals(more_work.key(), work.key())
-    self.assertEquals('owned', memcache.get(str(more_work.key())))
-    for w in self.test_work:
-      if w.key() != more_work.key() and w.key() != work.key():
-        self.assertTrue(memcache.get(str(w.key())) is None)
-
-  def testQueryAndOwn_multipleItem(self):
-    self.put_test_work()
-    # Retrieving multiple items works just fine.
-    work = main.query_and_own(TestWork, self.query, 60, work_count=3)
-    self.assertEquals(set(w.key() for w in work),
-                      set(w.key() for w in self.test_work))
-    for w in self.test_work:
-      self.assertEquals('owned', memcache.get(str(w.key())))
-
-    # Re-acquiring a sub-set of the work_count.
-    redo_work = work[1]
-    redo_work_key = str(redo_work.key())
-    self.assertTrue(memcache.delete(redo_work_key))
-    more_work = main.query_and_own(TestWork, self.query, 60, work_count=3)
-    self.assertEquals(1, len(more_work))
-    self.assertEquals(redo_work.key(), more_work[0].key())
-    self.assertEquals('owned', memcache.get(redo_work_key))
+  def testTaskQueueHeader(self):
+    os.environ['SERVER_SOFTWARE'] = 'Production'
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = 'Foobar'
+    try:
+      self.handle('get')
+      self.assertEquals('Pass', self.response_body())
+    finally:
+      del os.environ['HTTP_X_APPENGINE_TASKNAME']
 
 ################################################################################
 
@@ -413,11 +355,17 @@ class SubscriptionTest(unittest.TestCase):
     self.assertTrue(Subscription.insert(self.callback3, self.topic))
     self.assertTrue(Subscription.request_remove(self.callback3, self.topic,
                                                 'token'))
-    work1 = Subscription.get_confirm_work()
-    work2 = Subscription.get_confirm_work()
-    self.assertNotEquals(work1.key(), work2.key())
-    work3 = Subscription.get_confirm_work()
-    self.assertTrue(work3 is None)
+
+    key_name1 = Subscription.create_key_name(self.callback, self.topic)
+    key_name2 = Subscription.create_key_name(self.callback2, self.topic)
+    key_name3 = Subscription.create_key_name(self.callback3, self.topic)
+
+    work1 = Subscription.get_confirm_work(key_name1)
+    work3 = Subscription.get_confirm_work(key_name3)
+    self.assertNotEquals(work1.key(), work3.key())
+
+    # This won't be retrieved because it has the wrong state.
+    self.assertTrue(Subscription.get_confirm_work(key_name2) is None)
 
   def testConfirmFailed(self):
     """Tests retry delay periods when a subscription confirmation fails."""
@@ -432,20 +380,15 @@ class SubscriptionTest(unittest.TestCase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertEquals(0, sub.confirm_failures)
 
-    self.assertTrue(Subscription.get_confirm_work() is not None)
-    memcache.delete(str(sub.key()))
-
     for i, delay in enumerate((5, 10, 20, 40, 80)):
       sub.confirm_failed(max_failures=5, retry_period=5, now=now)
       self.assertEquals(sub.eta, start + datetime.timedelta(seconds=delay))
       self.assertEquals(i+1, sub.confirm_failures)
-      # Getting work will yield no subscriptions here, since the ETA is
-      # far into the future.
-      self.assertTrue(Subscription.get_confirm_work(now=now) is None)
 
     # It will be deleted on the last try.
     sub.confirm_failed(max_failures=5, retry_period=5)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, index=0, expected_count=6)
 
 ################################################################################
 
@@ -463,53 +406,79 @@ class FeedToFetchTest(unittest.TestCase):
   def testInsertAndGet(self):
     """Tests inserting and getting work."""
     all_topics = [self.topic, self.topic2, self.topic3]
-    self.assertTrue(FeedToFetch.get_work() is None)
     FeedToFetch.insert(all_topics)
-    found_topics = set()
-    for i in xrange(len(all_topics)):
-      feed = FeedToFetch.get_work()
-      found_topics.add(feed.topic)
+    found_topics = set(FeedToFetch.get_by_topic(t).topic for t in all_topics)
     self.assertEquals(set(all_topics), found_topics)
-    self.assertTrue(FeedToFetch.get_work() is None)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=3)
+    task_topics = set(t['params']['topic'] for t in tasks)
+    self.assertEquals(found_topics, task_topics)
 
   def testEmpty(self):
     """Tests when the list of urls is empty."""
     FeedToFetch.insert([])
-    self.assertTrue(FeedToFetch.get_work() is None)
+    self.assertEquals([], testutil.get_tasks(main.FEED_QUEUE))
 
   def testDuplicates(self):
     """Tests duplicate urls."""
     all_topics = [self.topic, self.topic, self.topic2, self.topic2]
-    self.assertTrue(FeedToFetch.get_work() is None)
     FeedToFetch.insert(all_topics)
-    found_topics = set()
-    for i in xrange(len(set(all_topics))):
-      feed = FeedToFetch.get_work()
-      found_topics.add(feed.topic)
-    print found_topics
+    found_topics = set(FeedToFetch.get_by_topic(t).topic for t in all_topics)
     self.assertEquals(set(all_topics), found_topics)
-    self.assertTrue(FeedToFetch.get_work() is None)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    task_topics = set(t['params']['topic'] for t in tasks)
+    self.assertEquals(found_topics, task_topics)
+
+  def testDone(self):
+    FeedToFetch.insert([self.topic])
+    feed = FeedToFetch.get_by_topic(self.topic)
+    self.assertTrue(feed.done())
+    self.assertTrue(FeedToFetch.get_by_topic(self.topic) is None)
+
+  def testDoneConflict(self):
+    """Tests when another entity was written over the top of this one."""
+    FeedToFetch.insert([self.topic])
+    feed = FeedToFetch.get_by_topic(self.topic)
+    FeedToFetch.insert([self.topic])
+    self.assertFalse(feed.done())
+    self.assertTrue(FeedToFetch.get_by_topic(self.topic) is not None)
 
   def testFetchFailed(self):
     start = datetime.datetime.utcnow()
-    def now():
-      return start
+    now = lambda: start
 
     FeedToFetch.insert([self.topic])
-    feed = FeedToFetch.get_work()
+    etas = []
     for i, delay in enumerate((5, 10, 20, 40, 80)):
+      feed = FeedToFetch.get_by_topic(self.topic)
       feed.fetch_failed(max_failures=5, retry_period=5, now=now)
-      self.assertEquals(feed.eta, start + datetime.timedelta(seconds=delay))
+      expected_eta = start + datetime.timedelta(seconds=delay)
+      self.assertEquals(expected_eta, feed.eta)
+      etas.append(testutil.task_eta(feed.eta))
       self.assertEquals(i+1, feed.fetching_failures)
       self.assertEquals(False, feed.totally_failed)
-      # Getting work will yield no feeds here, since the ETA is
-      # far into the future.
-      self.assertTrue(FeedToFetch.get_work(now=now) is None)
 
     feed.fetch_failed(max_failures=5, retry_period=5, now=now)
     self.assertEquals(True, feed.totally_failed)
-    memcache.delete(str(feed.key()))
-    self.assertTrue(FeedToFetch.get_work() is None)
+
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=6)
+    found_etas = [t['eta'] for t in tasks[1:]]  # First task is from insert()
+    self.assertEquals(etas, found_etas)
+
+  def testQueuePreserved(self):
+    """Tests the request's queue is preserved for inserted FeedToFetchs."""
+    FeedToFetch.insert([self.topic])
+    feed = FeedToFetch.all().get()
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    feed.delete()
+
+    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    try:
+      FeedToFetch.insert([self.topic])
+      feed = FeedToFetch.all().get()
+      testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+      testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
+    finally:
+      del os.environ['X_APPENGINE_QUEUENAME']
 
 ################################################################################
 
@@ -549,7 +518,7 @@ class EventToDeliverTest(unittest.TestCase):
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
     event.put()
-    work_key = str(event.key())
+    work_key = event.key()
 
     Subscription.insert(self.callback, self.topic)
     Subscription.insert(self.callback2, self.topic)
@@ -608,7 +577,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
   def testNormal_noFailures(self):
     """Tests that event delivery with no failures will delete the event."""
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers()
     event.update(more, [])
     event = EventToDeliver.get(work_key)
@@ -623,18 +591,15 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     """
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
 
-    # Assert that the callback offset is updated, the work lock is cleared, and
-    # any failed callbacks are recorded.
-    self.assertTrue(memcache.set(work_key, 'owned'))
+    # Assert that the callback offset is updated and any failed callbacks
+    # are recorded.
     more, subs = event.get_next_subscribers(chunk_size=1)
     event.update(more, [sub_list[0]])
     event = EventToDeliver.get(event.key())
     self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
     self.assertEquals([sub_list[0].key()], event.failed_callbacks)
     self.assertEquals(self.callback2, event.last_callback)
-    self.assertTrue(memcache.get(work_key) is None)
 
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=3)
     event.update(more, sub_list[1:])
     event = EventToDeliver.get(event.key())
@@ -642,9 +607,10 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
     self.assertEquals('', event.last_callback)
 
-    self.assertEquals([s.key() for s in sub_list],
-                      event.failed_callbacks)
-    self.assertTrue(memcache.get(work_key) is None)
+    self.assertEquals([s.key() for s in sub_list], event.failed_callbacks)
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=2)
+    self.assertEquals([str(work_key)] * 2,
+                      [t['params']['event_key'] for t in tasks])
 
   def testUpdate_actuallyNoMoreCallbacks(self):
     """Tests when the normal update delivery has no Subscriptions left.
@@ -655,7 +621,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     """
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
 
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=3)
     event.update(more, subs)
     event = EventToDeliver.get(event.key())
@@ -663,7 +628,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
 
     # This final call to update will transition to retry properly.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     Subscription.remove(self.callback4, self.topic)
     more, subs = event.get_next_subscribers(chunk_size=1)
     event.update(more, [])
@@ -672,12 +636,15 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertTrue(event is not None)
     self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
 
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=2)
+    self.assertEquals([str(work_key)] * 2,
+                      [t['params']['event_key'] for t in tasks])
+
   def testGetNextSubscribers_retriesFinallySuccessful(self):
     """Tests retries until all subscribers are successful."""
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
 
     # Simulate that callback 2 is successful and the rest fail.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     event.update(more, sub_list[:1])
     event = EventToDeliver.get(event.key())
@@ -685,7 +652,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(self.callback3, event.last_callback)
     self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
 
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     event.update(more, sub_list[2:])
     event = EventToDeliver.get(event.key())
@@ -694,7 +660,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
 
     # Now getting the next subscribers will returned the failed ones.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     expected = sub_keys[:1] + sub_keys[2:3]
     self.assertEquals(expected, [s.key() for s in subs])
@@ -707,7 +672,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     # This will get the last of the failed subscribers but *not* include the
     # sentinel value of event.last_callback, since that marks the end of this
     # attempt.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     expected = sub_keys[3:]
     self.assertEquals(expected, [s.key() for s in subs])
@@ -719,7 +683,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(sub_keys[:1] + sub_keys[2:], event.failed_callbacks)
 
     # Now simulate all retries being successful one chunk at a time.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     expected = sub_keys[:1] + sub_keys[2:3]
     self.assertEquals(expected, [s.key() for s in subs])
@@ -730,13 +693,15 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
     self.assertEquals(sub_keys[3:], event.failed_callbacks)
 
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     expected = sub_keys[3:]
     self.assertEquals(expected, [s.key() for s in subs])
     event.update(more, [])
     self.assertFalse(more)
-    self.assertTrue(EventToDeliver.get(work_key) is None)
+
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=5)
+    self.assertEquals([str(work_key)] * 5,
+                      [t['params']['event_key'] for t in tasks])
 
   def testGetNextSubscribers_failedFewerThanChunkSize(self):
     """Tests when there are fewer failed callbacks than the chunk size.
@@ -747,7 +712,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
 
     # Simulate that callback 2 is successful and the rest fail.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     event.update(more, sub_list[:1])
     event = EventToDeliver.get(event.key())
@@ -755,7 +719,6 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(self.callback3, event.last_callback)
     self.assertEquals(EventToDeliver.NORMAL, event.delivery_mode)
 
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=2)
     event.update(more, sub_list[2:])
     event = EventToDeliver.get(event.key())
@@ -765,12 +728,16 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(1, event.retry_attempts)
 
     # Now attempt a retry with a chunk size equal to the number of callbacks.
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=3)
     event.update(more, subs)
     event = EventToDeliver.get(event.key())
     self.assertFalse(more)
+    self.assertEquals(EventToDeliver.RETRY, event.delivery_mode)
     self.assertEquals(2, event.retry_attempts)
+
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=3)
+    self.assertEquals([str(work_key)] * 3,
+                      [t['params']['event_key'] for t in tasks])
 
   def testGetNextSubscribers_giveUp(self):
     """Tests retry delay amounts until we finally give up on event delivery.
@@ -780,41 +747,27 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
 
     start = datetime.datetime.utcnow()
-    def now():
-      return start
+    now = lambda: start
 
-    self.assertTrue(EventToDeliver.get_work(now=now) is not None)
-    memcache.delete(str(event.key()))
-
+    etas = []
     for i, delay in enumerate((5, 10, 20, 40, 80, 160, 320, 640)):
-      self.assertTrue(memcache.set(work_key, 'owned'))
       more, subs = event.get_next_subscribers(chunk_size=4)
       event.update(more, subs, retry_period=5, now=now)
       event = EventToDeliver.get(event.key())
       self.assertEquals(i+1, event.retry_attempts)
-      self.assertEquals(event.last_modified,
-                        start + datetime.timedelta(seconds=delay))
+      expected_eta = start + datetime.timedelta(seconds=delay)
+      self.assertEquals(expected_eta, event.last_modified)
+      etas.append(testutil.task_eta(event.last_modified))
       self.assertFalse(event.totally_failed)
-      # Getting work will yield no events here, since the ETA is
-      # far into the future.
-      self.assertTrue(EventToDeliver.get_work(now=now) is None)
 
-    self.assertTrue(memcache.set(work_key, 'owned'))
     more, subs = event.get_next_subscribers(chunk_size=4)
     event.update(more, subs)
     event = EventToDeliver.get(event.key())
     self.assertTrue(event.totally_failed)
 
-  def testGetWork(self):
-    event1 = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads).put()
-    event2 = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads).put()
-    work1 = EventToDeliver.get_work()
-    work2 = EventToDeliver.get_work()
-    self.assertNotEquals(work1.key(), work2.key())
-    work3 = EventToDeliver.get_work()
-    self.assertTrue(work3 is None)
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=8)
+    found_etas = [t['eta'] for t in tasks]
+    self.assertEquals(etas, found_etas)
 
 ################################################################################
 
@@ -861,13 +814,9 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                 ('hub.url', self.topic2),
                 ('hub.url', self.topic3))
     self.assertEquals(204, self.response_code())
-    work1 = FeedToFetch.get_work()
-    work2 = FeedToFetch.get_work()
-    work3 = FeedToFetch.get_work()
-    inserted_urls = set(w.topic for w in (work1, work2, work3))
-    expected_urls = set([self.topic, self.topic2, self.topic3])
-    self.assertEquals(expected_urls, inserted_urls)
-    self.assertTrue(FeedToFetch.get_work() is None)
+    expected_topics = set([self.topic, self.topic2, self.topic3])
+    inserted_topics = set(f.topic for f in FeedToFetch.all())
+    self.assertEquals(expected_topics, inserted_topics)
 
   def testIgnoreUnknownFeed(self):
     self.handle('post',
@@ -876,7 +825,7 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                 ('hub.url', self.topic2),
                 ('hub.url', self.topic3))
     self.assertEquals(204, self.response_code())
-    self.assertTrue(FeedToFetch.get_work() is None)
+    self.assertEquals([], list(FeedToFetch.all()))
 
   def testDuplicateUrls(self):
     db.put([KnownFeed.create(self.topic),
@@ -898,12 +847,9 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                 ('hub.url', self.topic2),
                 ('hub.url', self.topic2))
     self.assertEquals(204, self.response_code())
-    work1 = FeedToFetch.get_work()
-    work2 = FeedToFetch.get_work()
-    inserted_urls = set(w.topic for w in (work1, work2))
-    expected_urls = set([self.topic, self.topic2])
-    self.assertEquals(expected_urls, inserted_urls)
-    self.assertTrue(FeedToFetch.get_work() is None)
+    expected_topics = set([self.topic, self.topic2])
+    inserted_topics = set(f.topic for f in FeedToFetch.all())
+    self.assertEquals(expected_topics, inserted_topics)
 
   def testInsertFailure(self):
     """Tests when a publish event fails insertion."""
@@ -938,13 +884,9 @@ class PublishHandlerTest(testutil.HandlerTestBase):
                 ('hub.url', self.topic2),
                 ('hub.url', self.topic3))
     self.assertEquals(204, self.response_code())
-    work1 = FeedToFetch.get_work()
-    work2 = FeedToFetch.get_work()
-    work3 = FeedToFetch.get_work()
-    inserted_urls = set(w.topic for w in (work1, work2, work3))
-    expected_urls = set([self.topic, self.topic2, self.topic3])
-    self.assertEquals(expected_urls, inserted_urls)
-    self.assertTrue(FeedToFetch.get_work() is None)
+    expected_topics = set([self.topic, self.topic2, self.topic3])
+    inserted_topics = set(f.topic for f in FeedToFetch.all())
+    self.assertEquals(expected_topics, inserted_topics)
 
 
 class PublishHandlerThroughHubUrlTest(PublishHandlerTest):
@@ -1075,7 +1017,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.verify_and_reset()
 
   def testNoWork(self):
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
 
   def testNewEntries_Atom(self):
     """Tests when new entries are found."""
@@ -1083,7 +1025,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
 
     # Verify that all feed entry records have been written along with the
     # EventToDeliver and FeedRecord.
@@ -1091,7 +1033,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         self.topic, self.all_ids)
     self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
 
-    work = EventToDeliver.get_work()
+    work = EventToDeliver.all().get()
+    event_key = work.key()
     self.assertEquals(self.topic, work.topic)
     self.assertTrue('content1\ncontent2\ncontent3' in work.payload)
     work.delete()
@@ -1101,6 +1044,11 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(self.etag, record.etag)
     self.assertEquals(self.last_modified, record.last_modified)
     self.assertEquals('application/atom+xml', record.content_type)
+
+    task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
+    self.assertEquals(str(event_key), task['params']['event_key'])
+    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
 
   def testRssFailBack(self):
     """Tests when parsing as Atom fails and it uses RSS instead."""
@@ -1112,19 +1060,25 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
 
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
     self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
 
-    work = EventToDeliver.get_work()
+    work = EventToDeliver.all().get()
+    event_key = work.key()
     self.assertEquals(self.topic, work.topic)
     self.assertTrue('content1\ncontent2\ncontent3' in work.payload)
     work.delete()
 
     record = FeedRecord.get_or_create(self.topic)
     self.assertEquals('application/xml', record.content_type)
+
+    task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
+    self.assertEquals(str(event_key), task['params']['event_key'])
+    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
 
   def testAtomFailBack(self):
     """Tests when parsing as RSS fails and it uses Atom instead."""
@@ -1139,19 +1093,25 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
 
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
     self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
 
-    work = EventToDeliver.get_work()
+    work = EventToDeliver.all().get()
+    event_key = work.key()
     self.assertEquals(self.topic, work.topic)
     self.assertTrue('content1\ncontent2\ncontent3' in work.payload)
     work.delete()
 
     record = FeedRecord.get_or_create(self.topic)
     self.assertEquals('application/rss+xml', record.content_type)
+
+    task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
+    self.assertEquals(str(event_key), task['params']['event_key'])
+    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
 
   def testParseFailure(self):
     """Tests when the feed cannot be parsed as Atom or RSS."""
@@ -1161,11 +1121,14 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
 
-    self.assertTrue(EventToDeliver.get_work() is None)
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
+
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
 
   def testCacheHit(self):
     """Tests when the fetched feed matches the last cached version of it."""
@@ -1183,7 +1146,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         'get', self.topic, 304, '',
         request_headers=request_headers,
         response_headers=self.headers)
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
+    self.assertTrue(EventToDeliver.all().get() is None)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
   def testNoNewEntries(self):
     """Tests when there are no new entries."""
@@ -1192,10 +1157,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
-    self.handle('get')
-
-    # There will be no event to deliver, but the feed records will be written.
-    self.assertTrue(EventToDeliver.get_work() is None)
+    self.handle('post', ('topic', self.topic))
+    self.assertTrue(EventToDeliver.all().get() is None)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
     record = FeedRecord.get_or_create(self.topic)
     self.assertEquals(self.header_footer, record.header_footer)
@@ -1208,27 +1172,36 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     FeedToFetch.insert([self.topic])
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response, urlfetch_error=True)
-    self.handle('get')
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    self.handle('post', ('topic', self.topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
 
   def testPullBadStatusCode(self):
     """Tests when the response status is bad."""
     FeedToFetch.insert([self.topic])
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 500, self.expected_response)
-    self.handle('get')
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    self.handle('post', ('topic', self.topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
 
   def testApiProxyError(self):
     """Tests when the APIProxy raises an error."""
     FeedToFetch.insert([self.topic])
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response, apiproxy_error=True)
-    self.handle('get')
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(self.topic))
+    self.handle('post', ('topic', self.topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
 
   def testNoSubscribers(self):
     """Tests that when a feed has no subscribers we do not pull it."""
@@ -1237,7 +1210,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
     self.entry_list = []
     FeedToFetch.insert([self.topic])
-    self.handle('get')
+    self.handle('post', ('topic', self.topic))
 
     # Verify that *no* feed entry records have been written.
     self.assertEquals([], FeedEntryRecord.get_entries_for_topic(
@@ -1245,6 +1218,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     # And any KnownFeeds were deleted.
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
+
+    # And there is no EventToDeliver or tasks.
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
 
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
@@ -1259,8 +1236,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect(
         'get', topic, 200, 'this does not parse')
-    self.handle('get')
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
+    self.handle('post', ('topic', topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
     self.assertEquals(1, feed.fetching_failures)
 
   def testPullBadFeed(self):
@@ -1272,8 +1249,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertTrue(Subscription.insert(callback, topic))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
-    self.handle('get')
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
+    self.handle('post', ('topic', topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
     self.assertEquals(1, feed.fetching_failures)
 
   def testPullGoodContent(self):
@@ -1285,8 +1262,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertTrue(Subscription.insert(callback, topic))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
-    self.handle('get')
-    feed = FeedToFetch.get_by_key_name(main.get_hash_key_name(topic))
+    self.handle('post', ('topic', topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
     self.assertTrue(feed is None)
 
 ################################################################################
@@ -1295,7 +1272,7 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
   def setUp(self):
     """Sets up the test harness."""
-    self.now = [datetime.datetime.utcnow() + datetime.timedelta(seconds=120)]
+    self.now = [datetime.datetime.utcnow()]
     def create_handler():
       return main.PushEventHandler(now=lambda: self.now[0])
     self.handler_class = create_handler
@@ -1326,6 +1303,7 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         '<entry>article3</entry>\n'
         '</feed>'
     )
+    self.bad_key = db.Key.from_path(EventToDeliver.kind(), 'does_not_exist')
 
   def tearDown(self):
     """Resets any external modules modified for testing."""
@@ -1333,7 +1311,7 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.verify_and_reset()
 
   def testNoWork(self):
-    self.handle('get')
+    self.handle('post', ('event_key', str(self.bad_key)))
 
   def testNoExtraSubscribers(self):
     """Tests when a single chunk of delivery is enough."""
@@ -1347,10 +1325,12 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         'post', self.callback2, 200, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 204, '', request_payload=self.expected_payload)
-    EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads).put()
-    self.handle('get')
-    self.assertTrue(EventToDeliver.get_work() is None)
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+    event.put()
+    self.handle('post', ('event_key', str(event.key())))
+    self.assertEquals([], list(EventToDeliver.all()))
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
   def testExtraSubscribers(self):
     """Tests when there are more subscribers to contact after delivery."""
@@ -1358,24 +1338,30 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.insert(self.callback2, self.topic))
     self.assertTrue(Subscription.insert(self.callback3, self.topic))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 1
-    EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads).put()
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+    event.put()
+    event_key = str(event.key())
 
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 204, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
     urlfetch_test_stub.instance.expect(
         'post', self.callback2, 200, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 204, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
-    self.assertTrue(EventToDeliver.get_work() is None)
+    self.assertEquals([], list(EventToDeliver.all()))
+
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=2)
+    self.assertEquals([event_key] * 2,
+                      [t['params']['event_key'] for t in tasks])
 
   def testBrokenCallbacks(self):
     """Tests that when callbacks return errors and are saved for later."""
@@ -1383,29 +1369,32 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.insert(self.callback2, self.topic))
     self.assertTrue(Subscription.insert(self.callback3, self.topic))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
-    EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads).put()
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+    event.put()
+    event_key = str(event.key())
 
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 302, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback2, 404, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 500, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
-    # Force work retrieval to see the status of the event.
-    work = EventToDeliver.get_work(
-        now=lambda: datetime.datetime.now() + datetime.timedelta(hours=1))
+    work = EventToDeliver.all().get()
     sub_list = Subscription.get(work.failed_callbacks)
     callback_list = [sub.callback for sub in sub_list]
-
     self.assertEquals([self.callback1, self.callback2, self.callback3],
                       callback_list)
+
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=2)
+    self.assertEquals([event_key] * 2,
+                      [t['params']['event_key'] for t in tasks])
 
   def testDeadlineError(self):
     """Tests that callbacks in flight at deadline will be marked as failed."""
@@ -1418,17 +1407,21 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
       self.assertTrue(Subscription.insert(self.callback2, self.topic))
       self.assertTrue(Subscription.insert(self.callback3, self.topic))
       main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
-      EventToDeliver.create_event_for_topic(
-          self.topic, main.ATOM, self.header_footer, self.test_payloads).put()
-      self.handle('get')
+      event = EventToDeliver.create_event_for_topic(
+          self.topic, main.ATOM, self.header_footer, self.test_payloads)
+      event.put()
+      event_key = str(event.key())
+      self.handle('post', ('event_key', event_key))
 
       # All events should be marked as failed even though no urlfetches
       # were made.
-      work = EventToDeliver.get_work()
+      work = EventToDeliver.all().get()
       sub_list = Subscription.get(work.failed_callbacks)
       callback_list = [sub.callback for sub in sub_list]
       self.assertEquals([self.callback1, self.callback2], callback_list)
 
+      self.assertEquals(event_key, testutil.get_tasks(
+          main.EVENT_QUEUE, index=0, expected_count=1)['params']['event_key'])
     finally:
       main.async_proxy = async_apiproxy.AsyncAPIProxy()
 
@@ -1446,47 +1439,78 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
     event.put()
-    event_key = event.key()
+    event_key = str(event.key())
 
+    # First pass through all URLs goes full speed for two chunks.
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 404, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback2, 204, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 302, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
     urlfetch_test_stub.instance.expect(
         'post', self.callback4, 500, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
+    # Now the retries.
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 404, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 302, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback4, 500, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
-    self.now[0] += datetime.timedelta(seconds=120)
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 204, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 302, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
         'post', self.callback4, 200, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
-    self.now[0] += datetime.timedelta(seconds=120)
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 204, '', request_payload=self.expected_payload)
-    self.handle('get')
+    self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
-    self.assertTrue(db.get(event_key) is None)
+
+    self.assertEquals([], list(EventToDeliver.all()))
+    tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=4)
+    self.assertEquals([event_key] * 4,
+                      [t['params']['event_key'] for t in tasks])
+
+  def testUrlFetchFailure(self):
+    """Tests the UrlFetch API raising exceptions while sending notifications."""
+    self.assertTrue(Subscription.insert(self.callback1, self.topic))
+    self.assertTrue(Subscription.insert(self.callback2, self.topic))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+    event.put()
+    event_key = str(event.key())
+
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 200, '',
+        request_payload=self.expected_payload, urlfetch_error=True)
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback2, 200, '',
+        request_payload=self.expected_payload, apiproxy_error=True)
+    self.handle('post', ('event_key', event_key))
+    urlfetch_test_stub.instance.verify_and_reset()
+
+    work = EventToDeliver.all().get()
+    sub_list = Subscription.get(work.failed_callbacks)
+    callback_list = [sub.callback for sub in sub_list]
+    self.assertEquals([self.callback1, self.callback2], callback_list)
+
+    self.assertEquals(event_key, testutil.get_tasks(
+        main.EVENT_QUEUE, index=0, expected_count=1)['params']['event_key'])
 
 ################################################################################
 
@@ -1858,6 +1882,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.callback = 'http://example.com/good-callback'
     self.topic = 'http://example.com/the-topic'
+    self.sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.verify_token = 'the_token'
     self.verify_callback_querystring_template = (
         self.callback +
@@ -1869,71 +1894,85 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     """Verify that all URL fetches occurred."""
     urlfetch_test_stub.instance.verify_and_reset()
 
+  def verifyTask(self):
+    """Verifies that a subscription worker task is present."""
+    self.assertEquals(
+        self.sub_key,
+        testutil.get_tasks(main.SUBSCRIPTION_QUEUE, index=0, expected_count=1)
+            ['params']['subscription_key_name'])
+
   def testNoWork(self):
-    self.handle('get')
+    self.handle('post', ('subscription_key_name', 'unknown'))
 
   def testSubscribeSuccessful(self):
-    sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
-    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.request_insert(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'subscribe', 204, '')
-    self.handle('get')
-    self.assertTrue(Subscription.get_confirm_work() is None)
+    self.handle('post', ('subscription_key_name', self.sub_key))
+    self.verifyTask()
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
   def testSubscribeFailed(self):
-    sub_key = Subscription.create_key_name(self.callback, self.topic)
-    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.request_insert(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'subscribe', 500, '')
-    self.handle('get')
-    sub = Subscription.get_by_key_name(sub_key)
+    self.handle('post', ('subscription_key_name', self.sub_key))
+    sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
     self.assertEquals(1, sub.confirm_failures)
+    self.assertEquals(
+        testutil.task_eta(sub.eta),
+        testutil.get_tasks(main.SUBSCRIPTION_QUEUE,
+                           index=1, expected_count=2)['eta'])
 
   def testUnsubscribeSuccessful(self):
-    sub_key = Subscription.create_key_name(self.callback, self.topic)
-    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.insert(self.callback, self.topic)
     Subscription.request_remove(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'unsubscribe', 204, '')
-    self.handle('get')
-    self.assertTrue(Subscription.get_confirm_work() is None)
-    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.handle('post', ('subscription_key_name', self.sub_key))
+    self.verifyTask()
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
 
   def testUnsubscribeFailed(self):
-    sub_key = Subscription.create_key_name(self.callback, self.topic)
-    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.insert(self.callback, self.topic)
     Subscription.request_remove(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template + 'unsubscribe', 500, '')
-    self.handle('get')
-    sub = Subscription.get_by_key_name(sub_key)
+    self.handle('post', ('subscription_key_name', self.sub_key))
+    sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
     self.assertEquals(1, sub.confirm_failures)
+    self.assertEquals(
+        testutil.task_eta(sub.eta),
+        testutil.get_tasks(main.SUBSCRIPTION_QUEUE,
+                           index=1, expected_count=2)['eta'])
 
   def testConfirmError(self):
     """Tests when an exception is raised while confirming a subscription."""
+    called = [False]
     Subscription.request_insert(self.callback, self.topic, self.verify_token)
     # All exceptions should just fall through.
     old_confirm = main.ConfirmSubscription
     try:
       def new_confirm(*args):
+        called[0] = True
         raise db.Error()
       main.ConfirmSubscription = new_confirm
       try:
-        self.handle('get')
+        self.handle('post', ('subscription_key_name', self.sub_key))
       except db.Error:
         pass
       else:
         self.fail()
     finally:
       main.ConfirmSubscription = old_confirm
+    self.assertTrue(called[0])
 
 ################################################################################
 
@@ -1966,36 +2005,59 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(FeedToFetch.get_by_topic(topic2) is None)
     self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
 
+    # This will repeatedly insert the initial task to start the polling process.
     self.handle('get')
+    self.handle('get')
+    self.handle('get')
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=0, expected_count=1)
+    sequence = task['params']['sequence']
+
+    # Now run the post handler with the params from this first task. It will
+    # enqueue another task that starts *after* the last one in the chunk.
+    self.handle('post', *task['params'].items())
     self.assertTrue(FeedToFetch.get_by_topic(topic) is not None)
     self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
     self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
 
-    self.handle('get')
+    # Running this handler again will overwrite the FeedToFetch instances,
+    # add tasks for them, but it will not duplicate the polling queue Task in
+    # the chain of iterating through all KnownFeed entries.
+    # TODO(bslatkin): Once the stub's deduping properties are restored, this
+    # handler should not enqueue anything.
+    self.handle('post', *task['params'].items())
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=3)
+    self.assertEquals(
+        task, testutil.get_tasks(main.POLLING_QUEUE, index=2, expected_count=3))
+    self.assertEquals(sequence, task['params']['sequence'])
+    self.assertEquals(str(KnownFeed.create_key(topic2)),
+                      task['params']['current_key'])
+    self.assertTrue(task['name'].startswith(sequence))
+
+    # Now running another post handler will handle the rest of the feeds.
+    self.handle('post', *task['params'].items())
     self.assertTrue(FeedToFetch.get_by_topic(topic) is not None)
     self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
     self.assertTrue(FeedToFetch.get_by_topic(topic3) is not None)
-    self.assertTrue(PollingMarker.get().current_key is not None)
 
-    self.handle('get')  # This completes the cycle.
-    the_mark = PollingMarker.get()
-    self.assertTrue(the_mark.current_key is None)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=3, expected_count=4)
+    self.assertEquals(sequence, task['params']['sequence'])
+    self.assertEquals(str(KnownFeed.create_key(topic3)),
+                      task['params']['current_key'])
+    self.assertTrue(task['name'].startswith(sequence))
 
-    self.handle('get')  # This will do nothing.
-    the_mark = PollingMarker.get()
-    self.assertTrue(the_mark.current_key is None)
+    # Starting the cycle again will do nothing.
+    self.handle('get')
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
 
     # Resetting the next start time to before the present time will
     # cause the iteration to start again.
+    the_mark = PollingMarker.get()
     the_mark.next_start = \
-        datetime.datetime.utcnow() - datetime.timedelta(seconds=60)
+        datetime.datetime.utcnow() - datetime.timedelta(seconds=120)
     db.put(the_mark)
-
-    db.delete([FeedToFetch.get_by_topic(t) for t in (topic, topic2, topic3)])
     self.handle('get')
-    self.assertTrue(FeedToFetch.get_by_topic(topic) is not None)
-    self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
-    self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=5)
+    self.assertNotEquals(sequence, task['params']['sequence'])
 
 ################################################################################
 

@@ -18,6 +18,8 @@
 """Utilities common to all tests."""
 
 import StringIO
+import base64
+import cgi
 import logging
 import os
 import sys
@@ -59,6 +61,7 @@ def setup_for_testing():
     logging.getLogger().setLevel(100)
     dev_appserver.SetupStubs(
         TEST_APP_ID,
+        root_path=os.path.realpath(os.path.dirname(__file__)),
         login_url='',
         datastore_path=tempfile.mktemp(suffix='datastore_stub'),
         history_path=tempfile.mktemp(suffix='datastore_history'),
@@ -158,3 +161,49 @@ class HandlerTestBase(unittest.TestCase):
   def response_code(self):
     """Returns the response code after the request is handled."""
     return self.resp._Response__status[0]  
+
+
+def get_tasks(queue_name, index=None, expected_count=None):
+  """Retrieves Tasks from the supplied named queue.
+
+  Args:
+    queue_name: The queue to access.
+    index: Index of the task (ordered by ETA) to retrieve from the queue.
+    expected_count: If not None, the number of tasks expected to be in the
+      queue. This function will raise an AssertionError exception if there are
+      more or fewer tasks.
+
+  Returns:
+    List of dictionaries corresponding to each task, with the keys: 'name',
+      'url', 'method', 'eta', 'body', 'headers', 'params'. The 'params'
+      value will only be present if the body's Content-Type header is
+      'application/x-www-form-urlencoded'.
+  """
+  from google.appengine.api import apiproxy_stub_map
+  stub = apiproxy_stub_map.apiproxy.GetStub('taskqueue')
+  tasks = stub.GetTasks(queue_name)
+  if expected_count is not None:
+    assert len(tasks) == expected_count, 'found %s == %s' % (
+        len(tasks), expected_count)
+  for task in tasks:
+    del task['eta_delta']
+    task['body'] = base64.b64decode(task['body'])
+    if ('application/x-www-form-urlencoded' in
+        task['headers'].get('content-type')):
+      task['params'] = dict(cgi.parse_qsl(task['body'], True))
+  if index is not None:
+    return tasks[index]
+  else:
+    return tasks
+
+
+def task_eta(eta):
+  """Converts a datetime.datetime into a taskqueue ETA.
+
+  Args:
+    eta: Naive datetime.datetime of the task's ETA.
+
+  Returns:
+    The ETA formatted as a string.
+  """
+  return eta.strftime('%Y/%m/%d %H:%M:%S')

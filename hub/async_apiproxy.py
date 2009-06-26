@@ -31,10 +31,10 @@ class DevAppServerRPC(apiproxy.RPC):
 
   def MakeCall(self):
     pass
-  
+
   def Wait(self):
     pass
-  
+
   def CheckSuccess(self):
     apiproxy_stub_map.MakeSyncCall(self.package, self.call,
                                    self.request, self.response)
@@ -44,14 +44,14 @@ class DevAppServerRPC(apiproxy.RPC):
 if hasattr(_apphosting_runtime___python__apiproxy, 'MakeCall'):
   AsyncRPC = apiproxy.RPC
   logging.debug('Using apiproxy.RPC')
-else:  
+else:
   logging.debug('Using DevAppServerRPC')
   AsyncRPC = DevAppServerRPC
 
 
 class AsyncAPIProxy(object):
   """Proxy for asynchronous API calls."""
-  
+
   def __init__(self):
     # TODO: Randomize this queue in the dev_appserver to simulate a real
     # asynchronous queue and better catch any funny race-conditions or
@@ -82,7 +82,7 @@ class AsyncAPIProxy(object):
     """Wait for a single RPC to finish. Returns True if one was processed."""
     if not self.enqueued:
       return False
-    
+
     rpc = self.enqueued.popleft()
     logging.debug('Waiting for RPC(%s, %s, .., ..)', rpc.package, rpc.call)
     rpc.Wait()
