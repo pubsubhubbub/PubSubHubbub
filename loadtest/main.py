@@ -41,8 +41,8 @@ class FeedHandler(webapp.RequestHandler):
 class SubscriberHandler(webapp.RequestHandler):
 
   def get(self, name):
-    # TODO(bslatkin): Change to 202/2xx when the hub protocol is updated.
-    self.response.set_status(204)
+    self.response.out.write(self.request.get('hub.challenge'))
+    self.response.set_status(200)
 
   def post(self, name):
     pass

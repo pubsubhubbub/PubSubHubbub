@@ -131,9 +131,6 @@ DEBUG = True
 if DEBUG:
   logging.getLogger().setLevel(logging.DEBUG)
 
-# How long a subscription will last before it must be renewed by the subscriber.
-EXPIRATION_DELTA = datetime.timedelta(days=90)
-
 # How many subscribers to contact at a time when delivering events.
 EVENT_SUBSCRIBER_CHUNK_SIZE = 10
 
@@ -160,6 +157,12 @@ BOOSTRAP_FEED_CHUNK_SIZE = 200
 
 # How often to poll feeds.
 POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
+
+# Default expiration time of a lease.
+DEFAULT_LEASE_SECONDS = (30 * 24 * 60 * 60)  # 30 days
+
+# Maximum expiration time of a lease.
+MAX_LEASE_SECONDS = DEFAULT_LEASE_SECONDS * 3  # 90 days
 
 ################################################################################
 # Constants
@@ -239,6 +242,18 @@ def is_valid_url(url):
 
   return True
 
+_VALID_CHARS = (
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+  'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_',
+)
+
+def get_random_challenge():
+  """Returns a string containing a random challenge token."""
+  return ''.join(random.choice(_VALID_CHARS) for i in xrange(128))
+
 ################################################################################
 # Models
 
@@ -260,6 +275,7 @@ class Subscription(db.Model):
   topic_hash = db.StringProperty(required=True)
   created_time = db.DateTimeProperty(auto_now_add=True)
   last_modified = db.DateTimeProperty(auto_now=True)
+  lease_seconds = db.IntegerProperty(default=DEFAULT_LEASE_SECONDS)
   expiration_time = db.DateTimeProperty(required=True)
   eta = db.DateTimeProperty(auto_now_add=True)
   confirm_failures = db.IntegerProperty(default=0)
@@ -281,7 +297,8 @@ class Subscription(db.Model):
     return get_hash_key_name('%s\n%s' % (callback, topic))
 
   @classmethod
-  def insert(cls, callback, topic):
+  def insert(cls, callback, topic, lease_seconds=DEFAULT_LEASE_SECONDS,
+             now=datetime.datetime.now):
     """Marks a callback URL as being subscribed to a topic.
 
     Creates a new subscription if None already exists. Forces any existing,
@@ -290,6 +307,10 @@ class Subscription(db.Model):
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
+      lease_seconds: Number of seconds the client would like the subscription
+        to last before expiring. Must be a number.
+      now: Callable that returns the current time as a datetime instance. Used
+        for testing
 
     Returns:
       True if the subscription was newly created, False otherwise.
@@ -305,14 +326,18 @@ class Subscription(db.Model):
                   callback_hash=sha1_hash(callback),
                   topic=topic,
                   topic_hash=sha1_hash(topic),
-                  expiration_time=datetime.datetime.now() + EXPIRATION_DELTA)
+                  lease_seconds=lease_seconds,
+                  expiration_time=(
+                      now() + datetime.timedelta(seconds=lease_seconds)))
       sub.subscription_state = cls.STATE_VERIFIED
       sub.put()
       return sub_is_new
     return db.run_in_transaction(txn)
 
   @classmethod
-  def request_insert(cls, callback, topic, verify_token):
+  def request_insert(cls, callback, topic, verify_token,
+                    lease_seconds=DEFAULT_LEASE_SECONDS,
+                    now=datetime.datetime.now):
     """Records that a callback URL needs verification before being subscribed.
 
     Creates a new subscription request (for asynchronous verification) if None
@@ -325,6 +350,10 @@ class Subscription(db.Model):
       topic: The topic to subscribe to.
       verify_token: The verification token to use to confirm the
         subscription request.
+      lease_seconds: Number of seconds the client would like the subscription
+        to last before expiring. Must be a number.
+      now: Callable that returns the current time as a datetime instance. Used
+        for testing
 
     Returns:
       True if the subscription request was newly created, False otherwise.
@@ -333,6 +362,10 @@ class Subscription(db.Model):
     def txn():
       sub_is_new = False
       sub = cls.get_by_key_name(key_name)
+      # TODO(bslatkin): Allow for a re-confirmation of an existing subscription
+      # without affecting the serving state of the existing one. This is
+      # required in situations where users want to renew their existing
+      # subscriptions before the lease period has elapsed.
       if sub is None:
         sub_is_new = True
         sub = cls(key_name=key_name,
@@ -341,7 +374,9 @@ class Subscription(db.Model):
                   topic=topic,
                   topic_hash=sha1_hash(topic),
                   verify_token=verify_token,
-                  expiration_time=datetime.datetime.now() + EXPIRATION_DELTA)
+                  lease_seconds=lease_seconds,
+                  expiration_time=(
+                      now() + datetime.timedelta(seconds=lease_seconds)))
         sub.put()
         sub._enqueue_task()
       return sub_is_new
@@ -604,10 +639,6 @@ class FeedToFetch(db.Model):
     """Enqueues a task to fetch this feed."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    # TODO(bslatkin): If this request is already running in a background
-    # task, then reenqueue this work on the same queue as the source.
-    # This lets us run some flows at a lower priority (such as the
-    # periodic polling fetches).
     target_queue = os.environ.get('X_APPENGINE_QUEUENAME', FEED_QUEUE)
     for i in xrange(RETRIES):
       try:
@@ -1080,7 +1111,7 @@ class PollingMarker(db.Model):
 ################################################################################
 # Subscription handlers and workers
 
-def ConfirmSubscription(mode, topic, callback, verify_token):
+def ConfirmSubscription(mode, topic, callback, verify_token, lease_seconds):
   """Confirms a subscription request and updates a Subscription instance.
 
   Args:
@@ -1088,22 +1119,29 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
     topic: URL of the topic being subscribed to.
     callback: URL of the callback handler to confirm the subscription with.
     verify_token: Opaque token passed to the callback.
+    lease_seconds: Number of seconds the client would like the subscription
+      to last before expiring. If more than max_lease_seconds, will be capped
+      to that value. Should be an integer number.
 
   Returns:
     True if the subscription was confirmed properly, False if the subscription
     request encountered an error or any other error has hit.
   """
   logging.info('Attempting to confirm %s for topic = %s, '
-               'callback = %s, verify_token = %s',
-               mode, topic, callback, verify_token)
+               'callback = %s, verify_token = %s, lease_seconds = %s',
+               mode, topic, callback, verify_token, lease_seconds)
 
   parsed_url = list(urlparse.urlparse(callback))
+  challenge = get_random_challenge()
+  real_lease_seconds = min(lease_seconds, MAX_LEASE_SECONDS)
   params = {
     'hub.mode': mode,
     'hub.topic': topic,
-    # TODO(bslatkin): Do not include this token if it is empty.
-    'hub.verify_token': verify_token,
+    'hub.challenge': challenge,
+    'hub.lease_seconds': real_lease_seconds,
   }
+  if verify_token:
+    params['hub.verify_token'] = verify_token
   parsed_url[4] = urllib.urlencode(params)
   adjusted_url = urlparse.urlunparse(parsed_url)
 
@@ -1114,9 +1152,9 @@ def ConfirmSubscription(mode, topic, callback, verify_token):
     logging.exception('Error encountered while confirming subscription')
     return False
 
-  if response.status_code == 204:
+  if 200 <= response.status_code < 300 and response.content == challenge:
     if mode == 'subscribe':
-      Subscription.insert(callback, topic)
+      Subscription.insert(callback, topic, real_lease_seconds)
       # Blindly put the feed's record so we have a record of all feeds.
       db.put(KnownFeed.create(topic))
     else:
@@ -1141,8 +1179,10 @@ class SubscribeHandler(webapp.RequestHandler):
 
     callback = self.request.get('hub.callback', '')
     topic = self.request.get('hub.topic', '')
-    verify_type = self.request.get('hub.verify', 'sync').lower()
+    verify_type_list = [s.lower() for s in self.request.get_all('hub.verify')]
     verify_token = self.request.get('hub.verify_token', '')
+    lease_seconds = self.request.get('hub.lease_seconds',
+                                     str(DEFAULT_LEASE_SECONDS))
     mode = self.request.get('hub.mode', '').lower()
 
     error_message = None
@@ -1150,19 +1190,32 @@ class SubscribeHandler(webapp.RequestHandler):
       error_message = 'Invalid parameter: hub.callback'
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
-    if verify_type not in ('sync', 'async', 'sync,async', 'async,sync'):
-      # TODO(bslatkin): Split this into a multi-valued key, not using commas.
-      error_message = 'Invalid value for hub.verify: %s' % verify_type
-    if not verify_token:
-      # TODO(bslatkin): Allow this to be empty
-      error_message = 'Invalid parameter: hub.verify_token'
+
+    if 'async' in verify_type_list:
+      verify_type = 'async'
+    elif 'sync' in verify_type_list:
+      verify_type = 'sync'
+    else:
+      error_message = 'Invalid values for hub.verify: %s' % (verify_type_list,)
+
     if mode not in ('subscribe', 'unsubscribe'):
       error_message = 'Invalid value for hub.mode: %s' % mode
 
+    if lease_seconds:
+      try:
+        old_lease_seconds = lease_seconds
+        lease_seconds = int(old_lease_seconds)
+        if not old_lease_seconds == str(lease_seconds):
+          raise ValueError
+      except ValueError:
+        error_message = ('Invalid value for hub.lease_seconds: %s' %
+                         old_lease_seconds)
+
     if error_message:
       logging.info('Bad request for mode = %s, topic = %s, '
-                   'callback = %s, verify_token = %s: %s',
-                   mode, topic, callback, verify_token, error_message)
+                   'callback = %s, verify_token = %s, lease_seconds = %s: %s',
+                   mode, topic, callback, verify_token,
+                   lease_seconds, error_message)
       self.response.out.write(error_message)
       return self.response.set_status(400)
 
@@ -1177,23 +1230,26 @@ class SubscribeHandler(webapp.RequestHandler):
 
       # Enqueue a background verification task, or immediately confirm.
       # We prefer synchronous confirmation.
-      if verify_type.startswith('sync'):
-        if ConfirmSubscription(mode, topic, callback, verify_token):
+      if verify_type == 'sync':
+        if ConfirmSubscription(mode, topic, callback,
+                               verify_token, lease_seconds):
           return self.response.set_status(204)
         else:
           self.response.out.write('Error trying to confirm subscription')
           return self.response.set_status(409)
       else:
         if mode == 'subscribe':
-          Subscription.request_insert(callback, topic, verify_token)
+          Subscription.request_insert(callback, topic,
+                                      verify_token, lease_seconds)
         else:
           Subscription.request_remove(callback, topic, verify_token)
         logging.info('Queued %s request for callback = %s, '
-                     'topic = %s, verify_token = "%s"',
-                     mode, callback, topic, verify_token)
+                     'topic = %s, verify_token = "%s", lease_seconds= %s',
+                     mode, callback, topic, verify_token, lease_seconds)
         return self.response.set_status(202)
 
-    except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
+    except (apiproxy_errors.Error, db.Error,
+            runtime.DeadlineExceededError, taskqueue.Error):
       logging.exception('Could not verify subscription request')
       self.response.headers['Retry-After'] = '120'
       return self.response.set_status(503)
@@ -1215,7 +1271,8 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
     else:
       mode = 'unsubscribe'
 
-    if ConfirmSubscription(mode, sub.topic, sub.callback, sub.verify_token):
+    if ConfirmSubscription(mode, sub.topic, sub.callback,
+                           sub.verify_token, sub.lease_seconds):
       if mode == 'subscribe':
         Subscription.insert(sub.callback, sub.topic)
       else:
@@ -1271,7 +1328,9 @@ class PublishHandler(webapp.RequestHandler):
       self.response.set_status(503)
       self.response.out.write('Transient error; please try again later')
     else:
-      # TODO(bslatkin): This should be 202
+      # TODO(bslatkin): This should be 202, or the spec should be changed
+      # to use 204 instead. Problem is a bunch of publisher clients are already
+      # expecting 204, so this is hard to change. :/
       self.response.set_status(204)
 
 

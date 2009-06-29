@@ -222,18 +222,43 @@ class SubscriptionTest(unittest.TestCase):
         Subscription.create_key_name(self.callback, self.topic))
 
   def testRequestInsert_defaults(self):
+    now_datetime = datetime.datetime.now()
+    now = lambda: now_datetime
+    lease_seconds = 1234
+
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, 'token', lease_seconds, now=now))
     self.assertFalse(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
-    self.assertEquals(Subscription.STATE_NOT_VERIFIED,
-                      self.get_subscription().subscription_state)
+        self.callback, self.topic, 'token', lease_seconds, now=now))
+
+    sub = self.get_subscription()
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+    self.assertEquals(self.callback, sub.callback)
+    self.assertEquals(sha1_hash(self.callback), sub.callback_hash)
+    self.assertEquals(self.topic, sub.topic)
+    self.assertEquals(sha1_hash(self.topic), sub.topic_hash)
+    self.assertEquals(now_datetime + datetime.timedelta(seconds=lease_seconds),
+                      sub.expiration_time)
+    self.assertEquals(lease_seconds, sub.lease_seconds)
 
   def testInsert_defaults(self):
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
-    self.assertFalse(Subscription.insert(self.callback, self.topic))
-    self.assertEquals(Subscription.STATE_VERIFIED,
-                      self.get_subscription().subscription_state)
+    now_datetime = datetime.datetime.now()
+    now = lambda: now_datetime
+    lease_seconds = 1234
+
+    self.assertTrue(Subscription.insert(self.callback, self.topic,
+                                        lease_seconds, now=now))
+    self.assertFalse(Subscription.insert(self.callback, self.topic,
+                                         lease_seconds, now=now))
+    sub = self.get_subscription()
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertEquals(self.callback, sub.callback)
+    self.assertEquals(sha1_hash(self.callback), sub.callback_hash)
+    self.assertEquals(self.topic, sub.topic)
+    self.assertEquals(sha1_hash(self.topic), sub.topic_hash)
+    self.assertEquals(now_datetime + datetime.timedelta(seconds=lease_seconds),
+                      sub.expiration_time)
+    self.assertEquals(lease_seconds, sub.lease_seconds)
 
   def testInsert_override(self):
     """Tests that insert will override the existing subscription state."""
@@ -1521,14 +1546,24 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
   def setUp(self):
     """Tests up the test harness."""
     testutil.HandlerTestBase.setUp(self)
+    self.challenge = 'this_is_my_fake_challenge_string'
+    self.old_get_challenge = main.get_random_challenge
+    main.get_random_challenge = lambda: self.challenge
     self.callback = 'http://example.com/good-callback'
     self.topic = 'http://example.com/the-topic'
     self.verify_token = 'the_token'
     self.verify_callback_querystring_template = (
         self.callback +
-        '?hub.verify_token=the_token&'
-        'hub.topic=http%3A%2F%2Fexample.com%2Fthe-topic'
-        '&hub.mode=')
+        '?hub.verify_token=the_token'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    testutil.HandlerTestBase.tearDown(self)
+    main.get_random_challenge = self.old_get_challenge
 
   def testDebugFormRenders(self):
     self.handle('get')
@@ -1591,26 +1626,39 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
-        ('hub.verify', 'async,async'),
+        ('hub.verify', 'meep'),
         ('hub.verify_token', self.verify_token))
     self.assertEquals(400, self.response_code())
     self.assertTrue('hub.verify' in self.response_body())
 
-    # Bad verify
+    # Bad lease_seconds
     self.handle('post',
         ('hub.mode', 'subscribe'),
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
         ('hub.verify', 'async'),
-        ('hub.verify_token', ''))
+        ('hub.verify_token', 'asdf'),
+        ('hub.lease_seconds', 'stuff'))
     self.assertEquals(400, self.response_code())
-    self.assertTrue('hub.verify_token' in self.response_body())
+    self.assertTrue('hub.lease_seconds' in self.response_body())
+
+    # Bad lease_seconds zero padding will break things
+    self.handle('post',
+        ('hub.mode', 'subscribe'),
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.verify', 'async'),
+        ('hub.verify_token', 'asdf'),
+        ('hub.lease_seconds', '000010'))
+    self.assertEquals(400, self.response_code())
+    self.assertTrue('hub.lease_seconds' in self.response_body())
 
   def testUnsubscribeMissingSubscription(self):
     """Tests that deleting a non-existent subscription does nothing."""
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
+        ('hub.verify', 'sync'),
         ('hub.mode', 'unsubscribe'),
         ('hub.verify_token', self.verify_token))
     self.assertEquals(204, self.response_code())
@@ -1620,8 +1668,9 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
 
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1634,8 +1683,9 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'unsubscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'unsubscribe', 200,
+        self.challenge)
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1668,8 +1718,9 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
     # Sync subscription overwrites.
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1695,8 +1746,9 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
 
     # Synch unsubscribe overwrites.
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'unsubscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'unsubscribe', 200,
+        self.challenge)
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1737,8 +1789,9 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
 
     # Synchronous subscription overwrites.
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1751,13 +1804,57 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
+  def testMaxLeaseSeconds(self):
+    """Tests when the max lease period is specified."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+    self.verify_callback_querystring_template = (
+        self.callback +
+        '?hub.verify_token=the_token'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=7776000')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token),
+        ('hub.lease_seconds', '1000000000000000000'))
+    self.assertEquals(204, self.response_code())
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+
+  def testInvalidChallenge(self):
+    """Tests when the returned challenge is bad."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template % 'subscribe', 200, 'bad')
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
+    self.assertEquals(409, self.response_code())
+
   def testSynchronousConfirmFailure(self):
     """Tests when synchronous confirmations fail."""
     # Subscribe
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 500, '')
+        self.verify_callback_querystring_template % 'subscribe', 500, '')
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1771,7 +1868,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     # Unsubscribe
     Subscription.insert(self.callback, self.topic)
     urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'unsubscribe', 500, '')
+        self.verify_callback_querystring_template % 'unsubscribe', 500, '')
     self.handle('post',
         ('hub.callback', self.callback),
         ('hub.topic', self.topic),
@@ -1804,8 +1901,8 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     """Tests when errors occurs during subscription."""
     # URLFetch errors are probably the subscriber's fault, so we'll serve these
     # as a conflict.
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe',
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe',
         None, '', urlfetch_error=True)
     self.handle('post',
         ('hub.callback', self.callback),
@@ -1817,8 +1914,8 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
 
     # An apiproxy error or deadline error will fall through and serve a 503,
     # since that means there's something wrong with our service.
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe',
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe',
         None, '', apiproxy_error=True)
     self.handle('post',
         ('hub.callback', self.callback),
@@ -1828,8 +1925,8 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.verify_token', self.verify_token))
     self.assertEquals(503, self.response_code())
 
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe',
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe',
         None, '', deadline_error=True)
     self.handle('post',
         ('hub.callback', self.callback),
@@ -1848,11 +1945,14 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     self.verify_callback_querystring_template = (
         self.callback +
-        '?hub.verify_token=the_token%2FCaSeSeNsItIvE&'
-        'hub.topic=http%3A%2F%2Fexample.com%2Fthe-topic%2FCaSeSeNsItIvE'
-        '&hub.mode=')
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 204, '')
+        '?hub.verify_token=the_token%%2FCaSeSeNsItIvE'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic%%2FCaSeSeNsItIvE'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
 
     self.handle('post',
         ('hub.callback', self.callback),
@@ -1882,16 +1982,23 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.callback = 'http://example.com/good-callback'
     self.topic = 'http://example.com/the-topic'
+    self.challenge = 'this_is_my_fake_challenge_string'
+    self.old_get_challenge = main.get_random_challenge
+    main.get_random_challenge = lambda: self.challenge
     self.sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.verify_token = 'the_token'
     self.verify_callback_querystring_template = (
         self.callback +
-        '?hub.verify_token=the_token&'
-        'hub.topic=http%3A%2F%2Fexample.com%2Fthe-topic'
-        '&hub.mode=')
+        '?hub.verify_token=the_token'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
 
   def tearDown(self):
     """Verify that all URL fetches occurred."""
+    testutil.HandlerTestBase.tearDown(self)
+    main.get_random_challenge = self.old_get_challenge
     urlfetch_test_stub.instance.verify_and_reset()
 
   def verifyTask(self):
@@ -1908,8 +2015,9 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.request_insert(self.callback, self.topic, self.verify_token)
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
     self.handle('post', ('subscription_key_name', self.sub_key))
     self.verifyTask()
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
@@ -1918,7 +2026,22 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.request_insert(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'subscribe', 500, '')
+        self.verify_callback_querystring_template % 'subscribe', 500, '')
+    self.handle('post', ('subscription_key_name', self.sub_key))
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+    self.assertEquals(1, sub.confirm_failures)
+    self.assertEquals(
+        testutil.task_eta(sub.eta),
+        testutil.get_tasks(main.SUBSCRIPTION_QUEUE,
+                           index=1, expected_count=2)['eta'])
+
+  def testSubscribeBadChallengeResponse(self):
+    """Tests when the subscriber responds with a bad challenge."""
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
+    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template % 'subscribe', 200, 'bad')
     self.handle('post', ('subscription_key_name', self.sub_key))
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -1932,8 +2055,9 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
     Subscription.insert(self.callback, self.topic)
     Subscription.request_remove(self.callback, self.topic, self.verify_token)
-    urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'unsubscribe', 204, '')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'unsubscribe', 200,
+        self.challenge)
     self.handle('post', ('subscription_key_name', self.sub_key))
     self.verifyTask()
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
@@ -1943,7 +2067,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     Subscription.insert(self.callback, self.topic)
     Subscription.request_remove(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
-        self.verify_callback_querystring_template + 'unsubscribe', 500, '')
+        self.verify_callback_querystring_template % 'unsubscribe', 500, '')
     self.handle('post', ('subscription_key_name', self.sub_key))
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)

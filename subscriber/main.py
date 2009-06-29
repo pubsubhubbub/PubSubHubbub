@@ -45,7 +45,8 @@ class InputHandler(webapp.RequestHandler):
 
   def get(self):
     # Just subscribe to everything.
-    self.response.set_status(204)
+    self.response.out.write(self.request.get('hub.challenge'))
+    self.response.set_status(200)
 
   def post(self):
     body = self.request.body.decode('utf-8')
