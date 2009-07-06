@@ -162,6 +162,10 @@ class HandlerTestBase(unittest.TestCase):
     """Returns the response code after the request is handled."""
     return self.resp._Response__status[0]  
 
+  def response_headers(self):
+    """Returns the response headers after the request is handled."""
+    return self.resp.headers
+
 
 def get_tasks(queue_name, index=None, expected_count=None):
   """Retrieves Tasks from the supplied named queue.

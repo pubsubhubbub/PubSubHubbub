@@ -41,8 +41,8 @@
   failures. Used to coordinate delivery retries. Will be deleted in successful
   cases or stick around in the event of complete failures for debugging.
 
-* PollingMarker: Work item that keeps track of a position in the list of
-  KnownFeed instances. Used to do bootstrap polling.
+* PollingMarker: Work item that keeps track of the last time all KnownFeed
+  instances were fetched. Used to do bootstrap polling.
 
 
 === Entity groups:
@@ -81,9 +81,6 @@ and will be retried at a later time.
 #   count of the subscribers seen so far and then when the pushing is done it
 #   will save that total back on the FeedRecord instance.
 #
-# - Add Publisher rate-limiting (by IP of the publishing host and/or the
-#   target feed URL).
-#
 # - Improve polling algorithm to keep stats on each feed.
 #
 # - Do not poll a feed if we've gotten an event from the publisher in less
@@ -118,6 +115,7 @@ from google.appengine.ext.webapp import template
 from google.appengine.runtime import apiproxy_errors
 
 import async_apiproxy
+import dos
 import feed_diff
 import urlfetch_async
 
@@ -1174,6 +1172,7 @@ class SubscribeHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write(template.render('subscribe_debug.html', {}))
 
+  @dos.limit(param='hub.callback', count=10, period=1)
   def post(self):
     self.response.headers['Content-Type'] = 'text/plain'
 
@@ -1289,6 +1288,7 @@ class PublishHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write(template.render('publish_debug.html', {}))
 
+  @dos.limit(count=50, period=1)  # XXX need whitelist
   def post(self):
     self.response.headers['Content-Type'] = 'text/plain'
 
