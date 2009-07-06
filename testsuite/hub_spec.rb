@@ -50,22 +50,22 @@ describe Hub, "publisher interface" do
     # Because GAE-PSH doesn't fetch content unless there are subscriptions, we subscribe
     @hub.subscribe(@subscriber.callback_url, @publisher.content_url, 'sync', Subscriber::VERIFY_TOKEN)
     
-    request_method = nil
-    @publisher.onrequest = lambda {|req| request_method = req.request_method }
+    @publisher.last_request_method = nil
     @hub.publish(@publisher.content_url)
-    wait_on request_method
-    request_method.should == "GET"
+    sleep 1
+    wait_on @publisher.last_request_method
+    @publisher.last_request_method.should == "GET"
   end
   
   it "SHOULD include a header field X-Hub-Subscribers whose value is an integer in content fetch request" do
     # Because GAE-PSH doesn't fetch content unless there are subscriptions, we subscribe
     @hub.subscribe(@subscriber.callback_url, @publisher.content_url, 'sync', Subscriber::VERIFY_TOKEN)
     
-    headers = nil
-    @publisher.onrequest = lambda {|req| headers = req.header }
+    @publisher.last_headers = nil
     @hub.publish(@publisher.content_url)
-    wait_on headers
-    headers.should include("X-Hub-Subscribers") rescue as_optional
+    sleep 1
+    wait_on @publisher.last_headers
+    @publisher.last_headers.should include("X-Hub-Subscribers") rescue as_optional
   end
   
   

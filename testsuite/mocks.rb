@@ -14,11 +14,11 @@ class Subscriber
     @onrequest = lambda {|req|}
     mount "/callback" do |req,res|
       @onrequest.call(req)
-      res.status = 204 # Shouldn't have to be 204
+      res.status = 200
       if req.request_method == 'GET'
-        res.body = VERIFY_TOKEN
+        res.body = /hub.challenge=([^$|&]+)/.match(req.query_string)[1]
       else
-        
+
       end
     end
     @server_thread = Thread.new do 
@@ -45,10 +45,15 @@ class Publisher
   attr_reader :content
   attr_accessor :onrequest
   
+  attr_accessor :last_request_method
+  attr_accessor :last_headers
+  
   def initialize(hub)
     @hub = hub
     @server = WEBrick::HTTPServer.new(:Port => PORT, :Logger => WEBrick::Log.new(nil, 0), :AccessLog => WEBrick::Log.new(nil, 0))
     @content_url = "http://localhost:#{PORT}/happycats.xml"
+    @last_request_method = nil
+    @last_headers = nil
     @onrequest = lambda {|req|}
     @content =<<EOF
 <?xml version="1.0"?>
@@ -104,6 +109,8 @@ class Publisher
 EOF
     mount "/happycats.xml" do |req,res|
       @onrequest.call(req)
+      @last_request_method = req.request_method
+      @last_headers = req.header
       res.status = 200
       res['Content-Type'] = 'application/atom+xml'
       res.body = @content

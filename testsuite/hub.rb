@@ -15,7 +15,7 @@ class Hub
     @subscriber_uri = URI.parse(@subscriber_endpoint)
     
     # This is for a hack to deal with non-auto running tasks on App Engine!?
-    @is_gae = !Net::HTTP.get(@publisher_uri.host, '/_ah/admin/queues', @publisher_uri.port).empty?
+    @is_gae = Net::HTTP.get(@publisher_uri.host, '/_ah/admin/queues', @publisher_uri.port).include?('Google')
   end
   
   def subscribe(callback, topic, verify, verify_token=nil)
