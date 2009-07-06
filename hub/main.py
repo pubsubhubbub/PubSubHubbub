@@ -69,10 +69,6 @@ and will be retried at a later time.
 
 # Bigger TODOs (now in priority order)
 #
-# - Add Publisher diagnostics, so they can see the last time their feed was
-#   pulled, see any errors that were encountered while pulling the feed, see
-#   when the next retry will be.
-#
 # - Add Subscription delivery diagnostics, so subscribers can understand what
 #   error the hub has been seeing when we try to deliver a feed to them.
 #
@@ -555,6 +551,9 @@ class FeedToFetch(db.Model):
   eta = db.DateTimeProperty(auto_now_add=True)
   fetching_failures = db.IntegerProperty(default=0)
   totally_failed = db.BooleanProperty(default=False)
+
+  # TODO(bslatkin): Add fetching failure reason (urlfetch, parsing, etc) and
+  # surface it on the topic details page.
 
   @classmethod
   def get_by_topic(cls, topic):
@@ -1616,9 +1615,9 @@ class HubHandler(webapp.RequestHandler):
 
   def post(self):
     mode = self.request.get('hub.mode', '').lower()
-    if mode == "publish":
+    if mode == 'publish':
       handler = PublishHandler()
-    elif mode in ("subscribe", "unsubscribe"):
+    elif mode in ('subscribe', 'unsubscribe'):
       handler = SubscribeHandler()
     else:
       self.response.set_status(400)
@@ -1627,6 +1626,37 @@ class HubHandler(webapp.RequestHandler):
 
     handler.initialize(self.request, self.response)
     handler.post()
+
+class TopicDetailHandler(webapp.RequestHandler):
+  """Handler that serves topic debugging information to end-users."""
+
+  @dos.limit(count=5, period=60)
+  def get(self):
+    topic_url = self.request.get('hub.url')
+    feed = FeedRecord.get_by_key_name(FeedRecord.create_key_name(topic_url))
+    if not feed:
+      self.response.set_status(400)
+      context = {
+        'topic_url': topic_url,
+        'error': 'Could not find any record for topic URL: ' + topic_url,
+      }
+    else:
+      context = {
+        'topic_url': topic_url,
+        'last_successful_fetch': feed.last_updated,
+        'last_content_type': feed.content_type,
+        'last_etag': feed.etag,
+        'last_modified': feed.last_modified,
+        'last_header_footer': feed.header_footer,
+      }
+      fetch = FeedToFetch.get_by_topic(topic_url)
+      if fetch:
+        context.update({
+          'next_fetch': fetch.eta,
+          'fetch_attempts': fetch.fetching_failures,
+          'totally_failed': fetch.totally_failed,
+        })
+    self.response.out.write(template.render('topic_details.html', context))
 
 ################################################################################
 
@@ -1639,6 +1669,7 @@ def main():
     (r'/work/poll_bootstrap', PollBootstrapHandler),
     (r'/work/pull_feeds', PullFeedHandler),
     (r'/work/push_events', PushEventHandler),
+    (r'/topic-details', TopicDetailHandler),
   ], debug=DEBUG)
   wsgiref.handlers.CGIHandler().run(application)
 

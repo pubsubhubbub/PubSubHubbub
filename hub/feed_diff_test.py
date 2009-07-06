@@ -84,6 +84,11 @@ class AtomFeedDiffTest(TestBase):
         u'tag:diveintomark.org,2008-08-14:/archives/20080814215936',
     ]
     self.verify_entries(expected_list, entries)
+    # Verify whitespace cleanup.
+    self.assertTrue(header_footer.endswith('>\n</feed>'))
+    # Verify preservation of '/>' closings.
+    self.assertTrue('<link href="http://diveintomark.org/" '
+                    'type="text/html" rel="alternate"/>' in header_footer)
 
   def testEntityEscaping(self):
     """Tests when certain external entities show up in the feed.
@@ -162,6 +167,10 @@ class RssFeedDiffTest(TestBase):
         u'http://liftoff.msfc.nasa.gov/2003/06/03.html#item573',
     ]
     self.verify_entries(expected_list, entries)
+    # Verify whitespace cleanup.
+    self.assertTrue(header_footer.endswith('>\n</channel>\n</rss>'))
+    # Verify preservation of '/>' closings.
+    self.assertTrue('<mycoolelement wooh="fun"/>' in header_footer)
 
   def testParsingRss091(self):
     """Tests parsing RSS 0.91."""

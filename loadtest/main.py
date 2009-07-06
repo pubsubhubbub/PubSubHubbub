@@ -32,6 +32,7 @@ from google.appengine.ext.webapp import template
 class FeedHandler(webapp.RequestHandler):
 
   def get(self, name):
+    self.response.headers['Content-Type'] = 'application/xml+atom'
     self.response.out.write(template.render('atom.xml', {
       'self_url': self.request.url,
       'all_ids': random.sample(xrange(10**9), 25),

@@ -28,7 +28,7 @@ END
     exit(1);
 }
 
-my $hub = "http://pubsubhubbub.appspot.com/publish";
+my $hub = "http://pubsubhubbub.appspot.com/";
 GetOptions("hub=s" => \$hub)
     or usage();
 

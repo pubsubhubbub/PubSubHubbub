@@ -5,7 +5,7 @@ use TheSchwartz;
 use Getopt::Long;
 
 my $n_jobs = 1;
-my $hub_url = "http://pubsubhubbub.appspot.com/publish";
+my $hub_url = "http://pubsubhubbub.appspot.com/";
 
 GetOptions("n=i"   => \$n_jobs,
            "hub=s" => \$hub_url,

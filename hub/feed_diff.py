@@ -85,7 +85,8 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.emit(['<', name])
     for key, value in attrs.items():
       self.emit([' ', key, '=', xml.sax.saxutils.quoteattr(value)])
-    self.emit('>')
+    # Do not emit a '>' here because this tag may need to be immediately
+    # closed with a '/> ending.
 
     self.push()
 
@@ -94,8 +95,14 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     if DEBUG: logging.debug('End stack level %r', event)
 
     content = self.pop()
-    self.emit(content)
-    self.emit(['</', name, '>'])
+    if content:
+      self.emit('>')
+      self.emit(content)
+      self.emit(['</', name, '>'])
+    else:
+      # No content means this element should be immediately closed.
+      self.emit('/>')
+
     self.handleEvent(event, content)
     self.stack_level -= 1
 
@@ -108,6 +115,27 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.emit(xml.sax.saxutils.escape(content))
 
 
+def strip_whitespace(type, all_parts):
+  """Strips the whitespace from a SAX parser list for a feed.
+
+  Args:
+    all_parts: List of SAX parser elements.
+
+  Returns:
+    header_footer for those parts with trailing whitespace removed.
+  """
+  if type == 'atom':
+    first_part = ''.join(all_parts[:-3]).strip('\n\r\t ')
+    return '%s\n</feed>' % first_part
+  else:
+    first_part = ''.join(all_parts[:-3]).strip('\n\r\t ')
+    channel_part = first_part.rfind('</channel>')
+    if channel_part == -1:
+      raise Error('Could not find </channel> after trimming whitespace')
+    stripped = first_part[:channel_part].strip('\n\r\t ')
+    return '%s\n</channel>\n</rss>' % stripped
+
+
 class AtomFeedHandler(FeedContentHandler):
   """Sax content handler for Atom feeds."""
 
@@ -116,7 +144,7 @@ class AtomFeedHandler(FeedContentHandler):
       if event[1] != 'feed':
         raise Error('Enclosing tag is not <feed></feed>')
       else:
-        self.header_footer = ''.join(self.pop())
+        self.header_footer = strip_whitespace('atom', self.pop())
     elif event == (2, 'entry'):
       self.entries_map[self.last_id] = ''.join(self.pop())
     elif event == (3, 'id'):
@@ -134,7 +162,7 @@ class RssFeedHandler(FeedContentHandler):
       if event[1] != 'rss':
         raise Error('Enclosing tag is not <rss></rss>')
       else:
-        self.header_footer = ''.join(self.pop())
+        self.header_footer = strip_whitespace('rss', self.pop())
     elif event == (3, 'item'):
       item_id = (self.last_id or self.last_link or
                  self.last_title or self.last_description)
