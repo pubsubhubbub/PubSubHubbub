@@ -243,17 +243,17 @@
       <t>The trade-off between including all content in outgoing notifications
       or having the thundering herd (by clients who fetch the <spanx
       style="verb">//atom:feed/entry/link</spanx> in response to a notification)
-      is up to the publisher.</t>
-
-      <t>Entries of most recent N events (for recipient to know whether or not
-      they'd missed any recent items-- like TCP SACK) MAY be provided as
-      context. This is implied by the difference between the <spanx
-      style="verb">//atom:feed/updated</spanx> field and the <spanx
+      is up to the publisher. Entries of the most recent events (for recipient
+      to know whether or not they'd missed any recent items-- like TCP SACK) MAY
+      be provided as context. This is implied by the difference between the
+      <spanx style="verb">//atom:feed/updated</spanx> field and the <spanx
       style="verb">//atom:feed/entry/updated</spanx> fields.</t>
 
       <t>The <spanx style="verb">//atom:feed/link[@rel="self"]</spanx> element
-      will indicate the original URL for the entire event stream with no
-      truncation (if available).</t>
+      MUST indicate the topic URL for the original event stream (with no
+      truncation if available). Subscribers MUST use the <spanx style="verb">
+      self</spanx> link when requesting a subscription from the hub. This is
+      crucial for subscribers to detect feed moves.</t>
     </section>
 
     <section anchor="discovery" title="Discovery">
@@ -324,11 +324,20 @@
             modes supported by this subscriber, as described below. This
             parameter may be repeated to indicate multiple supported modes.</t>
 
-            <t hangText="hub.verify_token">A subscriber-provided opaque token
-            that will be echoed back in the verification request to assist the
-            subscriber in identifying which subscription request is being
-            verified. If this is not included, no token will be included in
-            the verification request.</t>
+            <t hangText="hub.verify_token">OPTIONAL. A subscriber-provided
+            opaque token that will be echoed back in the verification request to
+            assist the subscriber in identifying which subscription request is
+            being verified. If this is not included, no token will be included
+            in the verification request.</t>
+
+            <t hangText="hub.lease_seconds">OPTIONAL. Number of seconds for
+            which the subscriber would like to have the subscription active.
+            Hubs SHOULD choose a default value of 30 days (2592000 seconds) if
+            not supplied. Hubs MAY choose to respect this value or not,
+            depending on their own policies. This parameter MAY be present for
+            unsubscription requests and MUST be ignored by the hub in that
+            case.</t>
+
           </list></t>
 
         <t>The following keywords are supported for hub.verify:</t>
@@ -354,12 +363,17 @@
         Content" response to indicate that the request was already verified and
         that the subscription has been created. If the subscription has yet to
         be verified (i.e., the hub is using asynchronous verification), the hub
-        MUST respond with a 202 "Accepted" code. In the case of any error,
-        an appropriate HTTP error response code (4xx or 5xx) MUST be
-        returned. In the event of an error, hubs SHOULD return a description of
-        the error in the response body as plain text. Hubs MAY decide to reject
-        some callback URLs or topic URLs based on their own policies
-        (e.g., domain authorization, topic URL port numbers).</t>
+        MUST respond with a 202 "Accepted" code. Hubs MUST allow subscribers to
+        re-request subscriptions that are already activated. This is required so
+        subscribers can keep their subscriptions active before the lease seconds
+        period is over.</t>
+        
+        <t>In the case of any error, an appropriate HTTP error response code
+        (4xx or 5xx) MUST be returned. In the event of an error, hubs SHOULD
+        return a description of the error in the response body as plain text.
+        Hubs MAY decide to reject some callback URLs or topic URLs based on
+        their own policies (e.g., domain authorization, topic URL port
+        numbers).</t>
 
         <t>In synchronous mode, the verification (<xref
         target="verifysub"></xref>) MUST be completed before the hub returns a
@@ -392,15 +406,20 @@
             that MUST be echoed by the subscriber to verify the
             subscription.</t>
 
-            <t hangText="hub.verify_token">The subscriber-provided opaque
-            token from the corresponding subscription request, if one was
-            provided.</t>
+            <t hangText="hub.lease_seconds">REQUIRED/OPTIONAL. The
+            hub-determined number of seconds that the subscription will stay
+            active before expiring. Hubs SHOULD make this equal to whatever the
+            subscriber passed in their subscription request but MAY change the
+            value depending on the hub's policies. If the subscriber wishes to
+            keep a persistent subscription, they MUST re-request the
+            subscription before this many seconds has elapsed. Hubs MUST supply
+            this parameter for subscription requests. This parameter MAY be
+            present for unsubscribe requests and MUST be ignored by subscribers
+            during unsubscription.</t>
 
-            <t hangText="hub.lease_seconds">The hub-determined number of seconds
-            that the subscription will stay active before expiring. If the
-            subscriber wishes to keep a persistent subscription, they MUST
-            re-request the subscription before this many seconds has
-            elapsed.</t>
+            <t hangText="hub.verify_token">OPTIONAL. The subscriber-provided
+            opaque token from the corresponding subscription request, if one was
+            provided.</t>
 
           </list></t>
 
@@ -426,12 +445,13 @@
       no authentication from the publisher is required.</t>
 
       <section title="New Content Notification">
-        <t>When new content is added to a feed, a notification is sent from to
-        the hub by the publisher. The notification request is a POST request to
-        the hub URL. This request has a Content-type of <spanx
-        style="verb">application/x-www-form-urlencoded</spanx> (described in
-        Section 17.13.4 of <xref target="W3C.REC-html401-19991224"/>) and the
-        following parameters in its body:</t>
+        <t>When new content is added to a feed, a notification is sent to
+        the hub by the publisher. The hub MUST accept a POST request to
+        the hub URL containing the notification. This request MUST have a
+        Content-type of <spanx style="verb">application/x-www-form-urlencoded
+        </spanx> (described in Section 17.13.4 of <xref
+        target="W3C.REC-html401-19991224"/>) and the following parameters in
+        its body:</t>
 
         <t><list style="hanging">
             <t hangText="hub.mode">REQUIRED. The literal string "publish".</t>
@@ -445,9 +465,11 @@
         new content available. The hub SHOULD arrange for a content fetch
         request (<xref target="contentfetch"></xref>) to be performed in the
         near future to retrieve the new content. If the publication request
-        was accepted, the hub MUST return a 202 Accepted response. If the
+        was accepted, the hub MUST return a 204 Accepted response. If the
         publication request is not accepted for some reason, the hub MUST
-        return an appropriate HTTP error response code (4xx and 5xx).</t>
+        return an appropriate HTTP error response code (4xx and 5xx). Hubs
+        MUST return a 204 Accept response even when they do not have any
+        subscribers for all of the specified topic URLs.</t>
       </section>
 
       <section anchor="contentfetch" title="Content Fetch">
