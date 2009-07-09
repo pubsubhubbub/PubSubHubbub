@@ -124,10 +124,10 @@ class ItemsHandler(webapp.RequestHandler):
     encoder = simplejson.JSONEncoder()
     stuff = []
     for update in SomeUpdate.gql('ORDER BY updated DESC').fetch(10):
-      stuff.append({'time': update.updated,
+      stuff.append({'time': str(update.updated),
                     'title': update.title,
                     'content': update.content,
-                    'source': update.source})
+                    'source': update.link})
     self.response.out.write(encoder.encode(stuff))
 
 

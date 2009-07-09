@@ -720,7 +720,10 @@ class FeedRecord(db.Model):
     Returns:
       Dictionary of request header values.
     """
-    headers = {}
+    headers = {
+      'Cache-Control': 'no-cache no-store max-age=1',
+      'Connection': 'cache-control',
+    }
     if self.last_modified:
       headers['If-Modified-Since'] = self.last_modified
     if self.etag:
@@ -1287,7 +1290,7 @@ class PublishHandler(webapp.RequestHandler):
   def get(self):
     self.response.out.write(template.render('publish_debug.html', {}))
 
-  @dos.limit(count=50, period=1)  # XXX need whitelist
+  @dos.limit(count=100, period=1)  # XXX need whitelist
   def post(self):
     self.response.headers['Content-Type'] = 'text/plain'
 
