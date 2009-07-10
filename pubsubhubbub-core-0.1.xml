@@ -95,9 +95,9 @@
       <t><list style="hanging">
           <t hangText="Topic:">An <xref target="RFC4287">Atom</xref> feed <xref
           target="RFC3986">URL</xref>. The unit to which one can subscribe to
-          changes. <xref target="RSS20">RSS</xref> isn't supported for
-          simplicity. Further, this spec currently only addresses public
-          (unauthenticated) Atom feed URLs.</t>
+          changes. (<xref target="RSS20">RSS</xref> is also supported, but not
+	  yet as well-defined.)  Further, this spec currently only addresses
+	  public (unauthenticated) Atom feed URLs.</t>
 
           <t hangText="Hub (&quot;the hub&quot;):">The server (URL) which
           implements both sides of this protocol. We have implemented this and
