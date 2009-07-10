@@ -1,6 +1,7 @@
 <html>
 <head>
   <title>Publisher</title>
+  <link rel="alternate" href="/feed" type="application/atom+xml"/>
   <style type="text/css">
     input, textarea { margin-bottom: 2em }
     .message { margin-bottom: 1em; }
@@ -17,12 +18,9 @@
   </div>
   <div>
     <div>Message:</div>
-    <textarea style="width: 300px" name="content" rows="20"></textarea>
+    <input style="width: 300px" type="text" name="content">
   </div>
-  <div>
-    <div>Hub URL:</div>
-    <div><input style="width: 300px" type="text" name="hub"/></div>
-  </div>
+  <input type="hidden" name="hub" value="http://pubsubhubbub.appspot.com"/></div>
   <div><input type="submit" value="Submit"></div>
 </form>
 

@@ -29,12 +29,12 @@ from google.appengine.ext import db
 
 class Message(db.Model):
   """A message to publish."""
-  title = db.TextProperty(required=True)
-  content = db.TextProperty(required=True)
+  title = db.TextProperty(default='')
+  content = db.TextProperty(default='')
   when = db.DateTimeProperty(auto_now_add=True)
 
   def get_zulu_time(self):
-    return self.when.strftime("%Y-%m-%d %H:%M:%SZ")
+    return self.when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class MainHandler(webapp.RequestHandler):
