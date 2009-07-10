@@ -129,22 +129,22 @@ if DEBUG:
 EVENT_SUBSCRIBER_CHUNK_SIZE = 10
 
 # Maximum number of times to attempt a subscription retry.
-MAX_SUBSCRIPTION_CONFIRM_FAILURES = 10
+MAX_SUBSCRIPTION_CONFIRM_FAILURES = 4
 
 # Period to use for exponential backoff on subscription confirm retries.
-SUBSCRIPTION_RETRY_PERIOD = 300 # seconds
+SUBSCRIPTION_RETRY_PERIOD = 30 # seconds
 
 # Maximum number of times to attempt to pull a feed.
-MAX_FEED_PULL_FAILURES = 9
+MAX_FEED_PULL_FAILURES = 4
 
 # Period to use for exponential backoff on feed pulling.
-FEED_PULL_RETRY_PERIOD = 60 # seconds
+FEED_PULL_RETRY_PERIOD = 30 # seconds
 
 # Maximum number of times to attempt to deliver a feed event.
-MAX_DELIVERY_FAILURES = 8
+MAX_DELIVERY_FAILURES = 4
 
 # Period to use for exponential backoff on feed event delivery.
-DELIVERY_RETRY_PERIOD = 60 # seconds
+DELIVERY_RETRY_PERIOD = 30 # seconds
 
 # Number of polling feeds to fetch from the Datastore at a time.
 BOOSTRAP_FEED_CHUNK_SIZE = 200

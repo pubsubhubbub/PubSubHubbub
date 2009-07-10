@@ -777,7 +777,7 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     etas = []
     for i, delay in enumerate((5, 10, 20, 40, 80, 160, 320, 640)):
       more, subs = event.get_next_subscribers(chunk_size=4)
-      event.update(more, subs, retry_period=5, now=now)
+      event.update(more, subs, retry_period=5, now=now, max_failures=8)
       event = EventToDeliver.get(event.key())
       self.assertEquals(i+1, event.retry_attempts)
       expected_eta = start + datetime.timedelta(seconds=delay)
