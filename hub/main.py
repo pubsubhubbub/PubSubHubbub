@@ -372,9 +372,13 @@ class Subscription(db.Model):
                   expiration_time=(
                       now() + datetime.timedelta(seconds=lease_seconds)))
         sub.put()
-        sub._enqueue_task()
-      return sub_is_new
-    return db.run_in_transaction(txn)
+      return (sub_is_new, sub)
+    new, sub = db.run_in_transaction(txn)
+    # Note: This enqueuing must come *after* the transaction is submitted, or
+    # else we'll actually run the task *before* the transaction is submitted.
+    if new:
+      sub._enqueue_task()
+    return new
 
   @classmethod
   def remove(cls, callback, topic):
@@ -424,10 +428,14 @@ class Subscription(db.Model):
         sub.subscription_state = cls.STATE_TO_DELETE
         sub.verify_token = verify_token
         sub.put()
-        sub._enqueue_task()
-        return True
-      return False
-    return db.run_in_transaction(txn)
+        return (True, sub)
+      return (False, sub)
+    removed, sub = db.run_in_transaction(txn)
+    # Note: This enqueuing must come *after* the transaction is submitted, or
+    # else we'll actually run the task *before* the transaction is submitted.
+    if removed:
+      sub._enqueue_task()
+    return removed
 
   @classmethod
   def has_subscribers(cls, topic):
@@ -1264,7 +1272,8 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
     sub_key_name = self.request.get('subscription_key_name')
     sub = Subscription.get_confirm_work(sub_key_name)
     if not sub:
-      logging.debug('No subscriptions to confirm')
+      logging.debug('No subscriptions to confirm '
+                    'for subscription_key_name = %s', sub_key_name)
       return
 
     if sub.subscription_state == Subscription.STATE_NOT_VERIFIED:
@@ -1306,7 +1315,7 @@ class PublishHandler(webapp.RequestHandler):
       self.response.out.write('MUST supply at least one hub.url parameter')
       return
 
-    logging.info('Publish event for %d URLs: %s', len(urls), urls)
+    logging.debug('Publish event for %d URLs: %s', len(urls), urls)
 
     for url in urls:
       if not is_valid_url(url):
@@ -1317,7 +1326,7 @@ class PublishHandler(webapp.RequestHandler):
     # Only insert FeedToFetch entities for feeds that are known to have
     # subscribers. The rest will be ignored.
     urls = KnownFeed.check_exists(urls)
-    logging.info('%d topics have known subscribers', len(urls))
+    logging.debug('Topics with known subscribers: %s', urls)
 
     # Record all FeedToFetch requests here. The background Pull worker will
     # double-check if there are any subscribers that need event delivery and
@@ -1527,7 +1536,8 @@ class PushEventHandler(webapp.RequestHandler):
       if exception or result.status_code not in (200, 204):
         logging.warning('Could not deliver to target url %s: '
                         'Exception = %r, status_code = %s',
-                        sub.callback, exception, result)
+                        sub.callback, exception,
+                        getattr(result, 'status_code', 'unknown'))
       else:
         failed_callbacks.remove(sub)
 
