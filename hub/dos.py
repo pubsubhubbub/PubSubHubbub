@@ -159,6 +159,7 @@ def limit(param=None,
       else:
         return func(myself, *args, **kwargs)
 
+    decorated.func_name = func.func_name  # Fun with hacking the Python stack!
     return decorated
 
   return wrapper

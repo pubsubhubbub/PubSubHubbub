@@ -92,6 +92,7 @@ import hashlib
 import logging
 import os
 import random
+import sgmllib
 import time
 import urllib
 import urlparse
@@ -176,6 +177,28 @@ POLLING_QUEUE = 'polling'
 
 SUBSCRIPTION_QUEUE = 'subscriptions'
 
+WEBLOGS_XMLRPC_ERROR = """<?xml version="1.0"?>
+<methodResponse><params><param><value><struct>
+<member><name>flerror</name><value><boolean>1</boolean></value></member>
+<member><name>message</name><value>%s</value></member>
+<member><name>legal</name><value>
+You agree that use of this ping service is governed
+by the Terms of Use found at pubsubhubbub.appspot.com.
+</value></member>
+</struct></value></param></params></methodResponse>
+"""
+
+WEBLOGS_XMLRPC_SUCCESS = """<?xml version="1.0"?>
+<methodResponse><params><param><value><struct>
+<member><name>flerror</name><value><boolean>0</boolean></value></member>
+<member><name>message</name><value>Thanks for the ping.</value></member>
+<member><name>legal</name><value>
+You agree that use of this ping service is governed
+by the Terms of Use found at pubsubhubbub.appspot.com.
+</value></member>
+</struct></value></param></params></methodResponse>
+"""
+
 ################################################################################
 # Helper functions
 
@@ -236,6 +259,7 @@ def is_valid_url(url):
 
   return True
 
+
 _VALID_CHARS = (
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
   'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -244,9 +268,113 @@ _VALID_CHARS = (
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_',
 )
 
+
 def get_random_challenge():
   """Returns a string containing a random challenge token."""
   return ''.join(random.choice(_VALID_CHARS) for i in xrange(128))
+
+
+class HtmlDiscoveryParser(sgmllib.SGMLParser):
+  """HTML parser that auto-discovers feed URLs.
+
+  Based off of Mark Pilgrim's auto-discovery script from:
+    http://diveintomark.org/archives/2002/05/31/rss_autodiscovery_in_python
+
+  Thus, this class is roughly Copyright 2002, Mark Pilgrim and is
+  under the Python license:
+    http://www.python.org/psf/license/
+
+  Feed URLs will be placed in the 'feed_urls' attribute's list.
+  """
+
+  def reset(self):
+    sgmllib.SGMLParser.reset(self)
+    self.feed_urls = []
+
+  def end_head(self, attrs):
+    self.setnomoretags()
+
+  def start_body(self, attrs):
+    self.setnomoretags()
+
+  def do_link(self, attrs):
+    attr_dict = dict(attrs)
+    if attr_dict.get('rel').lower() != 'alternate':
+      return
+    type = attr_dict.get('type')
+    if type not in ('application/atom+xml', 'application/rss+xml'):
+      return
+    href = attr_dict.get('href')
+    # This URL may be bad, but it will be validated later.
+    self.feed_urls.append(href)
+
+
+class AutoDiscoveryError(Exception):
+  """Raised when auto-discovery fails for whatever reason.
+
+  The exception detail should be set to a descriptive string that could
+  be presented to the requestor on the other side.
+  """
+
+
+def auto_discover_urls(blog_url):
+  """Auto-discovers the feed links for a URL.
+
+  Caches the discovered URLs in memcache.
+
+  Args:
+    blog_url: The feed to do auto-discovery on. May be a feed URL itself, in
+      which case this URL will be returned.
+
+  Returns:
+    A list of feed URLs. May be multiple in cases where multiple formats or
+    variants of a feed are auto-discovered.
+
+  Raises:
+    AutoDiscoveryError if auto-discovery fails for any reason.
+  """
+  key = 'auto_discover:' + blog_url
+  mapping = memcache.get(key)
+  if mapping:
+    feed_urls = mapping.split('\n')
+    logging.debug('Cache hit for auto-discovery of blog_url=%s: %s',
+                  blog_url, feed_urls)
+    return feed_urls
+
+  try:
+    result = urlfetch.fetch(blog_url)
+  except (apiproxy_errors.Error, urlfetch.Error), e:
+    logging.exception('Error fetching for discovery blog URL=%s', blog_url)
+    raise AutoDiscoveryError('Error fetching content for auto-discovery')
+
+  if result.status_code != 200:
+    logging.error('Discovery status_code=%s for blog URL=%s',
+                  result.status_code, blog_url)
+    raise AutoDiscoveryError('Auto-discovery fetch received status code %s' %
+                             result.status_code)
+
+  content_type = result.headers.get('content-type', '')
+  if 'xml' in content_type:
+    # The supplied URL is actually XML, which means it *should* be a feed.
+    feed_urls = [blog_url]
+  elif 'html' in content_type:
+    parser = HtmlDiscoveryParser()
+    try:
+      parser.feed(result.content)
+    except sgmllib.SGMLParseError:
+      logging.exception('Parsing HTML for auto-discovery '
+                        'failed for blog URL=%s', blog_url)
+      # Cache the error to prevent further, crappy load.
+      memcache.add(key, '')
+      raise AutoDiscoveryError('Could not parse HTML for auto-discovery')
+    else:
+      feed_urls = parser.feed_urls
+  else:
+    raise AutoDiscoveryError(
+        'Blog URL has bad content-type for auto-discovery: %s' % content_type)
+
+  memcache.add(key, '\n'.join(feed_urls))
+  return feed_urls
 
 ################################################################################
 # Models
@@ -1291,15 +1419,56 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
       sub.confirm_failed()
 
 ################################################################################
-# Publishing handlers and workers
+# Publishing handlers
 
-class PublishHandler(webapp.RequestHandler):
+class PublishHandlerBase(webapp.RequestHandler):
+  """Base-class for publish ping receiving handlers."""
+
+  def receive_publish(self, urls, success_code, param_name):
+    """Receives a publishing event for a set of topic URLs.
+
+    Serves 400 errors on invalid input, 503 retries on insertion failures.
+
+    Args:
+      urls: Iterable of URLs that have been published.
+      success_code: HTTP status code to return on success.
+      param_name: Name of the parameter that will be validated.
+
+    Returns:
+      The error message, or an empty string if there are no errors.
+    """
+    for url in urls:
+      if not is_valid_url(url):
+        self.response.set_status(400)
+        return '%s invalid: %s' % (param_name, url)
+
+    # Only insert FeedToFetch entities for feeds that are known to have
+    # subscribers. The rest will be ignored.
+    urls = KnownFeed.check_exists(urls)
+    logging.debug('Topics with known subscribers: %s', urls)
+
+    # Record all FeedToFetch requests here. The background Pull worker will
+    # double-check if there are any subscribers that need event delivery and
+    # will skip any unused feeds.
+    try:
+      FeedToFetch.insert(urls)
+    except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
+      logging.exception('Failed to insert FeedToFetch records')
+      self.response.headers['Retry-After'] = '120'
+      self.response.set_status(503)
+      return 'Transient error; please try again later'
+    else:
+      self.response.set_status(success_code)
+      return ''
+
+
+class PublishHandler(PublishHandlerBase):
   """End-user accessible handler for the Publish event."""
 
   def get(self):
     self.response.out.write(template.render('publish_debug.html', {}))
 
-  @dos.limit(count=100, period=1)  # XXX need whitelist
+  @dos.limit(count=100, period=1)  # TODO(bslatkin): need whitelist
   def post(self):
     self.response.headers['Content-Type'] = 'text/plain'
 
@@ -1316,34 +1485,86 @@ class PublishHandler(webapp.RequestHandler):
       return
 
     logging.debug('Publish event for %d URLs: %s', len(urls), urls)
+    error = self.receive_publish(urls, 204, 'hub.url')
+    if error:
+      self.response.out.write(error)
 
-    for url in urls:
-      if not is_valid_url(url):
-        self.response.set_status(400)
-        self.response.out.write('hub.url invalid: %s' % url)
-        return
 
-    # Only insert FeedToFetch entities for feeds that are known to have
-    # subscribers. The rest will be ignored.
-    urls = KnownFeed.check_exists(urls)
-    logging.debug('Topics with known subscribers: %s', urls)
+class WeblogsPingHandler(PublishHandlerBase):
+  """Handles weblogs.com-style pings."""
 
-    # Record all FeedToFetch requests here. The background Pull worker will
-    # double-check if there are any subscribers that need event delivery and
-    # will skip any unused feeds.
+  # To protect gainst auto-discovery DoS attacks.
+  @dos.limit(header=None, param='url', count=5, period=1)
+  # To limit a single pinging host.
+  @dos.limit(count=20, period=1)
+  def get(self):
+    """Handles REST pings."""
+    self.response.headers['Content-Type'] = 'text/plain'
+    name = self.request.get('name')
+    url = self.request.get('url')
+    
+    if not name:
+      self.response.out.write('Missing Weblogs.com REST parameter "name"')
+      self.response.set_status(400)
+      return
+    if not url:
+      self.response.out.write('Missing Weblogs.com REST parameter "url"')
+      self.response.set_status(400)
+      return
+
+    logging.debug('Weblogs.com REST ping for %s', url)
+    if not is_valid_url(url):
+      self.response.set_status(400)
+      self.response.out.write('url invalid: %s' % url)
+      return
+
+    found_urls = auto_discover_urls(url)
+    error = self.receive_publish(found_urls, 200, 'url')
+    if error:
+      self.response.out.write(error)
+
+  # To limit a single pinging host.
+  @dos.limit(count=20, period=1)
+  def post(self):
+    """Handles XML-RPC pings."""
     try:
-      FeedToFetch.insert(urls)
-    except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
-      logging.exception('Failed to insert FeedToFetch records')
-      self.response.headers['Retry-After'] = '120'
-      self.response.set_status(503)
-      self.response.out.write('Transient error; please try again later')
-    else:
-      # TODO(bslatkin): This should be 202, or the spec should be changed
-      # to use 204 instead. Problem is a bunch of publisher clients are already
-      # expecting 204, so this is hard to change. :/
-      self.response.set_status(204)
+      params, method = xmlrpclib.loads(self.request.body)
+    except:
+      logging.debug('Invalid XML-RPC with body:\n%s', self.request.body)
+      self.response.headers['Content-Type'] = 'text/plain'
+      self.response.out.write('Content body not valid XML-RPC')
+      self.response.set_status(400)
+      return
 
+    error = ''
+    if method != 'weblogUpdates.ping':
+      error = 'Invalid XML-RPC method: %s' % method
+    elif len(params) < 2:
+      error = 'Invalid number of XML-RPC params: %d' % len(params)
+    elif len(params) >= 4 and not is_valid_url(params[3]):
+      error = 'Invalid feed URL in extended XML-RPC ping: %s' % params[3]
+    elif not is_valid_url(params[1]):
+      error = 'Invalid blog URL in XML-RPC ping: %s' % params[1]
+    else:
+      blog_name, blog_url, unused, feed_url, unused = \
+          (params + ['', '', ''])[:5]
+      if feed_url:
+        logging.debug('Weblogs.com extended XML-RPC ping for %s', feed_url)
+        found_urls = [feed_url]
+      else:
+        logging.debug('Weblogs.com XML-RPC ping for %s', blog_url)
+        # TODO(bslatkin): figure out how to rate-limit this
+        found_urls = auto_discover_urls(url)
+      error = self.receive_publish(found_urls, 200, 'unused')
+
+    self.response.headers['Content-Type'] = 'text/xml'
+    if error:
+      self.response.out.write(WEBLOGS_XMLRPC_ERROR % error)
+    else:
+      self.response.out.write(WEBLOGS_XMLRPC_SUCCESS)
+
+################################################################################
+# Pulling
 
 def find_feed_updates(topic, format, feed_content,
                       filter_feed=feed_diff.filter):
@@ -1506,6 +1727,7 @@ class PullFeedHandler(webapp.RequestHandler):
     work.done()
 
 ################################################################################
+# Event delivery
 
 class PushEventHandler(webapp.RequestHandler):
 
@@ -1639,6 +1861,7 @@ class HubHandler(webapp.RequestHandler):
 
     handler.initialize(self.request, self.response)
     handler.post()
+
 
 class TopicDetailHandler(webapp.RequestHandler):
   """Handler that serves topic debugging information to end-users."""

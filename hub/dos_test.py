@@ -436,6 +436,40 @@ class WhiteListTest(LimitTestBase):
       self.assertEquals(200, self.response_code())
       self.assertEquals('post success', self.response_body())
 
+
+class LayeredHandler(webapp.RequestHandler):
+
+  @dos.limit(count=3, period=1)
+  @dos.limit(header=None, param='stuff', count=0, period=1)
+  def get(self):
+    self.response.out.write('get success')
+
+
+class LayeringTest(LimitTestBase):
+  """Tests that dos limits can be layered."""
+
+  handler_class = LayeredHandler
+
+  def testLayering(self):
+    """Tests basic layering."""
+    os.environ['REMOTE_ADDR'] = '10.1.1.3'
+
+    # First request works normally, limiting by IP.
+    self.handle('get')
+    self.assertEquals(200, self.response_code())
+    self.assertEquals('get success', self.response_body())
+
+    # Next request uses param and is blocked.
+    self.handle('get', ('stuff', 'meep'))
+    self.assertEquals(503, self.response_code())
+
+    # Next request without param is allowed, following one is blocked.
+    self.handle('get')
+    self.assertEquals(200, self.response_code())
+    self.assertEquals('get success', self.response_body())
+    self.handle('get')
+    self.assertEquals(503, self.response_code())
+
 ################################################################################
 
 if __name__ == '__main__':

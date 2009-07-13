@@ -73,6 +73,91 @@ class UtilityFunctionTest(unittest.TestCase):
     self.assertFalse(main.is_valid_url('http://example.com:9999'))
     self.assertFalse(main.is_valid_url('http://example.com/blah#bad'))
 
+
+class AutoDiscoverUrlsTest(unittest.TestCase):
+  """Tests for the auto_discover_urls function."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.setup_for_testing()
+    self.url = 'http://example.com/'
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    urlfetch_test_stub.instance.verify_and_reset()
+
+  def testHtmlDiscovery(self):
+    """Tests HTML discovery with multiple feed links."""
+    urlfetch_test_stub.instance.expect(
+      'GET', self.url, 200, """
+<html><head>
+<link rel="alternate" type="application/atom+xml"
+href="http://example.com/feed/1">
+<link rel="alternate" type="application/atom+xml"
+href="http://example.com/feed/2"/>
+<link rel="alternate" type="application/rss+xml"
+href="http://example.com/feed/3">
+<link rel="alternate" type="application/rss+xml"
+href="http://example.com/feed/4"/>
+</head>
+<body>
+meep
+</body>
+</html>
+""", response_headers={'content-type': 'text/html'})
+    self.assertEquals(
+        ['http://example.com/feed/1', 'http://example.com/feed/2',
+         'http://example.com/feed/3', 'http://example.com/feed/4'],
+        main.auto_discover_urls(self.url))
+
+  def testCacheHit(self):
+    """Tests when the result is already in memcache."""
+    memcache.set('auto_discover:' + self.url,
+        'http://example.com/feed/1\nhttp://example.com/feed/2\n'
+        'http://example.com/feed/3\nhttp://example.com/feed/4')
+    self.assertEquals(
+        ['http://example.com/feed/1', 'http://example.com/feed/2',
+         'http://example.com/feed/3', 'http://example.com/feed/4'],
+        main.auto_discover_urls(self.url))
+
+  def testFetchError(self):
+    """Tests when an exception is hit while fetching the blog URL."""
+    urlfetch_test_stub.instance.expect(
+      'GET', self.url, 200, "", urlfetch_error=True)
+    self.assertRaises(
+      main.AutoDiscoveryError, main.auto_discover_urls, self.url)
+
+  def testBadFetchResponseCode(self):
+    """Tests when the fetch response code is not 200 OK."""
+    urlfetch_test_stub.instance.expect(
+      'GET', self.url, 404, "")
+    self.assertRaises(
+      main.AutoDiscoveryError, main.auto_discover_urls, self.url)
+
+  def testBlogUrlIsFeed(self):
+    """Tests when the blog URL supplied is actually a feed."""
+    urlfetch_test_stub.instance.expect(
+      'GET', self.url, 200, "unused",
+      response_headers={'content-type': 'text/xml'})
+    self.assertEquals([self.url], main.auto_discover_urls(self.url))
+
+  def testBadContentType(self):
+    """Tests when the fetched blog URL is of a bad content-type."""
+    urlfetch_test_stub.instance.expect(
+      'GET', self.url, 200, "unused",
+      response_headers={'content-type': 'text/plain'})
+    self.assertRaises(
+      main.AutoDiscoveryError, main.auto_discover_urls, self.url)
+
+  def testHtmlParseError(self):
+    """Tests when the HTML won't parse correctly."""
+    urlfetch_test_stub.instance.expect(
+      'GET', self.url, 200, "<! --  foo -- >",
+      response_headers={'content-type': 'text/html'})
+    self.assertRaises(
+      main.AutoDiscoveryError, main.auto_discover_urls, self.url)
+    self.assertEquals('', memcache.get('auto_discover:' + self.url))
+
 ################################################################################
 
 class TestWorkQueueHandler(webapp.RequestHandler):
