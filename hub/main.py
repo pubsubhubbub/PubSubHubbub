@@ -89,6 +89,7 @@ and will be retried at a later time.
 
 import datetime
 import hashlib
+import hmac
 import logging
 import os
 import random
@@ -210,6 +211,11 @@ def sha1_hash(value):
 def get_hash_key_name(value):
   """Returns a valid entity key_name that's a hash of the supplied value."""
   return 'hash_' + sha1_hash(value)
+
+
+def sha1_hmac(secret, data):
+  """Returns the sha1 hmac for a chunk of data and a secret."""
+  return hmac.new(secret, data, hashlib.sha1).hexdigest()
 
 
 def is_dev_env():
@@ -402,6 +408,8 @@ class Subscription(db.Model):
   eta = db.DateTimeProperty(auto_now_add=True)
   confirm_failures = db.IntegerProperty(default=0)
   verify_token = db.TextProperty()
+  secret = db.TextProperty()
+  hmac_algorithm = db.TextProperty()
   subscription_state = db.StringProperty(default=STATE_NOT_VERIFIED,
                                          choices=STATES)
 
@@ -419,7 +427,13 @@ class Subscription(db.Model):
     return get_hash_key_name('%s\n%s' % (callback, topic))
 
   @classmethod
-  def insert(cls, callback, topic, lease_seconds=DEFAULT_LEASE_SECONDS,
+  def insert(cls,
+             callback,
+             topic,
+             verify_token,
+             secret,
+             hash_func='sha1',
+             lease_seconds=DEFAULT_LEASE_SECONDS,
              now=datetime.datetime.now):
     """Marks a callback URL as being subscribed to a topic.
 
@@ -429,6 +443,10 @@ class Subscription(db.Model):
     Args:
       callback: URL that will receive callbacks.
       topic: The topic to subscribe to.
+      verify_token: The verification token to use to confirm the
+        subscription request.
+      secret: Shared secret used for HMACs.
+      hash_func: String with the name of the hash function to use for HMACs.
       lease_seconds: Number of seconds the client would like the subscription
         to last before expiring. Must be a number.
       now: Callable that returns the current time as a datetime instance. Used
@@ -448,6 +466,9 @@ class Subscription(db.Model):
                   callback_hash=sha1_hash(callback),
                   topic=topic,
                   topic_hash=sha1_hash(topic),
+                  verify_token=verify_token,
+                  secret=secret,
+                  hash_func=hash_func,
                   lease_seconds=lease_seconds,
                   expiration_time=(
                       now() + datetime.timedelta(seconds=lease_seconds)))
@@ -457,9 +478,14 @@ class Subscription(db.Model):
     return db.run_in_transaction(txn)
 
   @classmethod
-  def request_insert(cls, callback, topic, verify_token,
-                    lease_seconds=DEFAULT_LEASE_SECONDS,
-                    now=datetime.datetime.now):
+  def request_insert(cls,
+                     callback,
+                     topic,
+                     verify_token,
+                     secret,
+                     hash_func='sha1',
+                     lease_seconds=DEFAULT_LEASE_SECONDS,
+                     now=datetime.datetime.now):
     """Records that a callback URL needs verification before being subscribed.
 
     Creates a new subscription request (for asynchronous verification) if None
@@ -472,6 +498,8 @@ class Subscription(db.Model):
       topic: The topic to subscribe to.
       verify_token: The verification token to use to confirm the
         subscription request.
+      secret: Shared secret used for HMACs.
+      hash_func: String with the name of the hash function to use for HMACs.
       lease_seconds: Number of seconds the client would like the subscription
         to last before expiring. Must be a number.
       now: Callable that returns the current time as a datetime instance. Used
@@ -495,6 +523,8 @@ class Subscription(db.Model):
                   callback_hash=sha1_hash(callback),
                   topic=topic,
                   topic_hash=sha1_hash(topic),
+                  secret=secret,
+                  hash_func=hash_func,
                   verify_token=verify_token,
                   lease_seconds=lease_seconds,
                   expiration_time=(
@@ -969,6 +999,7 @@ class EventToDeliver(db.Model):
   retry_attempts = db.IntegerProperty(default=0)
   last_modified = db.DateTimeProperty(required=True)
   totally_failed = db.BooleanProperty(default=False)
+  content_type = db.TextProperty(default='')
 
   @classmethod
   def create_event_for_topic(cls, topic, format, header_footer, entry_payloads,
@@ -990,8 +1021,10 @@ class EventToDeliver(db.Model):
     """
     if format == ATOM:
       close_tag = '</feed>'
+      content_type = 'application/atom+xml'
     elif format == RSS:
       close_tag = '</channel>'
+      content_type = 'application/rss+xml'
     else:
       assert False, 'Invalid format "%s"' % format
 
@@ -1009,7 +1042,8 @@ class EventToDeliver(db.Model):
         topic=topic,
         topic_hash=sha1_hash(topic),
         payload=payload,
-        last_modified=now())
+        last_modified=now(),
+        content_type=content_type)
 
   def get_next_subscribers(self, chunk_size=None):
     """Retrieve the next set of subscribers to attempt delivery for this event.
@@ -1247,7 +1281,8 @@ class PollingMarker(db.Model):
 ################################################################################
 # Subscription handlers and workers
 
-def ConfirmSubscription(mode, topic, callback, verify_token, lease_seconds):
+def ConfirmSubscription(mode, topic, callback, verify_token,
+                        secret, lease_seconds):
   """Confirms a subscription request and updates a Subscription instance.
 
   Args:
@@ -1255,6 +1290,7 @@ def ConfirmSubscription(mode, topic, callback, verify_token, lease_seconds):
     topic: URL of the topic being subscribed to.
     callback: URL of the callback handler to confirm the subscription with.
     verify_token: Opaque token passed to the callback.
+    secret: Shared secret used for HMACs.
     lease_seconds: Number of seconds the client would like the subscription
       to last before expiring. If more than max_lease_seconds, will be capped
       to that value. Should be an integer number.
@@ -1263,9 +1299,9 @@ def ConfirmSubscription(mode, topic, callback, verify_token, lease_seconds):
     True if the subscription was confirmed properly, False if the subscription
     request encountered an error or any other error has hit.
   """
-  logging.info('Attempting to confirm %s for topic = %s, '
-               'callback = %s, verify_token = %s, lease_seconds = %s',
-               mode, topic, callback, verify_token, lease_seconds)
+  logging.info('Attempting to confirm %s for topic = %s, callback = %s, '
+               'verify_token = %s, secret = %s, lease_seconds = %s',
+               mode, topic, callback, verify_token, secret, lease_seconds)
 
   parsed_url = list(urlparse.urlparse(callback))
   challenge = get_random_challenge()
@@ -1290,7 +1326,8 @@ def ConfirmSubscription(mode, topic, callback, verify_token, lease_seconds):
 
   if 200 <= response.status_code < 300 and response.content == challenge:
     if mode == 'subscribe':
-      Subscription.insert(callback, topic, real_lease_seconds)
+      Subscription.insert(callback, topic, verify_token, secret,
+                          lease_seconds=real_lease_seconds)
       # Blindly put the feed's record so we have a record of all feeds.
       db.put(KnownFeed.create(topic))
     else:
@@ -1318,6 +1355,7 @@ class SubscribeHandler(webapp.RequestHandler):
     topic = self.request.get('hub.topic', '')
     verify_type_list = [s.lower() for s in self.request.get_all('hub.verify')]
     verify_token = self.request.get('hub.verify_token', '')
+    secret = self.request.get('hub.secret', None)
     lease_seconds = self.request.get('hub.lease_seconds',
                                      str(DEFAULT_LEASE_SECONDS))
     mode = self.request.get('hub.mode', '').lower()
@@ -1368,16 +1406,16 @@ class SubscribeHandler(webapp.RequestHandler):
       # Enqueue a background verification task, or immediately confirm.
       # We prefer synchronous confirmation.
       if verify_type == 'sync':
-        if ConfirmSubscription(mode, topic, callback,
-                               verify_token, lease_seconds):
+        if ConfirmSubscription(mode, topic, callback, verify_token,
+                               secret, lease_seconds):
           return self.response.set_status(204)
         else:
           self.response.out.write('Error trying to confirm subscription')
           return self.response.set_status(409)
       else:
         if mode == 'subscribe':
-          Subscription.request_insert(callback, topic,
-                                      verify_token, lease_seconds)
+          Subscription.request_insert(callback, topic, verify_token, secret,
+                                      lease_seconds=lease_seconds)
         else:
           Subscription.request_remove(callback, topic, verify_token)
         logging.info('Queued %s request for callback = %s, '
@@ -1409,13 +1447,8 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
     else:
       mode = 'unsubscribe'
 
-    if ConfirmSubscription(mode, sub.topic, sub.callback,
-                           sub.verify_token, sub.lease_seconds):
-      if mode == 'subscribe':
-        Subscription.insert(sub.callback, sub.topic)
-      else:
-        Subscription.remove(sub.callback, sub.topic)
-    else:
+    if not ConfirmSubscription(mode, sub.topic, sub.callback,
+                               sub.verify_token, sub.secret, sub.lease_seconds):
       sub.confirm_failed()
 
 ################################################################################
@@ -1766,11 +1799,18 @@ class PushEventHandler(webapp.RequestHandler):
     def create_callback(sub):
       return lambda *args: callback(sub, *args)
 
+    payload_utf8 = work.payload.encode('utf-8')
     for sub in subscription_list:
+      headers = {
+        # TODO(bslatkin): Remove the 'or' here once migration is done.
+        'Content-Type': work.content_type or 'text/xml',
+        'X-Hub-Signature':
+            'sha1=%s' % sha1_hmac(sub.secret or sub.verify_token, payload_utf8),
+      }
       urlfetch_async.fetch(sub.callback,
                            method='POST',
-                           headers={'content-type': 'application/atom+xml'},
-                           payload=work.payload.encode('utf-8'),
+                           headers=headers,
+                           payload=payload_utf8,
                            async_proxy=async_proxy,
                            callback=create_callback(sub))
 

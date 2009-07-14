@@ -65,6 +65,10 @@ class UtilityFunctionTest(unittest.TestCase):
     self.assertEquals('hash_54f6638eb67ad389b66bbc3fa65f7392b0c2d270',
                       get_hash_key_name('and now testing a key'))
 
+  def testSha1Hmac(self):
+    self.assertEquals('d95abcea4b2a8b0219da7cb04c261639a7bd8c94',
+                      main.sha1_hmac('secrat', 'mydatahere'))
+
   def testIsValidUrl(self):
     self.assertTrue(main.is_valid_url(
         'https://example.com:443/path/to?handler=1&b=2'))
@@ -297,6 +301,8 @@ class SubscriptionTest(unittest.TestCase):
     self.callback3 = 'http://example.com/third-callback-url'
     self.topic = 'http://example.com/my-topic-url'
     self.topic2 = 'http://example.com/second-topic-url'
+    self.token = 'token'
+    self.secret = 'my secrat'
     self.callback_key_map = dict(
         (Subscription.create_key_name(cb, self.topic), cb)
         for cb in (self.callback, self.callback2, self.callback3))
@@ -312,9 +318,11 @@ class SubscriptionTest(unittest.TestCase):
     lease_seconds = 1234
 
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token', lease_seconds, now=now))
+        self.callback, self.topic, self.token,
+        self.secret, lease_seconds=lease_seconds, now=now))
     self.assertFalse(Subscription.request_insert(
-        self.callback, self.topic, 'token', lease_seconds, now=now))
+        self.callback, self.topic, self.token,
+        self.secret, lease_seconds=lease_seconds, now=now))
 
     sub = self.get_subscription()
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -322,6 +330,8 @@ class SubscriptionTest(unittest.TestCase):
     self.assertEquals(sha1_hash(self.callback), sub.callback_hash)
     self.assertEquals(self.topic, sub.topic)
     self.assertEquals(sha1_hash(self.topic), sub.topic_hash)
+    self.assertEquals(self.token, sub.verify_token)
+    self.assertEquals(self.secret, sub.secret)
     self.assertEquals(now_datetime + datetime.timedelta(seconds=lease_seconds),
                       sub.expiration_time)
     self.assertEquals(lease_seconds, sub.lease_seconds)
@@ -331,16 +341,20 @@ class SubscriptionTest(unittest.TestCase):
     now = lambda: now_datetime
     lease_seconds = 1234
 
-    self.assertTrue(Subscription.insert(self.callback, self.topic,
-                                        lease_seconds, now=now))
-    self.assertFalse(Subscription.insert(self.callback, self.topic,
-                                         lease_seconds, now=now))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret,
+        lease_seconds=lease_seconds, now=now))
+    self.assertFalse(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret,
+        lease_seconds=lease_seconds, now=now))
     sub = self.get_subscription()
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertEquals(self.callback, sub.callback)
     self.assertEquals(sha1_hash(self.callback), sub.callback_hash)
     self.assertEquals(self.topic, sub.topic)
     self.assertEquals(sha1_hash(self.topic), sub.topic_hash)
+    self.assertEquals(self.token, sub.verify_token)
+    self.assertEquals(self.secret, sub.secret)
     self.assertEquals(now_datetime + datetime.timedelta(seconds=lease_seconds),
                       sub.expiration_time)
     self.assertEquals(lease_seconds, sub.lease_seconds)
@@ -348,41 +362,43 @@ class SubscriptionTest(unittest.TestCase):
   def testInsert_override(self):
     """Tests that insert will override the existing subscription state."""
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token, self.secret))
     self.assertEquals(Subscription.STATE_NOT_VERIFIED,
                       self.get_subscription().subscription_state)
-    self.assertFalse(Subscription.insert(self.callback, self.topic))
+    self.assertFalse(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
     self.assertEquals(Subscription.STATE_VERIFIED,
                       self.get_subscription().subscription_state)
 
   def testRemove(self):
     self.assertFalse(Subscription.remove(self.callback, self.topic))
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token, self.secret))
     self.assertTrue(Subscription.remove(self.callback, self.topic))
     self.assertFalse(Subscription.remove(self.callback, self.topic))
 
   def testRequestRemove(self):
     self.assertFalse(Subscription.request_remove(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token))
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token, self.secret))
     self.assertTrue(Subscription.request_remove(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token))
     self.assertEquals(Subscription.STATE_TO_DELETE,
                       self.get_subscription().subscription_state)
     self.assertFalse(Subscription.request_remove(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token))
 
   def testHasSubscribers_unverified(self):
     """Tests that unverified subscribers do not make the subscription active."""
     self.assertFalse(Subscription.has_subscribers(self.topic))
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token, self.secret))
     self.assertFalse(Subscription.has_subscribers(self.topic))
 
   def testHasSubscribers_verified(self):
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
     self.assertTrue(Subscription.has_subscribers(self.topic))
     self.assertTrue(Subscription.remove(self.callback, self.topic))
     self.assertFalse(Subscription.has_subscribers(self.topic))
@@ -391,26 +407,32 @@ class SubscriptionTest(unittest.TestCase):
     """Tests that unverified subscribers will not be retrieved."""
     self.assertEquals([], Subscription.get_subscribers(self.topic, 10))
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token, self.secret))
     self.assertTrue(Subscription.request_insert(
-        self.callback2, self.topic, 'token'))
+        self.callback2, self.topic, self.token, self.secret))
     self.assertTrue(Subscription.request_insert(
-        self.callback3, self.topic, 'token'))
+        self.callback3, self.topic, self.token, self.secret))
     self.assertEquals([], Subscription.get_subscribers(self.topic, 10))
 
   def testGetSubscribers_verified(self):
     self.assertEquals([], Subscription.get_subscribers(self.topic, 10))
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, self.token, self.secret))
     sub_list = Subscription.get_subscribers(self.topic, 10)
     found_keys = set(s.key().name() for s in sub_list)
     self.assertEquals(set(self.callback_key_map.keys()), found_keys)
 
   def testGetSubscribers_count(self):
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, self.token, self.secret))
     sub_list = Subscription.get_subscribers(self.topic, 1)
     self.assertEquals(1, len(sub_list))
 
@@ -425,9 +447,12 @@ class SubscriptionTest(unittest.TestCase):
     all_keys = ['hash_' + h for h in all_hashes]
     all_callbacks = [self.callback_key_map[k] for k in all_keys]
 
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, self.token, self.secret))
 
     def key_list(starting_at_callback):
       sub_list = Subscription.get_subscribers(
@@ -442,13 +467,18 @@ class SubscriptionTest(unittest.TestCase):
   def testGetSubscribers_multipleTopics(self):
     """Tests that separate topics do not overlap in subscriber queries."""
     self.assertEquals([], Subscription.get_subscribers(self.topic2, 10))
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, self.token, self.secret))
     self.assertEquals([], Subscription.get_subscribers(self.topic2, 10))
 
-    self.assertTrue(Subscription.insert(self.callback2, self.topic2))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic2))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic2, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic2, self.token, self.secret))
     sub_list = Subscription.get_subscribers(self.topic2, 10)
     found_keys = set(s.key().name() for s in sub_list)
     self.assertEquals(
@@ -459,12 +489,14 @@ class SubscriptionTest(unittest.TestCase):
 
   def testGetConfirmWork(self):
     """Verifies that we can retrieve subscription confirmation work."""
-    self.assertTrue(Subscription.request_insert(self.callback, self.topic,
-                                                'token'))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
-    self.assertTrue(Subscription.request_remove(self.callback3, self.topic,
-                                                'token'))
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, self.token, self.secret))
+    self.assertTrue(Subscription.request_remove(
+        self.callback3, self.topic, self.token))
 
     key_name1 = Subscription.create_key_name(self.callback, self.topic)
     key_name2 = Subscription.create_key_name(self.callback2, self.topic)
@@ -485,7 +517,7 @@ class SubscriptionTest(unittest.TestCase):
 
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, 'token'))
+        self.callback, self.topic, self.token, self.secret))
     sub_key = Subscription.create_key_name(self.callback, self.topic)
     sub = Subscription.get_by_key_name(sub_key)
     self.assertEquals(0, sub.confirm_failures)
@@ -608,6 +640,8 @@ class EventToDeliverTest(unittest.TestCase):
     self.callback3 = 'http://example.com/third-callback-123'
     self.callback4 = 'http://example.com/fourth-callback-1205'
     self.header_footer = '<feed>\n<stuff>blah</stuff>\n<xmldata/></feed>'
+    self.token = 'verify token'
+    self.secret = 'some secret'
     self.test_payloads = [
         '<entry>article1</entry>',
         '<entry>article2</entry>',
@@ -630,10 +664,14 @@ class EventToDeliverTest(unittest.TestCase):
     event.put()
     work_key = event.key()
 
-    Subscription.insert(self.callback, self.topic)
-    Subscription.insert(self.callback2, self.topic)
-    Subscription.insert(self.callback3, self.topic)
-    Subscription.insert(self.callback4, self.topic)
+    Subscription.insert(
+        self.callback, self.topic, self.token, self.secret)
+    Subscription.insert(
+        self.callback2, self.topic, self.token, self.secret)
+    Subscription.insert(
+        self.callback3, self.topic, self.token, self.secret)
+    Subscription.insert(
+        self.callback4, self.topic, self.token, self.secret)
     sub_list = Subscription.get_subscribers(self.topic, 10)
     sub_keys = [s.key() for s in sub_list]
     self.assertEquals(4, len(sub_list))
@@ -1120,7 +1158,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     testutil.HandlerTestBase.setUp(self)
     self.callback = 'http://example.com/my-subscriber'
-    self.assertTrue(Subscription.insert(self.callback, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, 'token', 'secret'))
 
   def tearDown(self):
     """Tears down the test harness."""
@@ -1342,7 +1381,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     """Tests when the content doesn't parse correctly."""
     topic = 'http://example.com/my-topic'
     callback = 'http://example.com/my-subscriber'
-    self.assertTrue(Subscription.insert(callback, topic))
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect(
         'get', topic, 200, 'this does not parse')
@@ -1356,7 +1395,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
             '<meep><entry>wooh</entry></meep>')
     topic = 'http://example.com/my-topic'
     callback = 'http://example.com/my-subscriber'
-    self.assertTrue(Subscription.insert(callback, topic))
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
     self.handle('post', ('topic', topic))
@@ -1369,7 +1408,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
             '<entry><id>1</id><updated>123</updated>wooh</entry></feed>')
     topic = 'http://example.com/my-topic'
     callback = 'http://example.com/my-subscriber'
-    self.assertTrue(Subscription.insert(callback, topic))
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
     FeedToFetch.insert([topic])
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
     self.handle('post', ('topic', topic))
@@ -1413,6 +1452,22 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         '<entry>article3</entry>\n'
         '</feed>'
     )
+
+    self.header_footer_rss = '<rss><channel></channel></rss>'
+    self.test_payloads_rss = [
+        '<item>article1</item>',
+        '<item>article2</item>',
+        '<item>article3</item>',
+    ]
+    self.expected_payload_rss = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<rss><channel>\n'
+        '<item>article1</item>\n'
+        '<item>article2</item>\n'
+        '<item>article3</item>\n'
+        '</channel></rss>'
+    )
+
     self.bad_key = db.Key.from_path(EventToDeliver.kind(), 'does_not_exist')
 
   def tearDown(self):
@@ -1425,9 +1480,12 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
   def testNoExtraSubscribers(self):
     """Tests when a single chunk of delivery is enough."""
-    self.assertTrue(Subscription.insert(self.callback1, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 204, '', request_payload=self.expected_payload)
@@ -1442,11 +1500,67 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.assertEquals([], list(EventToDeliver.all()))
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
+  def testHmacData(self):
+    """Tests that the content is properly signed with an HMAC."""
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret3'))
+    # Secret is empty on purpose here, so the verify_token will be used instead.
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, 'my-token', ''))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, 'token', 'secret-stuff'))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 204, '',
+        request_payload=self.expected_payload,
+        request_headers={
+            'Content-Type': 'application/atom+xml',
+            'X-Hub-Signature': 'sha1=3e9caf971b0833d15393022f5f01a47adf597af5'})
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback2, 200, '',
+        request_payload=self.expected_payload,
+        request_headers={
+            'Content-Type': 'application/atom+xml',
+            'X-Hub-Signature': 'sha1=4847815aae8578eff55d351bc84a159b9bd8846e'})
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback3, 204, '',
+        request_payload=self.expected_payload,
+        request_headers={
+            'Content-Type': 'application/atom+xml',
+            'X-Hub-Signature': 'sha1=8b0a9da7204afa8ae04fc9439755c556b1e38d99'})
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+    event.put()
+    self.handle('post', ('event_key', str(event.key())))
+    self.assertEquals([], list(EventToDeliver.all()))
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+  def testRssContentType(self):
+    """Tests that the content type of an RSS feed is properly supplied."""
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret'))
+    main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
+    urlfetch_test_stub.instance.expect(
+        'post', self.callback1, 204, '',
+        request_payload=self.expected_payload_rss,
+        request_headers={
+            'Content-Type': 'application/rss+xml',
+            'X-Hub-Signature': 'sha1=1607313b6195af74f29158421f0a31aa25d680da'})
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.RSS, self.header_footer_rss, self.test_payloads_rss)
+    event.put()
+    self.handle('post', ('event_key', str(event.key())))
+    self.assertEquals([], list(EventToDeliver.all()))
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
   def testExtraSubscribers(self):
     """Tests when there are more subscribers to contact after delivery."""
-    self.assertTrue(Subscription.insert(self.callback1, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 1
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
@@ -1475,9 +1589,12 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
   def testBrokenCallbacks(self):
     """Tests that when callbacks return errors and are saved for later."""
-    self.assertTrue(Subscription.insert(self.callback1, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
@@ -1513,9 +1630,12 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         raise runtime.DeadlineExceededError()
       main.async_proxy.wait = deadline
 
-      self.assertTrue(Subscription.insert(self.callback1, self.topic))
-      self.assertTrue(Subscription.insert(self.callback2, self.topic))
-      self.assertTrue(Subscription.insert(self.callback3, self.topic))
+      self.assertTrue(Subscription.insert(
+          self.callback1, self.topic, 'token', 'secret'))
+      self.assertTrue(Subscription.insert(
+          self.callback2, self.topic, 'token', 'secret'))
+      self.assertTrue(Subscription.insert(
+          self.callback3, self.topic, 'token', 'secret'))
       main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
       event = EventToDeliver.create_event_for_topic(
           self.topic, main.ATOM, self.header_footer, self.test_payloads)
@@ -1541,10 +1661,14 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     This is an end-to-end test for push delivery failures and retries. We'll
     simulate multiple times through the failure list.
     """
-    self.assertTrue(Subscription.insert(self.callback1, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
-    self.assertTrue(Subscription.insert(self.callback3, self.topic))
-    self.assertTrue(Subscription.insert(self.callback4, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback3, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback4, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
@@ -1597,8 +1721,10 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
   def testUrlFetchFailure(self):
     """Tests the UrlFetch API raising exceptions while sending notifications."""
-    self.assertTrue(Subscription.insert(self.callback1, self.topic))
-    self.assertTrue(Subscription.insert(self.callback2, self.topic))
+    self.assertTrue(Subscription.insert(
+        self.callback1, self.topic, 'token', 'secret'))
+    self.assertTrue(Subscription.insert(
+        self.callback2, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
@@ -1951,7 +2077,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(409, self.response_code())
 
     # Unsubscribe
-    Subscription.insert(self.callback, self.topic)
+    Subscription.insert(self.callback, self.topic, self.verify_token, 'secret')
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'unsubscribe', 500, '')
     self.handle('post',
@@ -2072,6 +2198,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     main.get_random_challenge = lambda: self.challenge
     self.sub_key = Subscription.create_key_name(self.callback, self.topic)
     self.verify_token = 'the_token'
+    self.secret = 'teh secrat'
     self.verify_callback_querystring_template = (
         self.callback +
         '?hub.verify_token=the_token'
@@ -2099,7 +2226,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
   def testSubscribeSuccessful(self):
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
-    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    Subscription.request_insert(
+        self.callback, self.topic, self.verify_token, self.secret)
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -2109,7 +2237,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
 
   def testSubscribeFailed(self):
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
-    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    Subscription.request_insert(
+        self.callback, self.topic, self.verify_token, self.secret)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'subscribe', 500, '')
     self.handle('post', ('subscription_key_name', self.sub_key))
@@ -2124,7 +2253,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
   def testSubscribeBadChallengeResponse(self):
     """Tests when the subscriber responds with a bad challenge."""
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
-    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    Subscription.request_insert(
+        self.callback, self.topic, self.verify_token, self.secret)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'subscribe', 200, 'bad')
     self.handle('post', ('subscription_key_name', self.sub_key))
@@ -2138,7 +2268,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
 
   def testUnsubscribeSuccessful(self):
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
-    Subscription.insert(self.callback, self.topic)
+    Subscription.insert(
+        self.callback, self.topic, self.verify_token, self.secret)
     Subscription.request_remove(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'unsubscribe', 200,
@@ -2149,7 +2280,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
 
   def testUnsubscribeFailed(self):
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
-    Subscription.insert(self.callback, self.topic)
+    Subscription.insert(
+        self.callback, self.topic, self.verify_token, self.secret)
     Subscription.request_remove(self.callback, self.topic, self.verify_token)
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'unsubscribe', 500, '')
@@ -2165,7 +2297,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
   def testConfirmError(self):
     """Tests when an exception is raised while confirming a subscription."""
     called = [False]
-    Subscription.request_insert(self.callback, self.topic, self.verify_token)
+    Subscription.request_insert(
+        self.callback, self.topic, self.verify_token, self.secret)
     # All exceptions should just fall through.
     old_confirm = main.ConfirmSubscription
     try:

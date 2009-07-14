@@ -35,6 +35,10 @@
     <label for="verify_token">Verify token:</label>
     <input type="text" name="hub.verify_token" id="verify_token" value="">
   </p>
+  <p>
+    <label for="secret">HMAC secret: <em>(optional)</em></label>
+    <input type="text" name="hub.secret" id="secret" value="">
+  </p>
   <p><input type="submit" value="Do it"></p>
 </form>  
 <em>Note: submission will result in a HTTP 204 response to acknowledge; in browsers this looks like a no-op</em>
