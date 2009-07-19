@@ -60,7 +60,7 @@ class Publisher
 <feed>
   <!-- Normally here would be source, title, etc ... -->
 
-  <link rel="hub" href="#{@hub.subscriber_endpoint}" />
+  <link rel="hub" href="#{@hub.endpoint}" />
   <link rel="self" href="#{@content_url}" />
   <updated>2008-08-11T02:15:01Z</updated>
 

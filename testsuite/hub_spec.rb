@@ -4,8 +4,6 @@ require 'timeout'
 
 HUB_URL = ENV['HUB_URL']
 raise "Specify a hub URL by setting the HUB_URL environment variable." unless HUB_URL
-HUB_PUBLISH_URL = "#{HUB_URL}#{ENV['PUBLISH_PATH'] || '/publish'}"
-HUB_SUBSCRIBE_URL = "#{HUB_URL}#{ENV['SUBSCRIBE_PATH'] || '/subscribe'}"
 
 def wait_on(something)
   Timeout::timeout(3) { break unless something.nil? while true }
@@ -17,7 +15,7 @@ end
 
 shared_examples_for "a hub with publisher and subscriber" do
   before(:all) do
-    @hub = Hub.new(HUB_PUBLISH_URL, HUB_SUBSCRIBE_URL)
+    @hub = Hub.new(HUB_URL)
     @publisher = Publisher.new(@hub)
     @subscriber = Subscriber.new(@hub)
   end
@@ -37,8 +35,8 @@ describe Hub, "publisher interface" do
   
   it "SHOULD arrange for a content fetch request after publish notification" # shouldn't it always?
   
-  it "MUST return 202 Accepted if publish notification was accepted" do
-    @hub.publish(@publisher.content_url).should be_an_instance_of(Net::HTTPAccepted)
+  it "MUST return 204 No Content if publish notification was accepted" do
+    @hub.publish(@publisher.content_url).should be_an_instance_of(Net::HTTPNoContent)
   end
   
   it "MUST return appropriate HTTP error response code if not accepted" do

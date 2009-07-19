@@ -17,7 +17,3 @@ Example:
 
 $ HUB_URL=http://localhost:8000 spec hub_spec.rb --format specdoc
 
-If your publish and subscribe endpoints are not /publish and /subscribe 
-respectively, you can specify them with the PUBLISH_PATH and SUBSCRIBE_PATH 
-environment variables along with HUB_URL.
-

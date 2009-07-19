@@ -4,18 +4,14 @@ require 'uri'
 require 'mechanize'
 
 class Hub
-  attr_reader :publisher_endpoint
-  attr_reader :subscriber_endpoint
+  attr_reader :endpoint
   
-  def initialize(publisher_endpoint, subscriber_endpoint)
-    @publisher_endpoint   = publisher_endpoint
-    @subscriber_endpoint  = subscriber_endpoint
-    
-    @publisher_uri  = URI.parse(@publisher_endpoint)
-    @subscriber_uri = URI.parse(@subscriber_endpoint)
+  def initialize(endpoint)
+    @endpoint = URI.parse(endpoint)
+    @endpoint.path = '/' if @endpoint.path.empty?
     
     # This is for a hack to deal with non-auto running tasks on App Engine!?
-    @is_gae = Net::HTTP.get(@publisher_uri.host, '/_ah/admin/queues', @publisher_uri.port).include?('Google')
+    @is_gae = Net::HTTP.get(@endpoint.host, '/_ah/admin/queues', @endpoint.port).include?('Google')
   end
   
   def subscribe(callback, topic, verify, verify_token=nil)
@@ -31,7 +27,7 @@ class Hub
   end
   
   def post_as_subscriber(mode, callback, topic, verify, verify_token=nil)
-    Net::HTTP.post_form(@subscriber_uri, {
+    Net::HTTP.post_form(@endpoint, {
       'hub.mode' => mode,
       'hub.callback' => callback,
       'hub.topic' => topic,
@@ -41,7 +37,7 @@ class Hub
   end
   
   def post_as_publisher(mode, url)
-    res = Net::HTTP.post_form(@publisher_uri, {
+    res = Net::HTTP.post_form(@endpoint, {
       'hub.mode' => mode,
       'hub.url' => url,
     })
@@ -51,9 +47,10 @@ class Hub
   
   # In response to http://code.google.com/p/googleappengine/issues/detail?id=1796
   def run_feed_pull_task
-    page = WWW::Mechanize.new.get("http://#{@publisher_uri.host}:#{@publisher_uri.port}/_ah/admin/tasks?queue=feed-pulls")
-    payload = page.form_with(:action => '/work/pull_feeds')['payload']
-    Net::HTTP.start(@publisher_uri.host, @publisher_uri.port) {|http| http.request_post('/work/pull_feeds', payload, {'X-AppEngine-Development-Payload'=>'1'}) }
+    page = WWW::Mechanize.new.get("http://#{@endpoint.host}:#{@endpoint.port}/_ah/admin/tasks?queue=feed-pulls")
+    payload = page.form_with(:action => '/work/pull_feeds')['payload'] rescue nil
+    return unless payload
+    Net::HTTP.start(@endpoint.host, @endpoint.port) {|http| http.request_post('/work/pull_feeds', payload, {'X-AppEngine-Development-Payload'=>'1'}) }
     page.form_with(:action => '/_ah/admin/tasks').click_button # Delete the task
   end
 end
