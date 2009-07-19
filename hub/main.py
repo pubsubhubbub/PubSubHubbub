@@ -1366,11 +1366,10 @@ class SubscribeHandler(webapp.RequestHandler):
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
 
-    if 'async' in verify_type_list:
-      verify_type = 'async'
-    elif 'sync' in verify_type_list:
-      verify_type = 'sync'
-    else:
+    supported_verify_types = ['async', 'sync']
+    verify_type_list.append(None)
+    verify_type = [vt for vt in verify_type_list if vt in supported_verify_types or vt is None][0]
+    if not verify_type in supported_verify_types:
       error_message = 'Invalid values for hub.verify: %s' % (verify_type_list,)
 
     if mode not in ('subscribe', 'unsubscribe'):
