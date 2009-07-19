@@ -84,7 +84,7 @@ describe Hub, "subscriber interface" do
   end
   
   it "MUST ignore verify keywords it does not understand" do
-    @hub.subscribe(@subscriber.callback_url, @publisher.content_url, 'sync,foobar,async', Subscriber::VERIFY_TOKEN).should be_a_kind_of(Net::HTTPSuccess)
+    @hub.subscribe(@subscriber.callback_url, @publisher.content_url, ['sync','foobar','async'], Subscriber::VERIFY_TOKEN).should be_a_kind_of(Net::HTTPSuccess)
   end
   
   it "MUST return 204 No Content if subscription was created and verified" do

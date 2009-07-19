@@ -27,13 +27,26 @@ class Hub
   end
   
   def post_as_subscriber(mode, callback, topic, verify, verify_token=nil)
-    Net::HTTP.post_form(@endpoint, {
+    form_data = {
       'hub.mode' => mode,
       'hub.callback' => callback,
       'hub.topic' => topic,
-      'hub.verify' => verify,
-      'hub.verify_token' => verify_token,
-    }.delete_if{|k,v| v.nil? })
+    }
+    form_data['hub.verify_token'] = verify_token if verify_token
+    if verify.is_a? String
+      form_data['hub.verify'] = verify
+    elsif verify.is_a? Array
+      # Part 1/2 of multivalue hack
+      verify.each_with_index do |v, i|
+        form_data["hub.verify--.#{i}"] = v
+      end
+    end
+    req = Net::HTTP::Post.new(@endpoint.path)
+    req.form_data = form_data
+    req.body = req.body.gsub(/\-\-\.\d/, '') # Part 2/2 of multivalue hack
+    Net::HTTP.new(@endpoint.host, @endpoint.port).start do |http|
+      http.request(req)
+    end
   end
   
   def post_as_publisher(mode, url)
