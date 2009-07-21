@@ -1281,8 +1281,8 @@ class PollingMarker(db.Model):
 ################################################################################
 # Subscription handlers and workers
 
-def ConfirmSubscription(mode, topic, callback, verify_token,
-                        secret, lease_seconds):
+def confirm_subscription(mode, topic, callback, verify_token,
+                         secret, lease_seconds):
   """Confirms a subscription request and updates a Subscription instance.
 
   Args:
@@ -1405,8 +1405,8 @@ class SubscribeHandler(webapp.RequestHandler):
       # Enqueue a background verification task, or immediately confirm.
       # We prefer synchronous confirmation.
       if verify_type == 'sync':
-        if ConfirmSubscription(mode, topic, callback, verify_token,
-                               secret, lease_seconds):
+        if hooks.execute(confirm_subscription,
+              mode, topic, callback, verify_token, secret, lease_seconds):
           return self.response.set_status(204)
         else:
           self.response.out.write('Error trying to confirm subscription')
@@ -1446,12 +1446,25 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
     else:
       mode = 'unsubscribe'
 
-    if not ConfirmSubscription(mode, sub.topic, sub.callback,
-                               sub.verify_token, sub.secret, sub.lease_seconds):
+    if not hooks.execute(confirm_subscription,
+        mode, sub.topic, sub.callback,
+        sub.verify_token, sub.secret, sub.lease_seconds):
       sub.confirm_failed()
 
 ################################################################################
 # Publishing handlers
+
+def preprocess_urls(urls):
+  """Preprocesses URLs doing any necessary canonicalization.
+
+  Args:
+    urls: Iterable of URLs.
+
+  Returns:
+    Iterable of URLs that have been modified.
+  """
+  return urls
+
 
 class PublishHandlerBase(webapp.RequestHandler):
   """Base-class for publish ping receiving handlers."""
@@ -1469,6 +1482,7 @@ class PublishHandlerBase(webapp.RequestHandler):
     Returns:
       The error message, or an empty string if there are no errors.
     """
+    urls = hooks.execute(preprocess_urls, urls)
     for url in urls:
       if not is_valid_url(url):
         self.response.set_status(400)
@@ -1652,6 +1666,31 @@ def find_feed_updates(topic, format, feed_content,
   return header_footer, entities_to_save, entry_payloads
 
 
+def pull_feed(feed_to_fetch, headers):
+  """Pulls a feed.
+
+  Args:
+    feed_to_fetch: FeedToFetch instance to pull.
+    headers: Dictionary of headers to use for doing the feed fetch.
+
+  Returns:
+    Tuple (status_code, response_headers, content) where:
+      status_code: The response status code.
+      response_headers: Caseless dictionary of response headers.
+      content: The body of the response.
+
+  Raises:
+    apiproxy_errors.Error if any RPC errors are encountered. urlfetch.Error if
+    there are any fetching API errors.
+  """
+  # Specifically follow redirects here. Many feeds are often just redirects
+  # to the actual feed contents or a distribution server.
+  response = urlfetch.fetch(feed_to_fetch.topic,
+                            headers=headers,
+                            follow_redirects=True)
+  return response.status_code, response.headers, response.content
+
+
 class PullFeedHandler(webapp.RequestHandler):
   """Background worker for pulling feeds."""
 
@@ -1687,22 +1726,19 @@ class PullFeedHandler(webapp.RequestHandler):
     logging.info('Fetching topic %s', work.topic)
     feed_record = FeedRecord.get_or_create(work.topic)
     try:
-      # Specifically follow redirects here. Many feeds are often just redirects
-      # to the actual feed contents or a distribution server.
-      response = urlfetch.fetch(work.topic,
-                                headers=feed_record.get_request_headers(),
-                                follow_redirects=True)
+      status_code, headers, content = hooks.execute(pull_feed,
+          work, feed_record.get_request_headers())
     except (apiproxy_errors.Error, urlfetch.Error):
       logging.exception('Failed to fetch feed')
       work.fetch_failed()
       return
 
-    if response.status_code not in (200, 304):
-      logging.error('Received bad status_code=%s', response.status_code)
+    if status_code not in (200, 304):
+      logging.error('Received bad status_code=%s', status_code)
       work.fetch_failed()
       return
 
-    if response.status_code == 304:
+    if status_code == 304:
       logging.info('Feed publisher returned 304 response (cache hit)')
       work.done()
       return
@@ -1723,12 +1759,12 @@ class PullFeedHandler(webapp.RequestHandler):
       # Parse the feed. If this fails we will give up immediately.
       try:
         header_footer, entities_to_save, entry_payloads = \
-            self.find_feed_updates(work.topic, format, response.content)
+            self.find_feed_updates(work.topic, format, content)
         break
       except (xml.sax.SAXException, feed_diff.Error):
         logging.exception(
             'Could not get entries for content of %d bytes in format "%s"',
-            len(response.content), format)
+            len(content), format)
         parse_failures += 1
 
     if parse_failures == len(order):
@@ -1744,7 +1780,7 @@ class PullFeedHandler(webapp.RequestHandler):
           work.topic, format, header_footer, entry_payloads)
       entities_to_save.append(event_to_deliver)
 
-    feed_record.update(response.headers, header_footer)
+    feed_record.update(headers, header_footer)
     entities_to_save.append(feed_record)
 
     # Doing this put in a transaction ensures that we have written all
@@ -1760,6 +1796,27 @@ class PullFeedHandler(webapp.RequestHandler):
 
 ################################################################################
 # Event delivery
+
+def push_event(sub, headers, payload, async_proxy, callback):
+  """Pushes an event to a single subscriber using an asynchronous API call.
+
+  Args:
+    sub: The Subscription instance to push the event to.
+    headers: Request headers to use when pushing the event.
+    payload: The content body the request should have.
+    async_proxy: AsyncAPIProxy to use for registering RPCs.
+    callback: Python callable to execute on success or failure. This callback
+      has the signature func(sub, result, exception) where sub is the
+      Subscription instance, result is the urlfetch.Response instance, and
+      exception is any exception encountered, if any.
+  """
+  urlfetch_async.fetch(sub.callback,
+                       method='POST',
+                       headers=headers,
+                       payload=payload,
+                       async_proxy=async_proxy,
+                       callback=callback)
+
 
 class PushEventHandler(webapp.RequestHandler):
 
@@ -1803,15 +1860,12 @@ class PushEventHandler(webapp.RequestHandler):
       headers = {
         # TODO(bslatkin): Remove the 'or' here once migration is done.
         'Content-Type': work.content_type or 'text/xml',
-        'X-Hub-Signature':
-            'sha1=%s' % sha1_hmac(sub.secret or sub.verify_token, payload_utf8),
+        # XXX(bslatkin): add a better test for verify_token here.
+        'X-Hub-Signature': 'sha1=%s' % sha1_hmac(
+            sub.secret or sub.verify_token or '', payload_utf8),
       }
-      urlfetch_async.fetch(sub.callback,
-                           method='POST',
-                           headers=headers,
-                           payload=payload_utf8,
-                           async_proxy=async_proxy,
-                           callback=create_callback(sub))
+      hooks.execute(push_event,
+          sub, headers, payload_utf8, async_proxy, create_callback(sub))
 
     try:
       async_proxy.wait()
@@ -1934,19 +1988,231 @@ class TopicDetailHandler(webapp.RequestHandler):
     self.response.out.write(template.render('topic_details.html', context))
 
 ################################################################################
+# Hook system
+
+class InvalidHookError(Exception):
+  """A module has tried to access a hook for an unknown function."""
+
+
+class Hook(object):
+  """A conditional hook that overrides or modifies Hub behavior.
+
+  Each Hook corresponds to a single Python callable that may be overridden
+  by the hook system. Multiple Hooks may inspect or modify the parameters, but
+  only a single callable may elect to actually handle the call. The inspect()
+  method will be called for each hook in the order the hooks are imported
+  by the HookManager. The final set of parameters will be passed to the
+  targetted hook's __call__() method. If more than one Hook elects to execute
+  a hooked function, a warning logging message be issued and the *first* Hook
+  encountered will be executed.
+  """
+
+  def inspect(self, args, kwargs):
+    """Inspects a hooked function's parameters, possibly modifying them.
+
+    Args:
+      args: List of positional arguments for the hook call.
+      kwargs: Dictionary of keyword arguments for the hook call.
+
+    Returns:
+      True if this Hook should handle the call, False otherwise.
+    """
+    return False
+
+  def __call__(self, *args, **kwargs):
+    """Handles the hook call.
+
+    Args:
+      *args, **kwargs: Parameters matching the original function's signature.
+
+    Returns:
+      The return value expected by the original function.
+    """
+    assert False, '__call__ method not defined for %s' % self.__class__
+
+
+class HookManager(object):
+  """Manages registering and loading Hooks from external modules.
+
+  Hook modules will have a copy of this 'main' module's contents in their
+  globals dictionary and the Hooks class to be sub-classed. They will also
+  have the 'register' method, which the hook module should use to register any
+  Hook sub-classes that it defines.
+
+  The 'register' method has the same signature as the _register method of
+  this class, but without the leading 'filename' argument; that value is
+  curried by the HookManager.
+  """
+
+  def __init__(self):
+    """Initializer."""
+    # Maps hook functions to a list of (filename, Hook) tuples.
+    self._mapping = {}
+
+  def load(self, hooks_path='hooks', globals_dict=None):
+    """Loads all hooks from a particular directory.
+
+    Args:
+      hooks_path: Optional. Relative path to the application directory or
+        absolute path to load hook modules from.
+      globals_dict: Dictionary of global variables to use when loading the
+        hook module. If None, defaults to the contents of this 'main' module.
+        Only for use in testing!
+    """
+    if globals_dict is None:
+      globals_dict = globals()
+
+    hook_directory = os.path.join(os.getcwd(), hooks_path)
+    module_list = os.listdir(hook_directory)
+    for module_name in sorted(module_list):
+      if not module_name.endswith('.py'):
+        logging.debug('Skipping module %s', module_name)
+        continue
+      module_path = os.path.join(hook_directory, module_name)
+      context_dict = globals_dict.copy()
+      context_dict.update({
+        'Hook': Hook,
+        'register': lambda *a, **k: self._register(module_name, *a, **k)
+      })
+      logging.debug('Loading hook "%s" from %s', module_name, module_path)
+      try:
+        exec open(module_path) in context_dict
+      except:
+        logging.exception('Error loading hook "%s" from %s',
+                          module_name, module_path)
+        raise
+
+  def declare(self, original):
+    """Declares a function as being hookable.
+
+    Args:
+      original: Python callable that may be hooked.
+    """
+    self._mapping[original] = []
+
+  def execute(self, original, *args, **kwargs):
+    """Executes a hookable method, possibly invoking a registered Hook.
+
+    Args:
+      original: The original hooked callable.
+      args: Positional arguments to pass to the callable.
+      kwargs: Keyword arguments to pass to the callable.
+
+    Returns:
+      Whatever value is returned by the hooked call.
+    """
+    try:
+      hook_list = self._mapping[original]
+    except KeyError, e:
+      raise InvalidHookError(e)
+
+    modifiable_args = list(args)
+    modifiable_kwargs = dict(kwargs)
+    matches = []
+    for filename, hook in hook_list:
+      logging.debug('Inspecting args for %s by hook from module %s: '
+                    'args=%r, kwargs=%r', original, filename,
+                    modifiable_args, modifiable_kwargs)
+      if hook.inspect(modifiable_args, modifiable_kwargs):
+        matches.append((filename, hook))
+
+    filename = __name__
+    designated_hook = original
+    if len(matches) >= 1:
+      filename, designated_hook = matches[0]
+      logging.debug('Using matched hook for %s from module %s',
+                    original, filename)
+
+    if len(matches) > 1:
+      logging.critical(
+          'Found multiple matching hooks for %s in files: %s. '
+          'Will use the first hook encountered: %s',
+          original, [f for (f, hook) in matches], filename)
+
+    return designated_hook(*args, **kwargs)
+
+  def _register(self, filename, original, hook):
+    """Registers a Hook to inspect and potentially execute a hooked function.
+
+    Args:
+      filename: The name of the hook module this Hook is defined in.
+      original: The Python callable of the original hooked function.
+      hook: The Hook to register for this hooked function.
+
+    Raises:
+      InvalidHookError if the original hook function is not known.
+    """
+    try:
+      self._mapping[original].append((filename, hook))
+    except KeyError, e:
+      raise InvalidHookError(e)
+
+  def override_for_test(self, original, test):
+    """Adds a hook function for testing.
+
+    Args:
+      original: The Python callable of the original hooked function.
+      test: The callable to use to override the original for this hook function.
+    """
+    class OverrideHook(Hook):
+      def inspect(self, args, kwargs):
+        return True
+      def __call__(self, *args, **kwargs):
+        return test(*args, **kwargs)
+    self._register(__name__, original, OverrideHook())
+
+  def reset_for_test(self, original):
+    """Clears the configured test hook for a hooked function.
+
+    Args:
+      original: The Python callable of the original hooked function.
+    """
+    self._mapping[original].pop()
+
+################################################################################
+
+HANDLERS = []
+
+
+def modify_handlers(handlers):
+  """Modifies the set of web request handlers.
+
+  Args:
+    handlers: List of (path_regex, webapp.RequestHandler) instances that are
+      configured for this application.
+
+  Returns:
+    Modified list of handlers, with some possibly removed and others added.
+  """
+  return handlers
+
 
 def main():
-  application = webapp.WSGIApplication([
-    (r'/', HubHandler),
-    (r'/publish', PublishHandler),
-    (r'/subscribe', SubscribeHandler),
-    (r'/work/subscriptions', SubscriptionConfirmHandler),
-    (r'/work/poll_bootstrap', PollBootstrapHandler),
-    (r'/work/pull_feeds', PullFeedHandler),
-    (r'/work/push_events', PushEventHandler),
-    (r'/topic-details', TopicDetailHandler),
-  ], debug=DEBUG)
+  global HANDLERS
+  if not HANDLERS:
+    HANDLERS = hooks.execute(modify_handlers, [
+      (r'/', HubHandler),
+      (r'/publish', PublishHandler),
+      (r'/subscribe', SubscribeHandler),
+      (r'/work/subscriptions', SubscriptionConfirmHandler),
+      (r'/work/poll_bootstrap', PollBootstrapHandler),
+      (r'/work/pull_feeds', PullFeedHandler),
+      (r'/work/push_events', PushEventHandler),
+      (r'/topic-details', TopicDetailHandler),
+    ])
+  application = webapp.WSGIApplication(HANDLERS, debug=DEBUG)
   wsgiref.handlers.CGIHandler().run(application)
+
+################################################################################
+# Declare and load external hooks.
+
+hooks = HookManager()
+hooks.declare(preprocess_urls)
+hooks.declare(confirm_subscription)
+hooks.declare(pull_feed)
+hooks.declare(push_event)
+hooks.declare(modify_handlers)
+hooks.load()
 
 
 if __name__ == '__main__':

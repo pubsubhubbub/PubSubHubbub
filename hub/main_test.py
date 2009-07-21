@@ -21,7 +21,9 @@ import datetime
 import logging
 logging.basicConfig(format='%(levelname)-8s %(filename)s] %(message)s')
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 import testutil
@@ -2091,13 +2093,12 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
 
   def testAfterSubscriptionError(self):
     """Tests when an exception occurs after subscription."""
-    old_confirm = main.ConfirmSubscription
-    try:
-      for exception in (runtime.DeadlineExceededError(), db.Error(),
-                        apiproxy_errors.Error()):
-        def new_confirm(*args):
-          raise exception
-        main.ConfirmSubscription = new_confirm
+    for exception in (runtime.DeadlineExceededError(), db.Error(),
+                      apiproxy_errors.Error()):
+      def new_confirm(*args):
+        raise exception
+      main.hooks.override_for_test(main.confirm_subscription, new_confirm)
+      try:
         self.handle('post',
             ('hub.callback', self.callback),
             ('hub.topic', self.topic),
@@ -2105,8 +2106,8 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
             ('hub.verify', 'sync'),
             ('hub.verify_token', self.verify_token))
         self.assertEquals(503, self.response_code())
-    finally:
-      main.ConfirmSubscription = old_confirm
+      finally:
+        main.hooks.reset_for_test(main.confirm_subscription)
 
   def testSubscriptionError(self):
     """Tests when errors occurs during subscription."""
@@ -2300,12 +2301,11 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     Subscription.request_insert(
         self.callback, self.topic, self.verify_token, self.secret)
     # All exceptions should just fall through.
-    old_confirm = main.ConfirmSubscription
+    def new_confirm(*args):
+      called[0] = True
+      raise db.Error()
     try:
-      def new_confirm(*args):
-        called[0] = True
-        raise db.Error()
-      main.ConfirmSubscription = new_confirm
+      main.hooks.override_for_test(main.confirm_subscription, new_confirm)
       try:
         self.handle('post', ('subscription_key_name', self.sub_key))
       except db.Error:
@@ -2313,7 +2313,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
       else:
         self.fail()
     finally:
-      main.ConfirmSubscription = old_confirm
+      main.hooks.reset_for_test(main.confirm_subscription)
     self.assertTrue(called[0])
 
 ################################################################################
@@ -2400,6 +2400,176 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=5)
     self.assertNotEquals(sequence, task['params']['sequence'])
+
+################################################################################
+
+class HookManagerTest(unittest.TestCase):
+  """Tests for the HookManager and Hook classes."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    self.hooks_directory = tempfile.mkdtemp()
+    if not os.path.exists(self.hooks_directory):
+      os.makedirs(self.hooks_directory)
+    self.valueA = object()
+    self.valueB = object()
+    self.valueC = object()
+    self.funcA = lambda *a, **k: self.valueA
+    self.funcB = lambda *a, **k: self.valueB
+    self.funcC = lambda *a, **k: self.valueC
+    self.globals_dict = {
+      'funcA': self.funcA,
+      'funcB': self.funcB,
+      'funcC': self.funcC,
+    }
+    self.manager = main.HookManager()
+    self.manager.declare(self.funcA)
+    self.manager.declare(self.funcB)
+    self.manager.declare(self.funcC)
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    shutil.rmtree(self.hooks_directory, True)
+
+  def write_hook(self, filename, content):
+    """Writes a test hook to the hooks directory.
+
+    Args:
+      filename: The relative filename the hook should have.
+      content: The Python code that should go in the hook module.
+    """
+    hook_file = open(os.path.join(self.hooks_directory, filename), 'w')
+    try:
+      hook_file.write('#!/usr/bin/env python\n')
+      hook_file.write(content)
+    finally:
+      hook_file.close()
+
+  def load_hooks(self):
+    """Causes the hooks to load."""
+    self.manager.load(hooks_path=self.hooks_directory,
+                      globals_dict=self.globals_dict)
+
+  def testNoHooks(self):
+    """Tests loading a directory with no hooks modules."""
+    self.load_hooks()
+    self.assertEquals(self.valueA, self.manager.execute(self.funcA))
+    self.assertEquals(self.valueB, self.manager.execute(self.funcB))
+    self.assertEquals(self.valueC, self.manager.execute(self.funcC))
+
+  def testOneGoodHook(self):
+    """Tests a single good hook."""
+    self.write_hook('my_hook.py',"""
+class MyHook(Hook):
+  def inspect(self, args, kwargs):
+    return True
+  def __call__(self, *args, **kwargs):
+    return 'fancy string'
+register(funcA, MyHook())
+""")
+    self.load_hooks()
+    self.assertEquals('fancy string', self.manager.execute(self.funcA))
+
+  def testDifferentHooksInOneModule(self):
+    """Tests different hook methods in a single hook module."""
+    self.write_hook('my_hook.py',"""
+class MyHook(Hook):
+  def __init__(self, value):
+    self.value = value
+  def inspect(self, args, kwargs):
+    return True
+  def __call__(self, *args, **kwargs):
+    return self.value
+register(funcA, MyHook('fancy A'))
+register(funcB, MyHook('fancy B'))
+register(funcC, MyHook('fancy C'))
+""")
+    self.load_hooks()
+    self.assertEquals('fancy A', self.manager.execute(self.funcA))
+    self.assertEquals('fancy B', self.manager.execute(self.funcB))
+    self.assertEquals('fancy C', self.manager.execute(self.funcC))
+
+  def testBadHookModule(self):
+    """Tests a hook module that's bad and throws exception on load."""
+    self.write_hook('my_hook.py',"""raise Exception('Doh')""")
+    self.assertRaises(
+        Exception,
+        self.load_hooks)
+
+  def testIncompleteHook(self):
+    """Tests that an incomplete hook implementation will die on execute."""
+    self.write_hook('my_hook1.py',"""
+class MyHook(Hook):
+  def inspect(self, args, kwargs):
+    return True
+register(funcA, MyHook())
+""")
+    self.load_hooks()
+    self.assertRaises(
+        AssertionError,
+        self.manager.execute,
+        self.funcA)
+
+  def testHookModuleOrdering(self):
+    """Tests that hook modules are loaded and applied in order."""
+    self.write_hook('my_hook1.py',"""
+class MyHook(Hook):
+  def inspect(self, args, kwargs):
+    args[0].append(1)
+    return False
+register(funcA, MyHook())
+""")
+    self.write_hook('my_hook2.py',"""
+class MyHook(Hook):
+  def inspect(self, args, kwargs):
+    args[0].append(2)
+    return False
+register(funcA, MyHook())
+""")
+    self.write_hook('my_hook3.py',"""
+class MyHook(Hook):
+  def inspect(self, args, kwargs):
+    return True
+  def __call__(self, *args, **kwargs):
+    return 'peanuts'
+register(funcA, MyHook())
+""")
+    self.load_hooks()
+    value_list = [5]
+    self.assertEquals('peanuts', self.manager.execute(self.funcA, value_list))
+    self.assertEquals([5, 1, 2], value_list)
+
+  def testHookBadRegistration(self):
+    """Tests when registering a hook for an unknown callable."""
+    self.write_hook('my_hook1.py',"""
+class MyHook(Hook):
+  def inspect(self, args, kwargs):
+    return False
+register(lambda: None, MyHook())
+""")
+    self.assertRaises(
+        main.InvalidHookError,
+        self.load_hooks)
+
+  def testMultipleRegistration(self):
+    """Tests that the first hook is called when two are registered."""
+    self.write_hook('my_hook.py',"""
+class MyHook(Hook):
+  def __init__(self, value):
+    self.value = value
+  def inspect(self, args, kwargs):
+    args[0].append(self.value)
+    return True
+  def __call__(self, *args, **kwargs):
+    return self.value
+register(funcA, MyHook('fancy first'))
+register(funcA, MyHook('fancy second'))
+""")
+    self.load_hooks()
+    value_list = ['hello']
+    self.assertEquals('fancy first',
+                      self.manager.execute(self.funcA, value_list))
+    self.assertEquals(['hello', 'fancy first', 'fancy second'], value_list)
 
 ################################################################################
 
