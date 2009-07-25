@@ -20,7 +20,13 @@
 import logging
 logging.basicConfig(format='%(levelname)-8s %(filename)s] %(message)s')
 import os
+import sys
 import unittest
+
+# Run these tests from the 'hub' directory.
+sys.path.insert(0, os.getcwd())
+os.chdir('../hub')
+sys.path.insert(0, os.getcwd())
 
 import testutil
 testutil.fix_path()

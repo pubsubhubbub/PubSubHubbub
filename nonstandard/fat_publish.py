@@ -17,16 +17,18 @@
 
 """Fat publish receiver for working around caching issues with the demo hub.
 
-This isn't part of the PubSubHubbub spec. This extension hook is useful for
-publishers who want to try out the PubSubHubbub protocol without building or
-running their own hub at first. Receiving Fat publish events directly from
-publishers allows the Hub to work around any replication/caching delays that
-are described in this wiki entry (see the section on multiple datacenters):
+This isn't part of the PubSubHubbub spec. We have no intentions of making it to
+be part of the spec. This extension hook is useful for publishers who want to
+try out the PubSubHubbub protocol without building or running their own hub at
+first. Receiving fat publish events directly from publishers allows the Hub to
+work around any replication/caching delays that are described in this wiki entry
+(see the section on multiple datacenters):
 
   http://code.google.com/p/pubsubhubbub/wiki/PublisherEfficiency
 
-To enable this module, set the SHARED_SECRET below to something safe and then
-symlink the fat_publish.py file into the 'hooks' directory before deploying.
+To enable this module, symlink this 'fat_publish.py' file into the 'hooks'
+directory of the hub application; then put your shared secret into the
+'fat_publish_secret.txt' file in the 'hooks' directory.
 
 To use this module as a client, send POST requests with the parameters
 'topic', 'content', and 'signature'. They should look like this:
@@ -45,8 +47,7 @@ import logging
 from google.appengine.ext import webapp
 
 
-# The default shared secret used by the Hub and the publisher.
-SHARED_SECRET = 'replaceme'
+SECRET_FILE = 'hooks/fat_publish_secret.txt'
 
 
 # Define the Hook class for testing.
@@ -137,4 +138,5 @@ if 'register' in globals():
   # You can re-register this same hook here with different shared secrets if
   # you would like to allow other publishing endpoints to do the same thing
   # with separate access controls.
-  register(modify_handlers, FatPublishHook(create_handler(SHARED_SECRET)))
+  register(modify_handlers, FatPublishHook(
+      create_handler(open(SECRET_FILE).read())))
