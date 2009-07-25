@@ -1691,17 +1691,75 @@ def pull_feed(feed_to_fetch, headers):
   return response.status_code, response.headers, response.content
 
 
+def parse_feed(feed_record, headers, content):
+  """Parses a feed's content, determines changes, enqueues notifications.
+
+  This function will only enqueue new notifications if the feed has changed.
+
+  Args:
+    feed_record: The FeedRecord object of the topic that has new content.
+    headers: Dictionary of response headers found during feed fetching (may
+        be empty).
+    content: The feed document possibly containing new entries.
+
+  Returns:
+    True if successfully parsed the feed content; False on error.
+  """
+  # The content-type header is extremely unreliable for determining the feed's
+  # content-type. Using a regex search for "<rss" could work, but an RE is
+  # just another thing to maintain. Instead, try to parse the content twice
+  # and use any hints from the content-type as best we can. This has
+  # a bias towards Atom content (let's cross our fingers!).
+  # TODO(bslatkin): Do something more efficient.
+  if 'rss' in (feed_record.content_type or ''):
+    order = (RSS, ATOM)
+  else:
+    order = (ATOM, RSS)
+
+  parse_failures = 0
+  for format in order:
+    # Parse the feed. If this fails we will give up immediately.
+    try:
+      header_footer, entities_to_save, entry_payloads = find_feed_updates(
+          feed_record.topic, format, content)
+      break
+    except (xml.sax.SAXException, feed_diff.Error):
+      logging.exception(
+          'Could not get entries for content of %d bytes in format "%s"',
+          len(content), format)
+      parse_failures += 1
+
+  if parse_failures == len(order):
+    return False
+
+  if not entities_to_save:
+    logging.info('No new entries found')
+    event_to_deliver = None
+  else:
+    logging.info('Saving %d new/updated entries', len(entities_to_save))
+    event_to_deliver = EventToDeliver.create_event_for_topic(
+        feed_record.topic, format, header_footer, entry_payloads)
+    entities_to_save.append(event_to_deliver)
+
+  feed_record.update(headers, header_footer)
+  entities_to_save.append(feed_record)
+
+  # Doing this put in a transaction ensures that we have written all
+  # FeedEntryRecords, updated the FeedRecord, and written the EventToDeliver
+  # at the same time. Otherwise, if any of these fails individually we could
+  # drop messages on the floor. If this transaction fails, the whole fetch
+  # will be redone and find the same entries again (thus it is idempotent).
+  db.run_in_transaction(lambda: db.put(entities_to_save))
+  # TODO(bslatkin): Make this transactional with the call to work.done()
+  # that happens in the PullFeedHandler.post() method.
+  if event_to_deliver:
+    event_to_deliver.enqueue()
+
+  return True
+
+
 class PullFeedHandler(webapp.RequestHandler):
   """Background worker for pulling feeds."""
-
-  def __init__(self, find_feed_updates=find_feed_updates):
-    """Initializer.
-
-    Args:
-      find_feed_updates: Used for dependency injection.
-    """
-    webapp.RequestHandler.__init__(self)
-    self.find_feed_updates = find_feed_updates
 
   @work_queue_only
   def post(self):
@@ -1712,8 +1770,8 @@ class PullFeedHandler(webapp.RequestHandler):
       return
 
     if not Subscription.has_subscribers(work.topic):
-      logging.info('Ignore event because there are no subscribers for topic %s',
-                   work.topic)
+      logging.debug('Ignoring event because there are no subscribers '
+                    'for topic %s', work.topic)
       # If there are no subscribers then we should also delete the record of
       # this being a known feed. This will clean up after the periodic polling.
       # TODO(bslatkin): Remove possibility of race-conditions here, where a
@@ -1743,56 +1801,10 @@ class PullFeedHandler(webapp.RequestHandler):
       work.done()
       return
 
-    # The content-type header is extremely unreliable for determining the feed's
-    # content-type. Using a regex search for "<rss" could work, but an RE is
-    # just another thing to maintain. Instead, try to parse the content twice
-    # and use any hints from the content-type as best we can. This has
-    # a bias towards Atom content (let's cross our fingers!).
-    # TODO(bslatkin): Do something more efficient.
-    if 'rss' in (feed_record.content_type or ''):
-      order = (RSS, ATOM)
+    if parse_feed(feed_record, headers, content):
+      work.done()
     else:
-      order = (ATOM, RSS)
-
-    parse_failures = 0
-    for format in order:
-      # Parse the feed. If this fails we will give up immediately.
-      try:
-        header_footer, entities_to_save, entry_payloads = \
-            self.find_feed_updates(work.topic, format, content)
-        break
-      except (xml.sax.SAXException, feed_diff.Error):
-        logging.exception(
-            'Could not get entries for content of %d bytes in format "%s"',
-            len(content), format)
-        parse_failures += 1
-
-    if parse_failures == len(order):
       work.fetch_failed()
-      return
-
-    if not entities_to_save:
-      logging.info('No new entries found')
-      event_to_deliver = None
-    else:
-      logging.info('Saving %d new/updated entries', len(entities_to_save))
-      event_to_deliver = EventToDeliver.create_event_for_topic(
-          work.topic, format, header_footer, entry_payloads)
-      entities_to_save.append(event_to_deliver)
-
-    feed_record.update(headers, header_footer)
-    entities_to_save.append(feed_record)
-
-    # Doing this put in a transaction ensures that we have written all
-    # FeedEntryRecords, updated the FeedRecord, and written the EventToDeliver
-    # at the same time. Otherwise, if any of these fails individually we could
-    # drop messages on the floor. If this transaction fails, the whole fetch
-    # will be redone and find the same entries again (thus it is idempotent).
-    db.run_in_transaction(lambda: db.put(entities_to_save))
-    # TODO(bslatkin): Make this transactional
-    if event_to_deliver:
-      event_to_deliver.enqueue()
-    work.done()
 
 ################################################################################
 # Event delivery

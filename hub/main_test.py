@@ -1125,8 +1125,12 @@ FeedRecord = main.FeedRecord
 
 class PullFeedHandlerTest(testutil.HandlerTestBase):
 
+  handler_class = main.PullFeedHandler
+
   def setUp(self):
     """Sets up the test harness."""
+    testutil.HandlerTestBase.setUp(self)
+
     self.topic = 'http://example.com/my-topic-here'
     self.header_footer = '<feed>this is my test header footer</feed>'
     self.all_ids = ['1', '2', '3']
@@ -1154,17 +1158,16 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         raise self.expected_exceptions.pop(0)
       return self.header_footer, self.entry_list, self.entry_payloads
 
-    def create_handler():
-      return main.PullFeedHandler(find_feed_updates=my_find_updates)
-    self.handler_class = create_handler
+    self.old_find_feed_updates = main.find_feed_updates
+    main.find_feed_updates = my_find_updates
 
-    testutil.HandlerTestBase.setUp(self)
     self.callback = 'http://example.com/my-subscriber'
     self.assertTrue(Subscription.insert(
         self.callback, self.topic, 'token', 'secret'))
 
   def tearDown(self):
     """Tears down the test harness."""
+    main.find_feed_updates = self.old_find_feed_updates
     urlfetch_test_stub.instance.verify_and_reset()
 
   def testNoWork(self):
