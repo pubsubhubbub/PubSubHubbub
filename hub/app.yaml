@@ -20,19 +20,24 @@ handlers:
 - url: /base\.css
   static_files: base.css
   upload: base\.css
+  secure: optional
 
 - url: /favicon\.ico
   static_files: favicon.ico
   upload: favicon\.ico
+  secure: optional
 
 - url: /remote_api
   script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
   login: admin
+  secure: optional
 
 # Optional bookmarklet creation gadget.
 - url: /bookmarklet(_jsonp\.min\.js|\.min\.js|\.html|_config\.html|_gadget\.xml)
   static_files: bookmarklet/bookmarklet\1
   upload: bookmarklet/.+\.(min\.js|html|xml)
+  secure: optional
 
 - url: .*
   script: main.py
+  secure: optional
