@@ -251,16 +251,16 @@ def is_valid_url(url):
   """Returns True if the URL is valid, False otherwise."""
   split = urlparse.urlparse(url)
   if not split.scheme in ('http', 'https'):
-    logging.info('URL scheme is invalid: %s', url)
+    logging.debug('URL scheme is invalid: %s', url)
     return False
 
   netloc, port = (split.netloc.split(':', 1) + [''])[:2]
   if port and not is_dev_env() and port not in VALID_PORTS:
-    logging.info('URL port is invalid: %s', url)
+    logging.debug('URL port is invalid: %s', url)
     return False
 
   if split.fragment:
-    logging.info('URL includes fragment: %s', url)
+    logging.debug('URL includes fragment: %s', url)
     return False
 
   return True
@@ -676,7 +676,7 @@ class Subscription(db.Model):
       try again.
     """
     if self.confirm_failures >= max_failures:
-      logging.info('Max subscription failures exceeded, giving up.')
+      logging.warning('Max subscription failures exceeded, giving up.')
       self.delete()
     else:
       retry_delay = retry_period * (2 ** self.confirm_failures)
@@ -766,12 +766,12 @@ class FeedToFetch(db.Model):
       now: Returns the current time as a UTC datetime.
     """
     if self.fetching_failures >= max_failures:
-      logging.info('Max fetching failures exceeded, giving up.')
+      logging.warning('Max fetching failures exceeded, giving up.')
       self.totally_failed = True
       self.put()
     else:
       retry_delay = retry_period * (2 ** self.fetching_failures)
-      logging.error('Fetching failed. Will retry in %s seconds', retry_delay)
+      logging.warning('Fetching failed. Will retry in %s seconds', retry_delay)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.fetching_failures += 1
       self.put()
@@ -1148,15 +1148,15 @@ class EventToDeliver(db.Model):
         self.totally_failed = True
 
       if self.delivery_mode == EventToDeliver.NORMAL:
-        logging.info('Normal delivery done; %d broken callbacks remain',
-                     len(self.failed_callbacks))
+        logging.warning('Normal delivery done; %d broken callbacks remain',
+                        len(self.failed_callbacks))
         self.delivery_mode = EventToDeliver.RETRY
       else:
-        logging.info('End of attempt %d; topic = %s, subscribers = %d, '
-                     'waiting until %s or totally_failed = %s',
-                     self.retry_attempts, self.topic,
-                     len(self.failed_callbacks), self.last_modified,
-                     self.totally_failed)
+        logging.warning('End of attempt %d; topic = %s, subscribers = %d, '
+                        'waiting until %s or totally_failed = %s',
+                        self.retry_attempts, self.topic,
+                        len(self.failed_callbacks), self.last_modified,
+                        self.totally_failed)
 
     self.put()
     if not self.totally_failed:
@@ -1299,9 +1299,9 @@ def confirm_subscription(mode, topic, callback, verify_token,
     True if the subscription was confirmed properly, False if the subscription
     request encountered an error or any other error has hit.
   """
-  logging.info('Attempting to confirm %s for topic = %s, callback = %s, '
-               'verify_token = %s, secret = %s, lease_seconds = %s',
-               mode, topic, callback, verify_token, secret, lease_seconds)
+  logging.debug('Attempting to confirm %s for topic = %s, callback = %s, '
+                'verify_token = %s, secret = %s, lease_seconds = %s',
+                mode, topic, callback, verify_token, secret, lease_seconds)
 
   parsed_url = list(urlparse.urlparse(callback))
   challenge = get_random_challenge()
@@ -1386,10 +1386,10 @@ class SubscribeHandler(webapp.RequestHandler):
                          old_lease_seconds)
 
     if error_message:
-      logging.info('Bad request for mode = %s, topic = %s, '
-                   'callback = %s, verify_token = %s, lease_seconds = %s: %s',
-                   mode, topic, callback, verify_token,
-                   lease_seconds, error_message)
+      logging.debug('Bad request for mode = %s, topic = %s, '
+                    'callback = %s, verify_token = %s, lease_seconds = %s: %s',
+                    mode, topic, callback, verify_token,
+                    lease_seconds, error_message)
       self.response.out.write(error_message)
       return self.response.set_status(400)
 
@@ -1417,9 +1417,9 @@ class SubscribeHandler(webapp.RequestHandler):
                                       lease_seconds=lease_seconds)
         else:
           Subscription.request_remove(callback, topic, verify_token)
-        logging.info('Queued %s request for callback = %s, '
-                     'topic = %s, verify_token = "%s", lease_seconds= %s',
-                     mode, callback, topic, verify_token, lease_seconds)
+        logging.debug('Queued %s request for callback = %s, '
+                      'topic = %s, verify_token = "%s", lease_seconds= %s',
+                      mode, callback, topic, verify_token, lease_seconds)
         return self.response.set_status(202)
 
     except (apiproxy_errors.Error, db.Error,
@@ -1491,7 +1491,8 @@ class PublishHandlerBase(webapp.RequestHandler):
     # Only insert FeedToFetch entities for feeds that are known to have
     # subscribers. The rest will be ignored.
     urls = KnownFeed.check_exists(urls)
-    logging.debug('Topics with known subscribers: %s', urls)
+    if urls:
+      logging.info('Topics with known subscribers: %s', urls)
 
     # Record all FeedToFetch requests here. The background Pull worker will
     # double-check if there are any subscribers that need event delivery and
@@ -1644,8 +1645,8 @@ def find_feed_updates(topic, format, feed_content,
   existing_dict = dict((e.entry_id, e.entry_content_hash)
                        for e in existing_entries if e)
 
-  logging.info('Retrieved %d feed entries, %d of which have been seen before',
-               len(entries_map), len(existing_dict))
+  logging.debug('Retrieved %d feed entries, %d of which have been seen before',
+                len(entries_map), len(existing_dict))
 
   entities_to_save = []
   entry_payloads = []
@@ -1723,17 +1724,18 @@ def parse_feed(feed_record, headers, content):
       header_footer, entities_to_save, entry_payloads = find_feed_updates(
           feed_record.topic, format, content)
       break
-    except (xml.sax.SAXException, feed_diff.Error):
-      logging.exception(
-          'Could not get entries for content of %d bytes in format "%s"',
-          len(content), format)
+    except (xml.sax.SAXException, feed_diff.Error), e:
+      logging.debug(
+          'Could not get entries for content of %d bytes in format "%s": %s',
+          len(content), format, e)
       parse_failures += 1
 
   if parse_failures == len(order):
+    logging.error('Could not parse feed content')
     return False
 
   if not entities_to_save:
-    logging.info('No new entries found')
+    logging.debug('No new entries found')
     event_to_deliver = None
   else:
     logging.info('Saving %d new/updated entries', len(entities_to_save))
@@ -1766,7 +1768,7 @@ class PullFeedHandler(webapp.RequestHandler):
     topic = self.request.get('topic')
     work = FeedToFetch.get_by_topic(topic)
     if not work:
-      logging.warning('No feeds to fetch for topic = %s', topic)
+      logging.debug('No feeds to fetch for topic = %s', topic)
       return
 
     if not Subscription.has_subscribers(work.topic):
@@ -1781,7 +1783,7 @@ class PullFeedHandler(webapp.RequestHandler):
         db.delete(KnownFeed.create_key(work.topic))
       return
 
-    logging.info('Fetching topic %s', work.topic)
+    logging.debug('Fetching topic %s', work.topic)
     feed_record = FeedRecord.get_or_create(work.topic)
     try:
       status_code, headers, content = hooks.execute(pull_feed,
@@ -1792,12 +1794,12 @@ class PullFeedHandler(webapp.RequestHandler):
       return
 
     if status_code not in (200, 304):
-      logging.error('Received bad status_code=%s', status_code)
+      logging.warning('Received bad status_code = %s', status_code)
       work.fetch_failed()
       return
 
     if status_code == 304:
-      logging.info('Feed publisher returned 304 response (cache hit)')
+      logging.debug('Feed publisher returned 304 response (cache hit)')
       work.done()
       return
 

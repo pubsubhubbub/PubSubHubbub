@@ -23,6 +23,10 @@ import os
 from google.appengine.api import memcache
 
 
+# Set to true in tests to disable DoS protection.
+DISABLE_FOR_TESTING = False
+
+
 # TODO:
 #
 # - Add statistical sampling to provide runtime stats of current top-N
@@ -109,6 +113,9 @@ def limit(param=None,
       method = myself.request.method
       parts = [method, myself.request.path]
       whitelisted = False
+
+      if DISABLE_FOR_TESTING:
+        return func(myself, *args, **kwargs)
 
       if param:
         value = myself.request.get(param)

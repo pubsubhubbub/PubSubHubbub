@@ -38,6 +38,7 @@ from google.appengine.ext import webapp
 from google.appengine.runtime import apiproxy_errors
 
 import async_apiproxy
+import dos
 import feed_diff
 import main
 import urlfetch_test_stub
@@ -2577,4 +2578,5 @@ register(funcA, MyHook('fancy second'))
 ################################################################################
 
 if __name__ == '__main__':
+  dos.DISABLE_FOR_TESTING = True
   unittest.main()
