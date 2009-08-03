@@ -166,6 +166,9 @@ DEFAULT_LEASE_SECONDS = (30 * 24 * 60 * 60)  # 30 days
 # Maximum expiration time of a lease.
 MAX_LEASE_SECONDS = DEFAULT_LEASE_SECONDS * 3  # 90 days
 
+# Maximum number of redirects to follow when feed fetching.
+MAX_REDIRECTS = 7
+
 ################################################################################
 # Constants
 
@@ -1374,7 +1377,8 @@ class SubscribeHandler(webapp.RequestHandler):
 
     supported_verify_types = ['async', 'sync']
     verify_type_list.append(None)
-    verify_type = [vt for vt in verify_type_list if vt in supported_verify_types or vt is None][0]
+    verify_type = [vt for vt in verify_type_list
+                   if vt in supported_verify_types or vt is None][0]
     if not verify_type in supported_verify_types:
       error_message = 'Invalid values for hub.verify: %s' % (verify_type_list,)
 
@@ -1673,11 +1677,13 @@ def find_feed_updates(topic, format, feed_content,
   return header_footer, entities_to_save, entry_payloads
 
 
-def pull_feed(feed_to_fetch, headers):
+def pull_feed(feed_to_fetch, fetch_url, headers):
   """Pulls a feed.
 
   Args:
     feed_to_fetch: FeedToFetch instance to pull.
+    fetch_url: The URL to fetch. Should be the same as the topic stored on
+      the FeedToFetch instance, but may be different due to redirects.
     headers: Dictionary of headers to use for doing the feed fetch.
 
   Returns:
@@ -1690,11 +1696,7 @@ def pull_feed(feed_to_fetch, headers):
     apiproxy_errors.Error if any RPC errors are encountered. urlfetch.Error if
     there are any fetching API errors.
   """
-  # Specifically follow redirects here. Many feeds are often just redirects
-  # to the actual feed contents or a distribution server.
-  response = urlfetch.fetch(feed_to_fetch.topic,
-                            headers=headers,
-                            follow_redirects=True)
+  response = urlfetch.fetch(fetch_url, headers=headers, follow_redirects=False)
   return response.status_code, response.headers, response.content
 
 
@@ -1789,24 +1791,38 @@ class PullFeedHandler(webapp.RequestHandler):
         db.delete(KnownFeed.create_key(work.topic))
       return
 
-    logging.debug('Fetching topic %s', work.topic)
     feed_record = FeedRecord.get_or_create(work.topic)
-    try:
-      status_code, headers, content = hooks.execute(pull_feed,
-          work, feed_record.get_request_headers())
-    except (apiproxy_errors.Error, urlfetch.Error):
-      logging.exception('Failed to fetch feed')
-      work.fetch_failed()
-      return
+    fetch_url = work.topic
+    for i in xrange(MAX_REDIRECTS):
+      logging.debug('Fetching feed at %s', fetch_url)
+      try:
+        status_code, headers, content = hooks.execute(pull_feed,
+            work, fetch_url, feed_record.get_request_headers())
+      except (apiproxy_errors.Error, urlfetch.Error):
+        logging.exception('Failed to fetch feed')
+        work.fetch_failed()
+        return
 
-    if status_code not in (200, 304):
-      logging.warning('Received bad status_code = %s', status_code)
+      if status_code == 200:
+        break
+      if status_code in (301, 302, 303, 307) and 'Location' in headers:
+        fetch_url = headers['Location']
+        logging.debug('Feed publisher returned %d redirect to "%s"',
+                      status_code, fetch_url)
+        continue
+      elif status_code == 304:
+        logging.debug('Feed publisher returned 304 response (cache hit)')
+        work.done()
+        return
+      else:
+        logging.warning('Received bad status_code = %s, response_headers = %r',
+                        status_code, headers)
+        work.fetch_failed()
+        return
+    else:
+      # This means we've done too many redirects and will fail this fetch.
+      logging.warning('Too many redirects!')
       work.fetch_failed()
-      return
-
-    if status_code == 304:
-      logging.debug('Feed publisher returned 304 response (cache hit)')
-      work.done()
       return
 
     if parse_feed(feed_record, headers, content):

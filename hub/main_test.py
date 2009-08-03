@@ -1378,6 +1378,51 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
 
+  def testRedirects(self):
+    """Tests when redirects are encountered."""
+    info = FeedRecord.get_or_create(self.topic)
+    info.update(self.headers)
+    info.put()
+    FeedToFetch.insert([self.topic])
+
+    real_topic = 'http://example.com/real-topic-location'
+    self.headers['Location'] = real_topic
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 302, '',
+        response_headers=self.headers.copy())
+
+    del self.headers['Location']
+    urlfetch_test_stub.instance.expect(
+        'get', real_topic, 200, self.expected_response,
+        response_headers=self.headers)
+
+    self.handle('post', ('topic', self.topic))
+    self.assertTrue(EventToDeliver.all().get() is not None)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
+
+  def testTooManyRedirects(self):
+    """Tests when too many redirects are encountered."""
+    info = FeedRecord.get_or_create(self.topic)
+    info.update(self.headers)
+    info.put()
+    FeedToFetch.insert([self.topic])
+
+    last_topic = self.topic
+    real_topic = 'http://example.com/real-topic-location'
+    for i in xrange(main.MAX_REDIRECTS):
+      next_topic = real_topic + str(i)
+      self.headers['Location'] = next_topic
+      urlfetch_test_stub.instance.expect(
+          'get', last_topic, 302, '',
+          response_headers=self.headers.copy())
+      last_topic = next_topic
+
+    self.handle('post', ('topic', self.topic))
+    self.assertTrue(EventToDeliver.all().get() is None)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
 
