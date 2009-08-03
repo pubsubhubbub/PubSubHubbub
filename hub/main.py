@@ -81,11 +81,6 @@ and will be retried at a later time.
 #
 # - Do not poll a feed if we've gotten an event from the publisher in less
 #   than the polling period.
-#
-# - Add Subscription expiration cronjob to clean up expired subscriptions.
-#
-# - Add maximum subscription count per callback domain.
-#
 
 import datetime
 import hashlib
@@ -156,6 +151,12 @@ EVENT_CLEANUP_MAX_AGE_SECONDS = (10 * 24 * 60 * 60)  # 10 days
 
 # How many completely failed EventToDeliver instances to clean up at a time.
 EVENT_CLEANUP_CHUNK_SIZE = 50
+
+# How far before expiration to refresh subscriptions.
+SUBSCRIPTION_CHECK_BUFFER_SECONDS = (24 * 60 * 60)  # 24 hours
+
+# How many subscriber checking tasks to scheudle at a time.
+SUBSCRIPTION_CHECK_CHUNK_SIZE = 200
 
 # How often to poll feeds.
 POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
@@ -465,6 +466,7 @@ class Subscription(db.Model):
       True if the subscription was newly created, False otherwise.
     """
     key_name = cls.create_key_name(callback, topic)
+    now_time = now()
     def txn():
       sub_is_new = False
       sub = cls.get_by_key_name(key_name)
@@ -479,9 +481,9 @@ class Subscription(db.Model):
                   secret=secret,
                   hash_func=hash_func,
                   lease_seconds=lease_seconds,
-                  expiration_time=(
-                      now() + datetime.timedelta(seconds=lease_seconds)))
+                  expiration_time=now_time)
       sub.subscription_state = cls.STATE_VERIFIED
+      sub.expiration_time = now_time + datetime.timedelta(seconds=lease_seconds)
       sub.put()
       return sub_is_new
     return db.run_in_transaction(txn)
@@ -521,10 +523,6 @@ class Subscription(db.Model):
     def txn():
       sub_is_new = False
       sub = cls.get_by_key_name(key_name)
-      # TODO(bslatkin): Allow for a re-confirmation of an existing subscription
-      # without affecting the serving state of the existing one. This is
-      # required in situations where users want to renew their existing
-      # subscriptions before the lease period has elapsed.
       if sub is None:
         sub_is_new = True
         sub = cls(key_name=key_name,
@@ -538,13 +536,12 @@ class Subscription(db.Model):
                   lease_seconds=lease_seconds,
                   expiration_time=(
                       now() + datetime.timedelta(seconds=lease_seconds)))
-        sub.put()
+      sub.put()
       return (sub_is_new, sub)
     new, sub = db.run_in_transaction(txn)
     # Note: This enqueuing must come *after* the transaction is submitted, or
     # else we'll actually run the task *before* the transaction is submitted.
-    if new:
-      sub._enqueue_task()
+    sub.enqueue_task(cls.STATE_VERIFIED)
     return new
 
   @classmethod
@@ -585,23 +582,20 @@ class Subscription(db.Model):
         unsubscription request.
 
     Returns:
-      True if the unsubscribe request is new, False otherwise (i.e., a request
-      for asynchronous unsubscribe was already made).
+      True if the Subscription to remove actually exists, False otherwise.
     """
     key_name = cls.create_key_name(callback, topic)
     def txn():
       sub = cls.get_by_key_name(key_name)
-      if sub is not None and sub.subscription_state != cls.STATE_TO_DELETE:
-        sub.subscription_state = cls.STATE_TO_DELETE
-        sub.verify_token = verify_token
+      if sub is not None:
         sub.put()
         return (True, sub)
       return (False, sub)
     removed, sub = db.run_in_transaction(txn)
     # Note: This enqueuing must come *after* the transaction is submitted, or
     # else we'll actually run the task *before* the transaction is submitted.
-    if removed:
-      sub._enqueue_task()
+    if sub:
+      sub.enqueue_task(cls.STATE_TO_DELETE)
     return removed
 
   @classmethod
@@ -615,7 +609,7 @@ class Subscription(db.Model):
       True if it has verified subscribers, False otherwise.
     """
     if (cls.all().filter('topic_hash =', sha1_hash(topic))
-        .filter('subscription_state = ', cls.STATE_VERIFIED).get() is not None):
+        .filter('subscription_state =', cls.STATE_VERIFIED).get() is not None):
       return True
     else:
       return False
@@ -645,8 +639,13 @@ class Subscription(db.Model):
 
     return query.fetch(count)
 
-  def _enqueue_task(self):
-    """Enqueues a task to confirm this Subscription."""
+  def enqueue_task(self, next_state, queue=SUBSCRIPTION_QUEUE):
+    """Enqueues a task to confirm this Subscription.
+
+    Args:
+      next_state: The next state this subscription should be in.
+      queue: The queue to put this task on. Defaults to the subscription queue.
+    """
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
     for i in xrange(RETRIES):
@@ -654,8 +653,9 @@ class Subscription(db.Model):
         taskqueue.Task(
             url='/work/subscriptions',
             eta=self.eta,
-            params={'subscription_key_name': self.key().name()}
-            ).add(SUBSCRIPTION_QUEUE)
+            params={'subscription_key_name': self.key().name(),
+                    'next_state': next_state}
+            ).add(queue)
       except (taskqueue.Error, apiproxy_errors.Error):
         logging.exception('Could not insert task to confirm '
                           'topic = %s, callback = %s',
@@ -665,7 +665,9 @@ class Subscription(db.Model):
       else:
         return
 
-  def confirm_failed(self, max_failures=MAX_SUBSCRIPTION_CONFIRM_FAILURES,
+  def confirm_failed(self,
+                     next_state,
+                     max_failures=MAX_SUBSCRIPTION_CONFIRM_FAILURES,
                      retry_period=SUBSCRIPTION_RETRY_PERIOD,
                      now=datetime.datetime.utcnow):
     """Reports that an asynchronous confirmation request has failed.
@@ -674,6 +676,7 @@ class Subscription(db.Model):
     exceeded.
 
     Args:
+      next_state: The next state this subscription should be in.
       max_failures: Maximum failures to allow before giving up.
       retry_period: Initial period for doing exponential (base-2) backoff.
       now: Returns the current time as a UTC datetime.
@@ -693,26 +696,7 @@ class Subscription(db.Model):
       self.confirm_failures += 1
       self.put()
       # TODO(bslatkin): Do this enqueuing transactionally.
-      self._enqueue_task()
-
-  @classmethod
-  def get_confirm_work(cls, confirm_key_name):
-    """Retrieves a Subscription to verify or remove asynchronously.
-
-    Args:
-      confirm_key_name: Key name of the Subscription entity to verify.
-
-    Returns:
-      The Subscription instance, or None if it is not available or already has
-      been confirmed. The returned instance needs to have its status updated
-      by confirming the subscription is still desired by the callback URL.
-    """
-    CONFIRM_STATES = (cls.STATE_NOT_VERIFIED, cls.STATE_TO_DELETE)
-    sub = cls.get_by_key_name(confirm_key_name)
-    if sub is not None and sub.subscription_state in CONFIRM_STATES:
-      return sub
-    else:
-      return None
+      self.enqueue_task(next_state)
 
 
 class FeedToFetch(db.Model):
@@ -1375,12 +1359,11 @@ class SubscribeHandler(webapp.RequestHandler):
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
 
-    supported_verify_types = ['async', 'sync']
-    verify_type_list.append(None)
-    verify_type = [vt for vt in verify_type_list
-                   if vt in supported_verify_types or vt is None][0]
-    if not verify_type in supported_verify_types:
+    enabled_types = [vt for vt in verify_type_list if vt in ('async', 'sync')]
+    if not enabled_types:
       error_message = 'Invalid values for hub.verify: %s' % (verify_type_list,)
+    else:
+      verify_type = enabled_types[0]
 
     if mode not in ('subscribe', 'unsubscribe'):
       error_message = 'Invalid value for hub.mode: %s' % mode
@@ -1445,21 +1428,83 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
   @work_queue_only
   def post(self):
     sub_key_name = self.request.get('subscription_key_name')
-    sub = Subscription.get_confirm_work(sub_key_name)
+    next_state = self.request.get('next_state')
+    sub = Subscription.get_by_key_name(sub_key_name)
     if not sub:
       logging.debug('No subscriptions to confirm '
                     'for subscription_key_name = %s', sub_key_name)
       return
 
-    if sub.subscription_state == Subscription.STATE_NOT_VERIFIED:
-      mode = 'subscribe'
-    else:
+    if next_state == Subscription.STATE_TO_DELETE:
       mode = 'unsubscribe'
+    else:
+      # NOTE: If next_state wasn't specified, this is probably an old task from
+      # the last version of this code. Handle these tasks by assuming they
+      # mant subscribe, which will probably cause less damage.
+      mode = 'subscribe'
 
     if not hooks.execute(confirm_subscription,
         mode, sub.topic, sub.callback,
         sub.verify_token, sub.secret, sub.lease_seconds):
-      sub.confirm_failed()
+      sub.confirm_failed(next_state)
+
+
+class SubscriptionReconfirmHandler(webapp.RequestHandler):
+  """Periodic handler causes reconfirmation for almost expired subscriptions."""
+
+  def __init__(self, now=time.time):
+    """Initializer."""
+    webapp.RequestHandler.__init__(self)
+    self.now = now
+
+  @work_queue_only
+  def get(self):
+    threshold_timestamp = str(
+        int(self.now() - SUBSCRIPTION_CHECK_BUFFER_SECONDS))
+    # NOTE: See PollBootstrapHandler as to why we need a named task here for
+    # the first insertion and the rest of the sequence.
+    name = 'reconfirm-' + threshold_timestamp
+    try:
+      taskqueue.Task(
+          url='/work/reconfirm_subscriptions',
+          name=name,
+          params=dict(time_offset=threshold_timestamp)
+      ).add(POLLING_QUEUE)
+    except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
+      logging.exception('Could not enqueue FIRST reconfirmation task')
+
+  @work_queue_only
+  def post(self):
+    time_offset = self.request.get('time_offset')
+    datetime_offset = datetime.datetime.utcfromtimestamp(int(time_offset))
+    key_offset = self.request.get('key_offset')
+    logging.info('Handling reconfirmations for time_offset = %s, '
+                 'current_key = %s', time_offset, key_offset)
+
+    query = (Subscription.all()
+             .filter('subscription_state =', Subscription.STATE_VERIFIED)
+             .order('__key__'))
+    if key_offset:
+      query.filter('__key__ >', db.Key(key_offset))
+
+    subscriptions = query.fetch(SUBSCRIPTION_CHECK_CHUNK_SIZE)
+    if not subscriptions:
+      logging.info('All done with periodic subscription reconfirmations')
+      return
+
+    next_key = str(subscriptions[-1].key())
+    try:
+      taskqueue.Task(
+          url='/work/reconfirm_subscriptions',
+          name='reconfirm-%s-%s' % (time_offset, sha1_hash(next_key)),
+          params=dict(time_offset=time_offset,
+                      key_offset=next_key)).add(POLLING_QUEUE)
+    except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
+      logging.exception('Could not enqueue continued reconfirmation task')
+
+    for sub in subscriptions:
+      if sub.expiration_time < datetime_offset:
+        sub.enqueue_task(Subscription.STATE_VERIFIED, queue=POLLING_QUEUE)
 
 ################################################################################
 # Publishing handlers
@@ -1950,7 +1995,7 @@ class PollBootstrapHandler(webapp.RequestHandler):
       # chain would cause an *alternate* sequence of tasks to execute. This
       # causes exponential explosion in the number of tasks (think of an
       # NP diagram or the "multiverse" of time/space). Yikes.
-      name = str(int(time.mktime(the_mark.last_start.utctimetuple())))
+      name = 'poll-' + str(int(time.mktime(the_mark.last_start.utctimetuple())))
       try:
         taskqueue.Task(
             url='/work/poll_bootstrap',
@@ -2123,7 +2168,6 @@ class HookManager(object):
     module_list = os.listdir(hook_directory)
     for module_name in sorted(module_list):
       if not module_name.endswith('.py'):
-        logging.debug('Skipping module %s', module_name)
         continue
       module_path = os.path.join(hook_directory, module_name)
       context_dict = globals_dict.copy()
@@ -2248,15 +2292,19 @@ def main():
   global HANDLERS
   if not HANDLERS:
     HANDLERS = hooks.execute(modify_handlers, [
+      # External interfaces
       (r'/', HubHandler),
       (r'/publish', PublishHandler),
       (r'/subscribe', SubscribeHandler),
+      (r'/topic-details', TopicDetailHandler),
+      # Low-latency workers
       (r'/work/subscriptions', SubscriptionConfirmHandler),
-      (r'/work/poll_bootstrap', PollBootstrapHandler),
       (r'/work/pull_feeds', PullFeedHandler),
       (r'/work/push_events', PushEventHandler),
+      # Periodic workers
+      (r'/work/poll_bootstrap', PollBootstrapHandler),
       (r'/work/event_cleanup', EventCleanupHandler),
-      (r'/topic-details', TopicDetailHandler),
+      (r'/work/reconfirm_subscriptions', SubscriptionReconfirmHandler)
     ])
   application = webapp.WSGIApplication(HANDLERS, debug=DEBUG)
   wsgiref.handlers.CGIHandler().run(application)

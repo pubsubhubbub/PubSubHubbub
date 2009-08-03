@@ -6,3 +6,7 @@ cron:
 - description: EventToDeliver cleanup
   url: /work/event_cleanup
   schedule: every minute
+
+- description: Subscription reconfirmation
+  url: /work/reconfirm_subscriptions
+  schedule: every 3 hours
