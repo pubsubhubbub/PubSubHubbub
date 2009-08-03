@@ -639,15 +639,15 @@ class Subscription(db.Model):
 
     return query.fetch(count)
 
-  def enqueue_task(self, next_state, queue=SUBSCRIPTION_QUEUE):
+  def enqueue_task(self, next_state):
     """Enqueues a task to confirm this Subscription.
 
     Args:
       next_state: The next state this subscription should be in.
-      queue: The queue to put this task on. Defaults to the subscription queue.
     """
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
+    target_queue = os.environ.get('X_APPENGINE_QUEUENAME', SUBSCRIPTION_QUEUE)
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
@@ -655,7 +655,7 @@ class Subscription(db.Model):
             eta=self.eta,
             params={'subscription_key_name': self.key().name(),
                     'next_state': next_state}
-            ).add(queue)
+            ).add(target_queue)
       except (taskqueue.Error, apiproxy_errors.Error):
         logging.exception('Could not insert task to confirm '
                           'topic = %s, callback = %s',
@@ -1160,13 +1160,14 @@ class EventToDeliver(db.Model):
     """Enqueues a Task that will execute this EventToDeliver."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
+    target_queue = os.environ.get('X_APPENGINE_QUEUENAME', EVENT_QUEUE)
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
             url='/work/push_events',
             eta=self.last_modified,
             params={'event_key': self.key()}
-            ).add(EVENT_QUEUE)
+            ).add(target_queue)
       except (taskqueue.Error, apiproxy_errors.Error):
         logging.exception('Could not insert task to deliver '
                           'events for topic = %s', self.topic)
@@ -1504,7 +1505,7 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
 
     for sub in subscriptions:
       if sub.expiration_time < datetime_offset:
-        sub.enqueue_task(Subscription.STATE_VERIFIED, queue=POLLING_QUEUE)
+        sub.enqueue_task(Subscription.STATE_VERIFIED)
 
 ################################################################################
 # Publishing handlers

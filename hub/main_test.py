@@ -548,6 +548,21 @@ class SubscriptionTest(unittest.TestCase):
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, index=0, expected_count=6)
 
+  def testQueuePreserved(self):
+    """Tests that insert will put the task on the environment's queue."""
+    self.assertTrue(Subscription.request_insert(
+        self.callback, self.topic, self.token, self.secret))
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
+    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    try:
+      self.assertFalse(Subscription.request_insert(
+          self.callback, self.topic, self.token, self.secret))
+    finally:
+      del os.environ['X_APPENGINE_QUEUENAME']
+
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
+
 ################################################################################
 
 FeedToFetch = main.FeedToFetch
@@ -932,6 +947,20 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=8)
     found_etas = [t['eta'] for t in tasks]
     self.assertEquals(etas, found_etas)
+
+  def testQueuePreserved(self):
+    """Tests that enqueueing an EventToDeliver will preserve the queue."""
+    event, work_key, sub_list, sub_keys = self.insert_subscriptions()
+    event.enqueue()
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
+    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    try:
+      event.enqueue()
+    finally:
+      del os.environ['X_APPENGINE_QUEUENAME']
+
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
 
 ################################################################################
 
@@ -2459,11 +2488,13 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.original_chunk_size = main.SUBSCRIPTION_CHECK_CHUNK_SIZE
     main.SUBSCRIPTION_CHECK_CHUNK_SIZE = 2
+    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
 
   def tearDown(self):
     """Tears down the test harness."""
     testutil.HandlerTestBase.tearDown(self)
     main.SUBSCRIPTION_CHECK_CHUNK_SIZE = self.original_chunk_size
+    del os.environ['X_APPENGINE_QUEUENAME']
 
   def testFullFlow(self):
     """Tests a full flow through multiple chunks of the reconfirm worker."""
