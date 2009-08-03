@@ -1425,12 +1425,10 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
 
 class PushEventHandlerTest(testutil.HandlerTestBase):
 
+  handler_class = main.PushEventHandler
+
   def setUp(self):
     """Sets up the test harness."""
-    self.now = [datetime.datetime.utcnow()]
-    def create_handler():
-      return main.PushEventHandler(now=lambda: self.now[0])
-    self.handler_class = create_handler
     testutil.HandlerTestBase.setUp(self)
 
     self.chunk_size = main.EVENT_SUBSCRIBER_CHUNK_SIZE
@@ -1753,6 +1751,56 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
     self.assertEquals(event_key, testutil.get_tasks(
         main.EVENT_QUEUE, index=0, expected_count=1)['params']['event_key'])
+
+
+class EventCleanupHandlerTest(testutil.HandlerTestBase):
+  """Tests for the EventCleanupHandler worker."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    self.now = datetime.datetime.utcnow()
+    self.expire_time = self.now - datetime.timedelta(
+        seconds=main.EVENT_CLEANUP_MAX_AGE_SECONDS)
+    def create_handler():
+      return main.EventCleanupHandler(now=lambda: self.now)
+    self.handler_class = create_handler
+    testutil.HandlerTestBase.setUp(self)
+    self.topic = 'http://example.com/mytopic'
+    self.header_footer = '<feed></feed>'
+
+  def testNoEvents(self):
+    """Tests when there are no failed events to clean up."""
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, [])
+    event.put()
+    self.handle('get')
+    self.assertTrue(db.get(event.key()) is not None)
+
+  def testEventCleanupTooYoung(self):
+    """Tests when there are events present, but they're too young to remove."""
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, [])
+    event.last_modified = self.expire_time + datetime.timedelta(seconds=1)
+    event.totally_failed = True
+    event.put()
+    self.handle('get')
+    self.assertTrue(db.get(event.key()) is not None)
+
+  def testEventCleanupOldEnough(self):
+    """Tests when there are events old enough to clean up."""
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, [])
+    event.last_modified = self.expire_time
+    event.totally_failed = True
+    event.put()
+
+    too_young_event = EventToDeliver.create_event_for_topic(
+        self.topic + 'blah', main.ATOM, self.header_footer, [])
+    too_young_event.put()
+
+    self.handle('get')
+    self.assertTrue(db.get(event.key()) is None)
+    self.assertTrue(db.get(too_young_event.key()) is not None)
 
 ################################################################################
 

@@ -128,7 +128,7 @@ if DEBUG:
   logging.getLogger().setLevel(logging.DEBUG)
 
 # How many subscribers to contact at a time when delivering events.
-EVENT_SUBSCRIBER_CHUNK_SIZE = 10
+EVENT_SUBSCRIBER_CHUNK_SIZE = 50
 
 # Maximum number of times to attempt a subscription retry.
 MAX_SUBSCRIPTION_CONFIRM_FAILURES = 4
@@ -150,6 +150,12 @@ DELIVERY_RETRY_PERIOD = 30 # seconds
 
 # Number of polling feeds to fetch from the Datastore at a time.
 BOOSTRAP_FEED_CHUNK_SIZE = 200
+
+# Maximum age in seconds of a failed EventToDeliver before it is cleaned up.
+EVENT_CLEANUP_MAX_AGE_SECONDS = (10 * 24 * 60 * 60)  # 10 days
+
+# How many completely failed EventToDeliver instances to clean up at a time.
+EVENT_CLEANUP_CHUNK_SIZE = 50
 
 # How often to poll feeds.
 POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
@@ -1014,7 +1020,7 @@ class EventToDeliver(db.Model):
       entry_payloads: List of strings containing entry payloads (i.e., all
         XML data for each entry, including surrounding tags) in order of newest
         to oldest.
-      now: Returns the current time as a UTC datetime.
+      now: Returns the current time as a UTC datetime. Used in tests.
 
     Returns:
       A new EventToDeliver instance that has not been stored.
@@ -1833,11 +1839,7 @@ def push_event(sub, headers, payload, async_proxy, callback):
 
 
 class PushEventHandler(webapp.RequestHandler):
-
-  def __init__(self, now=datetime.datetime.utcnow):
-    """Initializer."""
-    webapp.RequestHandler.__init__(self)
-    self.now = now
+  """Background worker for pushing events to subscribers."""
 
   @work_queue_only
   def post(self):
@@ -1888,6 +1890,31 @@ class PushEventHandler(webapp.RequestHandler):
                     'Remaining are: %r', [s.callback for s in failed_callbacks])
 
     work.update(more_subscribers, failed_callbacks)
+
+
+class EventCleanupHandler(webapp.RequestHandler):
+  """Background worker for cleaning up expired EventToDeliver instances."""
+
+  def __init__(self, now=datetime.datetime.utcnow):
+    """Initializer."""
+    webapp.RequestHandler.__init__(self)
+    self.now = now
+
+  @work_queue_only
+  def get(self):
+    threshold = (self.now() -
+        datetime.timedelta(seconds=EVENT_CLEANUP_MAX_AGE_SECONDS))
+    events = (EventToDeliver.all()
+              .filter('totally_failed =', True)
+              .filter('last_modified <=', threshold)
+              .order('last_modified').fetch(EVENT_CLEANUP_CHUNK_SIZE))
+    if events:
+      logging.info('Cleaning up %d events older than %s',
+                   len(events), threshold)
+      try:
+        db.delete(events)
+      except (db.Error, apiproxy_errors.Error, runtime.DeadlineExceededError):
+        logging.exception('Could not clean-up EventToDeliver instances')
 
 ################################################################################
 
@@ -2212,6 +2239,7 @@ def main():
       (r'/work/poll_bootstrap', PollBootstrapHandler),
       (r'/work/pull_feeds', PullFeedHandler),
       (r'/work/push_events', PushEventHandler),
+      (r'/work/event_cleanup', EventCleanupHandler),
       (r'/topic-details', TopicDetailHandler),
     ])
   application = webapp.WSGIApplication(HANDLERS, debug=DEBUG)

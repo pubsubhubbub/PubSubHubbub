@@ -55,17 +55,21 @@ def setup_for_testing():
   from google.appengine.api import apiproxy_stub_map
   from google.appengine.api import memcache
   from google.appengine.tools import dev_appserver
+  from google.appengine.tools import dev_appserver_index
   import urlfetch_test_stub
   before_level = logging.getLogger().getEffectiveLevel()
   try:
     logging.getLogger().setLevel(100)
+    root_path = os.path.realpath(os.path.dirname(__file__))
     dev_appserver.SetupStubs(
         TEST_APP_ID,
-        root_path=os.path.realpath(os.path.dirname(__file__)),
+        root_path=root_path,
         login_url='',
         datastore_path=tempfile.mktemp(suffix='datastore_stub'),
         history_path=tempfile.mktemp(suffix='datastore_history'),
+        require_indexes=True,
         clear_datastore=False)
+    dev_appserver_index.SetupIndexes(TEST_APP_ID, root_path)
     apiproxy_stub_map.apiproxy._APIProxyStubMap__stub_map['urlfetch'] = \
         urlfetch_test_stub.instance
     # Actually need to flush, even though we've reallocated. Maybe because the

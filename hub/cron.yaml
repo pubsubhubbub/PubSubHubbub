@@ -2,3 +2,7 @@ cron:
 - description: Bootstrap polling
   url: /work/poll_bootstrap
   schedule: every 5 minutes
+
+- description: EventToDeliver cleanup
+  url: /work/event_cleanup
+  schedule: every minute
