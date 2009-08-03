@@ -710,6 +710,8 @@ class FeedToFetch(db.Model):
   eta = db.DateTimeProperty(auto_now_add=True)
   fetching_failures = db.IntegerProperty(default=0)
   totally_failed = db.BooleanProperty(default=False)
+  source_keys = db.StringListProperty()
+  source_values = db.StringListProperty()
 
   # TODO(bslatkin): Add fetching failure reason (urlfetch, parsing, etc) and
   # surface it on the topic details page.
@@ -727,25 +729,38 @@ class FeedToFetch(db.Model):
     return cls.get_by_key_name(get_hash_key_name(topic))
 
   @classmethod
-  def insert(cls, topic_list):
+  def insert(cls, topic_list, source_dict=None):
     """Inserts a set of FeedToFetch entities for a set of topics.
 
     Overwrites any existing entities that are already there.
 
     Args:
       topic_list: List of the topic URLs of feeds that need to be fetched.
+      source_dict: Dictionary of sources for the feed. Defaults to an empty
+        dictionary.
     """
     if not topic_list:
       return
-    feed_list = [cls(key_name=get_hash_key_name(topic), topic=topic)
-                 for topic in set(topic_list)]
+
+    if source_dict:
+      source_keys, source_values = zip(*source_dict.items())  # Yay Python!
+    else:
+      source_keys, source_values = [], []
+
+    feed_list = [
+        cls(key_name=get_hash_key_name(topic),
+            topic=topic,
+            source_keys=list(source_keys),
+            source_values=list(source_values))
+        for topic in set(topic_list)]
     db.put(feed_list)
     # TODO(bslatkin): Use a bulk interface or somehow merge combined fetches
     # into a single task.
     for feed in feed_list:
       feed._enqueue_task()
 
-  def fetch_failed(self, max_failures=MAX_FEED_PULL_FAILURES,
+  def fetch_failed(self,
+                   max_failures=MAX_FEED_PULL_FAILURES,
                    retry_period=FEED_PULL_RETRY_PERIOD,
                    now=datetime.datetime.utcnow):
     """Reports that feed fetching failed.
@@ -1514,12 +1529,22 @@ def preprocess_urls(urls):
   """Preprocesses URLs doing any necessary canonicalization.
 
   Args:
-    urls: Iterable of URLs.
+    urls: Set of URLs.
 
   Returns:
     Iterable of URLs that have been modified.
   """
   return urls
+
+
+def derive_sources(request_handler, urls):
+  """Derives feed sources for a publish event.
+
+  Args:
+    request_handler: webapp.RequestHandler instance for the publish event.
+    urls: Set of URLs that were published.
+  """
+  return {}
 
 
 class PublishHandlerBase(webapp.RequestHandler):
@@ -1550,11 +1575,13 @@ class PublishHandlerBase(webapp.RequestHandler):
     if urls:
       logging.info('Topics with known subscribers: %s', urls)
 
+    source_dict = hooks.execute(derive_sources, self, urls)
+
     # Record all FeedToFetch requests here. The background Pull worker will
     # double-check if there are any subscribers that need event delivery and
     # will skip any unused feeds.
     try:
-      FeedToFetch.insert(urls)
+      FeedToFetch.insert(urls, source_dict)
     except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
       logging.exception('Failed to insert FeedToFetch records')
       self.response.headers['Retry-After'] = '120'
@@ -2315,6 +2342,7 @@ def main():
 
 hooks = HookManager()
 hooks.declare(preprocess_urls)
+hooks.declare(derive_sources)
 hooks.declare(confirm_subscription)
 hooks.declare(pull_feed)
 hooks.declare(push_event)

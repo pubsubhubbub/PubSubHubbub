@@ -581,10 +581,15 @@ class FeedToFetchTest(unittest.TestCase):
     all_topics = [self.topic, self.topic2, self.topic3]
     FeedToFetch.insert(all_topics)
     found_topics = set(FeedToFetch.get_by_topic(t).topic for t in all_topics)
-    self.assertEquals(set(all_topics), found_topics)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=3)
     task_topics = set(t['params']['topic'] for t in tasks)
     self.assertEquals(found_topics, task_topics)
+
+    for topic in all_topics:
+      feed_to_fetch = FeedToFetch.get_by_topic(topic)
+      self.assertEquals(topic, feed_to_fetch.topic)
+      self.assertEquals([], feed_to_fetch.source_keys)
+      self.assertEquals([], feed_to_fetch.source_values)
 
   def testEmpty(self):
     """Tests when the list of urls is empty."""
@@ -652,6 +657,18 @@ class FeedToFetchTest(unittest.TestCase):
       testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
     finally:
       del os.environ['X_APPENGINE_QUEUENAME']
+
+  def testSources(self):
+    """Tests when sources are supplied."""
+    source_dict = {'foo': 'bar', 'meepa': 'stuff'}
+    all_topics = [self.topic, self.topic2, self.topic3]
+    FeedToFetch.insert(all_topics, source_dict=source_dict)
+    for topic in all_topics:
+      feed_to_fetch = FeedToFetch.get_by_topic(topic)
+      self.assertEquals(topic, feed_to_fetch.topic)
+      found_source_dict = dict(zip(feed_to_fetch.source_keys,
+                                   feed_to_fetch.source_values))
+      self.assertEquals(source_dict, found_source_dict)
 
 ################################################################################
 
@@ -1080,6 +1097,35 @@ class PublishHandlerTest(testutil.HandlerTestBase):
     expected_topics = set([self.topic, self.topic2, self.topic3])
     inserted_topics = set(f.topic for f in FeedToFetch.all())
     self.assertEquals(expected_topics, inserted_topics)
+
+  def testSources(self):
+    """Tests that derived sources are properly set on FeedToFetch instances."""
+    db.put([KnownFeed.create(self.topic),
+            KnownFeed.create(self.topic2),
+            KnownFeed.create(self.topic3)])
+    source_dict = {'one': 'two', 'three': 'four'}
+    topics = [self.topic, self.topic2, self.topic3]
+    def derive_sources(handler, urls):
+      self.assertEquals(set(topics), set(urls))
+      self.assertEquals('testvalue', handler.request.get('the-real-thing'))
+      return source_dict
+
+    main.hooks.override_for_test(main.derive_sources, derive_sources)
+    try:
+      self.handle('post',
+                  ('hub.mode', 'PuBLisH'),
+                  ('hub.url', self.topic),
+                  ('hub.url', self.topic2),
+                  ('hub.url', self.topic3),
+                  ('the-real-thing', 'testvalue'))
+      self.assertEquals(204, self.response_code())
+      for topic in topics:
+        feed_to_fetch = FeedToFetch.get_by_topic(topic)
+        found_source_dict = dict(zip(feed_to_fetch.source_keys,
+                                     feed_to_fetch.source_values))
+        self.assertEquals(source_dict, found_source_dict)
+    finally:
+      main.hooks.reset_for_test(main.derive_sources)
 
 
 class PublishHandlerThroughHubUrlTest(PublishHandlerTest):
