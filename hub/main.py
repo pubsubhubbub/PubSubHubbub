@@ -90,6 +90,7 @@ import os
 import random
 import sgmllib
 import time
+import traceback
 import urllib
 import urlparse
 import wsgiref.handlers
@@ -1806,13 +1807,14 @@ def parse_feed(feed_record, headers, content):
           feed_record.topic, format, content)
       break
     except (xml.sax.SAXException, feed_diff.Error), e:
+      error_traceback = traceback.format_exc()
       logging.debug(
-          'Could not get entries for content of %d bytes in format "%s": %s',
-          len(content), format, e)
+          'Could not get entries for content of %d bytes in format "%s":\n%s',
+          len(content), format, error_traceback)
       parse_failures += 1
 
   if parse_failures == len(order):
-    logging.error('Could not parse feed content')
+    logging.error('Could not parse feed content:\n%s', error_traceback)
     return False
 
   if not entities_to_save:
