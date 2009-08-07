@@ -1774,6 +1774,17 @@ def pull_feed(feed_to_fetch, fetch_url, headers):
   return response.status_code, response.headers, response.content
 
 
+def inform_event(event_to_deliver):
+  """Helper hook informs the Hub of new notifications.
+
+  This can be used to take an action on every notification processed.
+
+  Args:
+    event_to_deliver: The new event to deliver.
+  """
+  pass
+
+
 def parse_feed(feed_record, headers, content):
   """Parses a feed's content, determines changes, enqueues notifications.
 
@@ -1839,6 +1850,10 @@ def parse_feed(feed_record, headers, content):
   # that happens in the PullFeedHandler.post() method.
   if event_to_deliver:
     event_to_deliver.enqueue()
+
+  # Inform any hooks that there will is a new event to deliver that has
+  # been recorded and delivery has begun.
+  hooks.execute(inform_event, event_to_deliver)
 
   return True
 
@@ -2347,6 +2362,7 @@ hooks.declare(preprocess_urls)
 hooks.declare(derive_sources)
 hooks.declare(confirm_subscription)
 hooks.declare(pull_feed)
+hooks.declare(inform_event)
 hooks.declare(push_event)
 hooks.declare(modify_handlers)
 hooks.load()
