@@ -2651,14 +2651,8 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     # Running this handler again will overwrite the FeedToFetch instances,
     # add tasks for them, but it will not duplicate the polling queue Task in
     # the chain of iterating through all KnownFeed entries.
-    # TODO(bslatkin): Once the stub's deduping properties are restored, this
-    # handler should not enqueue anything.
     self.handle('post', *task['params'].items())
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=3)
-    dup_task = testutil.get_tasks(main.POLLING_QUEUE, index=2, expected_count=3)
-    del task['eta']
-    del dup_task['eta']
-    self.assertEquals(task, dup_task)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=2)
     self.assertEquals(sequence, task['params']['sequence'])
     self.assertEquals(str(KnownFeed.create_key(topic2)),
                       task['params']['current_key'])
@@ -2670,7 +2664,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
     self.assertTrue(FeedToFetch.get_by_topic(topic3) is not None)
 
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=3, expected_count=4)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=2, expected_count=3)
     self.assertEquals(sequence, task['params']['sequence'])
     self.assertEquals(str(KnownFeed.create_key(topic3)),
                       task['params']['current_key'])
@@ -2678,7 +2672,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
 
     # Starting the cycle again will do nothing.
     self.handle('get')
-    testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=3)
 
     # Resetting the next start time to before the present time will
     # cause the iteration to start again.
@@ -2687,7 +2681,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
         datetime.datetime.utcnow() - datetime.timedelta(seconds=120)
     db.put(the_mark)
     self.handle('get')
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=5)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=3, expected_count=4)
     self.assertNotEquals(sequence, task['params']['sequence'])
 
 ################################################################################
