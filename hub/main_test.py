@@ -51,6 +51,9 @@ sha1_hash = main.sha1_hash
 get_hash_key_name = main.get_hash_key_name
 
 FUNNY = '/CaSeSeNsItIvE'
+FUNNY_UNICODE = u'/blah/\u30d6\u30ed\u30b0\u8846'
+FUNNY_UTF8 = '/blah/\xe3\x83\x96\xe3\x83\xad\xe3\x82\xb0\xe8\xa1\x86'
+FUNNY_IRI = '/blah/%E3%83%96%E3%83%AD%E3%82%B0%E8%A1%86'
 
 ################################################################################
 
@@ -2362,6 +2365,47 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+
+  def testSubscribeUnicode(self):
+    """Tests when the topic, callback, verify_token, and secrets are unicode."""
+    topic = self.topic + FUNNY_UNICODE
+    topic_utf8 = self.topic + FUNNY_UTF8
+    callback = self.callback + FUNNY_UNICODE
+    callback_utf8 = self.callback + FUNNY_UTF8
+    verify_token = self.verify_token + FUNNY_UNICODE
+    verify_token_utf8 = self.verify_token + FUNNY_UTF8
+
+    sub_key = Subscription.create_key_name(
+        main.unicode_to_iri(callback),
+        main.unicode_to_iri(topic))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.verify_callback_querystring_template = (
+        self.callback +
+            '/blah/%%E3%%83%%96%%E3%%83%%AD%%E3%%82%%B0%%E8%%A1%%86'
+        '?hub.verify_token=the_token%%2F'
+            'blah%%2F%%E3%%83%%96%%E3%%83%%AD%%E3%%82%%B0%%E8%%A1%%86'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic%%2F'
+            'blah%%2F%%25E3%%2583%%2596%%25E3%%2583%%25AD'
+            '%%25E3%%2582%%25B0%%25E8%%25A1%%2586'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
+
+    self.handle('post',
+        ('hub.callback', callback_utf8),
+        ('hub.topic', topic_utf8),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', verify_token_utf8))
+    self.assertEquals(204, self.response_code())
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(
+        KnownFeed.create_key(self.topic + FUNNY_IRI)) is not None)
 
 
 class SubscribeHandlerThroughHubUrlTest(SubscribeHandlerTest):

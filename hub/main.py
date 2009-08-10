@@ -214,9 +214,36 @@ by the Terms of Use found at pubsubhubbub.appspot.com.
 ################################################################################
 # Helper functions
 
+def utf8encoded(data):
+  """Encodes a string as utf-8 data and returns an ascii string.
+
+  Args:
+    data: The string data to encode.
+
+  Returns:
+    An ascii string, or None if the 'data' parameter was None.
+  """
+  if data is None:
+    return None
+  return unicode(data).encode('utf-8')
+
+
+def unicode_to_iri(url):
+  """Converts a URL containing unicode characters to an IRI.
+
+  Args:
+    url: Unicode string containing a URL with unicode characters.
+
+  Returns:
+    A properly encoded IRI (see RFC 3987).
+  """
+  scheme, rest = unicode(url).encode('utf-8').split(':', 1)
+  return '%s:%s' % (scheme, urllib.quote(rest))
+
+
 def sha1_hash(value):
   """Returns the sha1 hash of the supplied value."""
-  return hashlib.sha1(value.encode('utf-8')).hexdigest()
+  return hashlib.sha1(utf8encoded(value)).hexdigest()
 
 
 def get_hash_key_name(value):
@@ -435,7 +462,7 @@ class Subscription(db.Model):
     Returns:
       String containing the key name for the corresponding Subscription.
     """
-    return get_hash_key_name('%s\n%s' % (callback, topic))
+    return get_hash_key_name(u'%s\n%s' % (callback, topic))
 
   @classmethod
   def insert(cls,
@@ -1309,8 +1336,8 @@ def confirm_subscription(mode, topic, callback, verify_token,
     True if the subscription was confirmed properly, False if the subscription
     request encountered an error or any other error has hit.
   """
-  logging.debug('Attempting to confirm %s for topic = %s, callback = %s, '
-                'verify_token = %s, secret = %s, lease_seconds = %s',
+  logging.debug('Attempting to confirm %s for topic = %r, callback = %r, '
+                'verify_token = %r, secret = %r, lease_seconds = %s',
                 mode, topic, callback, verify_token, secret, lease_seconds)
 
   parsed_url = list(urlparse.urlparse(callback))
@@ -1323,7 +1350,7 @@ def confirm_subscription(mode, topic, callback, verify_token,
     'hub.lease_seconds': real_lease_seconds,
   }
   if verify_token:
-    params['hub.verify_token'] = verify_token
+    params['hub.verify_token'] = utf8encoded(verify_token)
   parsed_url[4] = urllib.urlencode(params)
   adjusted_url = urlparse.urlunparse(parsed_url)
 
@@ -1339,6 +1366,7 @@ def confirm_subscription(mode, topic, callback, verify_token,
       Subscription.insert(callback, topic, verify_token, secret,
                           lease_seconds=real_lease_seconds)
       # Blindly put the feed's record so we have a record of all feeds.
+      print 'topic is', topic
       db.put(KnownFeed.create(topic))
     else:
       Subscription.remove(callback, topic)
@@ -1364,8 +1392,8 @@ class SubscribeHandler(webapp.RequestHandler):
     callback = self.request.get('hub.callback', '')
     topic = self.request.get('hub.topic', '')
     verify_type_list = [s.lower() for s in self.request.get_all('hub.verify')]
-    verify_token = self.request.get('hub.verify_token', '')
-    secret = self.request.get('hub.secret', None)
+    verify_token = unicode(self.request.get('hub.verify_token', ''))
+    secret = unicode(self.request.get('hub.secret', '')) or None
     lease_seconds = self.request.get('hub.lease_seconds',
                                      str(DEFAULT_LEASE_SECONDS))
     mode = self.request.get('hub.mode', '').lower()
@@ -1373,8 +1401,13 @@ class SubscribeHandler(webapp.RequestHandler):
     error_message = None
     if not callback or not is_valid_url(callback):
       error_message = 'Invalid parameter: hub.callback'
+    else:
+      callback = unicode_to_iri(callback)
+
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
+    else:
+      topic = unicode_to_iri(topic)
 
     enabled_types = [vt for vt in verify_type_list if vt in ('async', 'sync')]
     if not enabled_types:
@@ -1977,7 +2010,7 @@ class PushEventHandler(webapp.RequestHandler):
     def create_callback(sub):
       return lambda *args: callback(sub, *args)
 
-    payload_utf8 = work.payload.encode('utf-8')
+    payload_utf8 = utf8encoded(work.payload)
     for sub in subscription_list:
       headers = {
         # TODO(bslatkin): Remove the 'or' here once migration is done.

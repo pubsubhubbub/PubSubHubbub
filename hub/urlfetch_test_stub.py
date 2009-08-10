@@ -94,8 +94,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     header_text = None
     if headers:
       header_text = ', '.join(
-          '%s="%s"' % (k, v) for (k, v) in header_dict.iteritems())
-    logging.info('Received URLFetch request:\n%s %s\nHeaders: %r\nPayload: %r',
+          '%r="%r"' % (k, v) for (k, v) in header_dict.iteritems())
+    logging.info('Received URLFetch request:\n%s %r\nHeaders: %r\nPayload: %r',
         method, url, header_text, payload)
 
     key = (method.lower(), url)
