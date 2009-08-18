@@ -175,6 +175,9 @@ MAX_REDIRECTS = 7
 # FeedRecord entities when putting them and their size is too large.
 PUT_SPLITTING_ATTEMPTS = 10
 
+# Maximum number of FeedEntryRecord entries to look up in parallel.
+MAX_FEED_ENTRY_RECORD_LOOKUPS = 500
+
 ################################################################################
 # Constants
 
@@ -1761,11 +1764,16 @@ def find_feed_updates(topic, format, feed_content,
 
   # Find the new entries we've never seen before, and any entries that we
   # knew about that have been updated.
-  existing_entries = FeedEntryRecord.get_entries_for_topic(
-      topic, entries_map.keys())
+  STEP = MAX_FEED_ENTRY_RECORD_LOOKUPS
+  all_keys = entries_map.keys()
+  existing_entries = []
+  for position in xrange(0, len(all_keys), STEP):
+    key_set = all_keys[position:position+STEP]
+    existing_entries.extend(FeedEntryRecord.get_entries_for_topic(
+        topic, key_set))
+
   existing_dict = dict((e.entry_id, e.entry_content_hash)
                        for e in existing_entries if e)
-
   logging.debug('Retrieved %d feed entries, %d of which have been seen before',
                 len(entries_map), len(existing_dict))
 
@@ -1888,7 +1896,7 @@ def parse_feed(feed_record, headers, content):
       group = all_entities.pop(0)
       try:
         db.put(group)
-      except apiproxy_errors.RequestTooLargeError:
+      except (db.BadRequestError, apiproxy_errors.RequestTooLargeError):
         logging.exception('Could not insert %d entities; splitting in half',
                           len(group))
         # Insert the first half at the beginning since we need to make sure that
@@ -1901,7 +1909,7 @@ def parse_feed(feed_record, headers, content):
     try:
       db.run_in_transaction(txn)
       break
-    except apiproxy_errors.RequestTooLargeError:
+    except (db.BadRequestError, apiproxy_errors.RequestTooLargeError):
       pass
   else:
     logging.critical('Insertion of event to delivery *still* failing due to '

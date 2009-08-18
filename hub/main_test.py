@@ -1210,6 +1210,28 @@ class FindFeedUpdatesTest(unittest.TestCase):
     entry_id_set = set(f.entry_id for f in entry_list)
     self.assertEquals(set(self.entries_map.keys()), entry_id_set)
 
+  def testMultipleParallelBatches(self):
+    """Tests that retrieving FeedEntryRecords is done in multiple batches."""
+    old_get_feed_record = main.FeedEntryRecord.get_entries_for_topic
+    calls = [0]
+    @staticmethod
+    def fake_get_record(*args, **kwargs):
+      calls[0] += 1
+      return old_get_feed_record(*args, **kwargs)
+
+    old_lookups = main.MAX_FEED_ENTRY_RECORD_LOOKUPS
+    main.FeedEntryRecord.get_entries_for_topic = fake_get_record
+    main.MAX_FEED_ENTRY_RECORD_LOOKUPS = 1
+    try:
+      entry_list, entry_payloads = self.run_test()
+      entry_id_set = set(f.entry_id for f in entry_list)
+      self.assertEquals(set(self.entries_map.keys()), entry_id_set)
+      self.assertEquals(self.entries_map.values(), entry_payloads)
+      self.assertEquals(3, calls[0])
+    finally:
+      main.MAX_FEED_ENTRY_RECORD_LOOKUPS = old_lookups
+      main.FeedEntryRecord.get_entries_for_topic = old_get_feed_record
+
 ################################################################################
 
 FeedRecord = main.FeedRecord
