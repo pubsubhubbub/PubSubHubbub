@@ -1556,6 +1556,39 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
     self.assertEquals(self.topic, task['params']['topic'])
 
+  def testPutSplittingFails(self):
+    """Tests when splitting put() calls still doesn't help and we give up."""
+    # Make the content way too big.
+    content_template = ('content' * 100 + '%s')
+    self.all_ids = [str(i) for i in xrange(1000)]
+    self.entry_payloads = [
+      (content_template % entry_id) for entry_id in self.all_ids
+    ]
+    self.entry_list = [
+        FeedEntryRecord.create_entry_for_topic(
+            self.topic, entry_id, 'content%s' % entry_id)
+        for entry_id in self.all_ids
+    ]
+
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response,
+        response_headers=self.headers)
+
+    old_splitting_attempts = main.PUT_SPLITTING_ATTEMPTS
+    main.PUT_SPLITTING_ATTEMPTS = 1
+    try:
+      self.handle('post', ('topic', self.topic))
+    finally:
+      main.PUT_SPLITTING_ATTEMPTS = old_splitting_attempts
+
+    # Verify that *NO* FeedEntryRecords or EventToDeliver has been written,
+    # and no tasks were enqueued.
+    self.assertEquals([], list(FeedEntryRecord.all()))
+    self.assertEquals(None, EventToDeliver.all().get())
+
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
 

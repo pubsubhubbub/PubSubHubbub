@@ -171,6 +171,10 @@ MAX_LEASE_SECONDS = DEFAULT_LEASE_SECONDS * 3  # 90 days
 # Maximum number of redirects to follow when feed fetching.
 MAX_REDIRECTS = 7
 
+# Number of times to try to split FeedEntryRecord, EventToDeliver, and
+# FeedRecord entities when putting them and their size is too large.
+PUT_SPLITTING_ATTEMPTS = 10
+
 ################################################################################
 # Constants
 
@@ -1887,16 +1891,22 @@ def parse_feed(feed_record, headers, content):
       except apiproxy_errors.RequestTooLargeError:
         logging.exception('Could not insert %d entities; splitting in half',
                           len(group))
-        all_entities.append(group[:len(group)/2])
-        all_entities.append(group[len(group)/2:])
+        # Insert the first half at the beginning since we need to make sure that
+        # the EventToDeliver gets inserted first.
+        all_entities.insert(0, group[len(group)/2:])
+        all_entities.insert(0, group[:len(group)/2])
         raise
 
-  for i in xrange(10):
+  for i in xrange(PUT_SPLITTING_ATTEMPTS):
     try:
       db.run_in_transaction(txn)
       break
     except apiproxy_errors.RequestTooLargeError:
       pass
+  else:
+    logging.critical('Insertion of event to delivery *still* failing due to '
+                     'request size; dropping event for %s', feed_record.topic)
+    return True
 
   # TODO(bslatkin): Make this transactional with the call to work.done()
   # that happens in the PullFeedHandler.post() method.
