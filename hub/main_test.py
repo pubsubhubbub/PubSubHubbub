@@ -1598,11 +1598,14 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         response_headers=self.headers)
 
     old_splitting_attempts = main.PUT_SPLITTING_ATTEMPTS
+    old_max_saves = main.MAX_FEED_RECORD_SAVES
     main.PUT_SPLITTING_ATTEMPTS = 1
+    main.MAX_FEED_RECORD_SAVES = len(self.entry_list) + 1
     try:
       self.handle('post', ('topic', self.topic))
     finally:
       main.PUT_SPLITTING_ATTEMPTS = old_splitting_attempts
+      main.MAX_FEED_RECORD_SAVES = old_max_saves
 
     # Verify that *NO* FeedEntryRecords or EventToDeliver has been written,
     # and no tasks were enqueued.

@@ -178,6 +178,10 @@ PUT_SPLITTING_ATTEMPTS = 10
 # Maximum number of FeedEntryRecord entries to look up in parallel.
 MAX_FEED_ENTRY_RECORD_LOOKUPS = 500
 
+# Maximum number of FeedEntryRecord entries to save at the same time when
+# a new EventToDeliver is being written.
+MAX_FEED_RECORD_SAVES = 100
+
 ################################################################################
 # Constants
 
@@ -1885,12 +1889,20 @@ def parse_feed(feed_record, headers, content):
   feed_record.update(headers, header_footer)
   entities_to_save.append(feed_record)
 
+  # Segment all entities into smaller groups to reduce the chance of memory
+  # errors or too large of requests when the entities are put in a single
+  # call to the Datastore API.
+  all_entities = []
+  STEP = MAX_FEED_RECORD_SAVES
+  for position in xrange(0, len(entities_to_save), STEP):
+    next_entities = entities_to_save[position:position+STEP]
+    all_entities.append(next_entities)
+
   # Doing this put in a transaction ensures that we have written all
   # FeedEntryRecords, updated the FeedRecord, and written the EventToDeliver
   # at the same time. Otherwise, if any of these fails individually we could
   # drop messages on the floor. If this transaction fails, the whole fetch
   # will be redone and find the same entries again (thus it is idempotent).
-  all_entities = [entities_to_save]
   def txn():
     while all_entities:
       group = all_entities.pop(0)
