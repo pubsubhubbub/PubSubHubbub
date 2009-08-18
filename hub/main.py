@@ -183,6 +183,10 @@ MAX_FEED_ENTRY_RECORD_LOOKUPS = 500
 # a new EventToDeliver is being written.
 MAX_FEED_RECORD_SAVES = 100
 
+# Maximum number of new FeedEntryRecords to process and insert at a time. Any
+# remaining will be split into another EventToDeliver instance.
+MAX_NEW_FEED_ENTRY_RECORDS = 200
+
 ################################################################################
 # Constants
 
@@ -1878,6 +1882,20 @@ def parse_feed(feed_record, headers, content):
     logging.error('Could not parse feed content:\n%s', error_traceback)
     return False
 
+  # If we have more entities than we'd like to handle, only save a subset of
+  # them and force this task to retry as if it failed. This will cause two
+  # separate EventToDeliver entities to be inserted for the feed pulls, each
+  # containing a separate subset of the data.
+  if len(entities_to_save) > MAX_NEW_FEED_ENTRY_RECORDS:
+    logging.warning('Found more entities than we can process for topic %s; '
+                    'splitting', feed_record.topic)
+    entities_to_save = entities_to_save[:MAX_NEW_FEED_ENTRY_RECORDS]
+    entry_payloads = entry_payloads[:MAX_NEW_FEED_ENTRY_RECORDS]
+    parse_successful = False
+  else:
+    feed_record.update(headers, header_footer)
+    parse_successful = True
+
   if not entities_to_save:
     logging.debug('No new entries found')
     event_to_deliver = None
@@ -1885,17 +1903,9 @@ def parse_feed(feed_record, headers, content):
     logging.info('Saving %d new/updated entries', len(entities_to_save))
     event_to_deliver = EventToDeliver.create_event_for_topic(
         feed_record.topic, format, header_footer, entry_payloads)
-    entities_to_save.append(event_to_deliver)
+    entities_to_save.insert(0, event_to_deliver)
 
-  feed_record.update(headers, header_footer)
-  entities_to_save.append(feed_record)
-
-  # Clear some memory, and actually garbage collect if we know we're going to
-  # be inserting a ton of entities.
-  del entry_payloads
-  del header_footer
-  if len(entities_to_save) > 100:
-    gc.collect()
+  entities_to_save.insert(0, feed_record)
 
   # Segment all entities into smaller groups to reduce the chance of memory
   # errors or too large of requests when the entities are put in a single
@@ -1945,7 +1955,7 @@ def parse_feed(feed_record, headers, content):
   # been recorded and delivery has begun.
   hooks.execute(inform_event, event_to_deliver)
 
-  return True
+  return parse_successful
 
 
 class PullFeedHandler(webapp.RequestHandler):

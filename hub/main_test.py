@@ -1554,7 +1554,13 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
-    self.handle('post', ('topic', self.topic))
+
+    old_max_new = main.MAX_NEW_FEED_ENTRY_RECORDS
+    main.MAX_NEW_FEED_ENTRY_RECORDS = len(self.all_ids) + 1
+    try:
+        self.handle('post', ('topic', self.topic))
+    finally:
+      main.MAX_NEW_FEED_ENTRY_RECORDS = old_max_new
 
     # Verify that all feed entry records have been written along with the
     # EventToDeliver and FeedRecord.
@@ -1599,18 +1605,25 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     old_splitting_attempts = main.PUT_SPLITTING_ATTEMPTS
     old_max_saves = main.MAX_FEED_RECORD_SAVES
+    old_max_new = main.MAX_NEW_FEED_ENTRY_RECORDS
     main.PUT_SPLITTING_ATTEMPTS = 1
     main.MAX_FEED_RECORD_SAVES = len(self.entry_list) + 1
+    main.MAX_NEW_FEED_ENTRY_RECORDS = main.MAX_FEED_RECORD_SAVES
     try:
       self.handle('post', ('topic', self.topic))
     finally:
       main.PUT_SPLITTING_ATTEMPTS = old_splitting_attempts
       main.MAX_FEED_RECORD_SAVES = old_max_saves
+      main.MAX_NEW_FEED_ENTRY_RECORDS = old_max_new
 
     # Verify that *NO* FeedEntryRecords or EventToDeliver has been written,
-    # and no tasks were enqueued.
+    # the FeedRecord wasn't updated, and no tasks were enqueued.
     self.assertEquals([], list(FeedEntryRecord.all()))
     self.assertEquals(None, EventToDeliver.all().get())
+
+    record = FeedRecord.all().get()
+    self.assertNotEquals(self.etag, record.etag)
+
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
   def testFeedTooLarge(self):
@@ -1624,6 +1637,50 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals([], list(FeedEntryRecord.all()))
     self.assertEquals(None, EventToDeliver.all().get())
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+  def testTooManyNewEntries(self):
+    """Tests when there are more new entries than we can handle at once."""
+    self.all_ids = [str(i) for i in xrange(1000)]
+    self.entry_payloads = [
+      'content%s' % entry_id for entry_id in self.all_ids
+    ]
+    self.entry_list = [
+        FeedEntryRecord.create_entry_for_topic(
+            self.topic, entry_id, 'content%s' % entry_id)
+        for entry_id in self.all_ids
+    ]
+
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response,
+        response_headers=self.headers)
+
+    self.handle('post', ('topic', self.topic))
+
+    # Verify that a subset of the entry records are present and the payload
+    # only has the first N entries.
+    feed_entries = FeedEntryRecord.get_entries_for_topic(
+        self.topic, self.all_ids)
+    expected_records = main.MAX_NEW_FEED_ENTRY_RECORDS
+    self.assertEquals(self.all_ids[:expected_records],
+                      [e.entry_id for e in feed_entries])
+
+    work = EventToDeliver.all().get()
+    event_key = work.key()
+    self.assertEquals(self.topic, work.topic)
+    expected_content = '\n'.join(self.entry_payloads[:expected_records])
+    self.assertTrue(expected_content in work.payload)
+    self.assertFalse('content%d' % expected_records in work.payload)
+    work.delete()
+
+    record = FeedRecord.all().get()
+    self.assertNotEquals(self.etag, record.etag)
+
+    task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
+    self.assertEquals(str(event_key), task['params']['event_key'])
+    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
+    for task in tasks:
+      self.assertEquals(self.topic, task['params']['topic'])
 
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
