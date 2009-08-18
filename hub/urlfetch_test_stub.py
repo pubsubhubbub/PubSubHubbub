@@ -42,7 +42,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
   
   def expect(self, method, url, response_code, response_data,
              response_headers=None, request_payload='', request_headers=None,
-             urlfetch_error=False, apiproxy_error=False, deadline_error=False):
+             urlfetch_error=False, apiproxy_error=False, deadline_error=False,
+             urlfetch_size_error=False):
     """Expects a certain request and response.
     
     Overrides any existing expectations for this stub.
@@ -55,6 +56,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
       response_headers: Headers to serve back, if any.
       request_payload: The expected request payload, if any.
       request_headers: Any expected request headers.
+      urlfetch_size_error: Set to True if this call should raise
+        a urlfetch_errors.ResponseTooLargeError
       urlfetch_error: Set to True if this call should raise a
         urlfetch_errors.Error exception when made.
       apiproxy_error: Set to True if this call should raise an
@@ -66,6 +69,10 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
     if urlfetch_error:
       error_instance = apiproxy_errors.ApplicationError(
           urlfetch_service_pb.URLFetchServiceError.FETCH_ERROR, 'mock error')
+    elif urlfetch_size_error:
+      error_instance = apiproxy_errors.ApplicationError(
+          urlfetch_service_pb.URLFetchServiceError.RESPONSE_TOO_LARGE,
+          'mock error')
     elif apiproxy_error:
       error_instance = apiproxy_errors.OverQuotaError()
     elif deadline_error:

@@ -1950,6 +1950,11 @@ class PullFeedHandler(webapp.RequestHandler):
       try:
         status_code, headers, content = hooks.execute(pull_feed,
             work, fetch_url, feed_record.get_request_headers())
+      except urlfetch.ResponseTooLargeError:
+        logging.critical('Feed response too large for topic %s at url %s; '
+                         'skipping', work.topic, fetch_url)
+        work.done()
+        return
       except (apiproxy_errors.Error, urlfetch.Error):
         logging.exception('Failed to fetch feed')
         work.fetch_failed()

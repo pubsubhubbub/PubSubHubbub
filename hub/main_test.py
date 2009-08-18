@@ -1586,7 +1586,18 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     # and no tasks were enqueued.
     self.assertEquals([], list(FeedEntryRecord.all()))
     self.assertEquals(None, EventToDeliver.all().get())
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
+  def testFeedTooLarge(self):
+    """Tests when the pulled feed's content size is too large."""
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, '',
+        response_headers=self.headers,
+        urlfetch_size_error=True)
+    self.handle('post', ('topic', self.topic))
+    self.assertEquals([], list(FeedEntryRecord.all()))
+    self.assertEquals(None, EventToDeliver.all().get())
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
 
