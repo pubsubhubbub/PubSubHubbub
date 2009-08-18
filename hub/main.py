@@ -83,6 +83,7 @@ and will be retried at a later time.
 #   than the polling period.
 
 import datetime
+import gc
 import hashlib
 import hmac
 import logging
@@ -1888,6 +1889,13 @@ def parse_feed(feed_record, headers, content):
 
   feed_record.update(headers, header_footer)
   entities_to_save.append(feed_record)
+
+  # Clear some memory, and actually garbage collect if we know we're going to
+  # be inserting a ton of entities.
+  del entry_payloads
+  del header_footer
+  if len(entities_to_save) > 100:
+    gc.collect()
 
   # Segment all entities into smaller groups to reduce the chance of memory
   # errors or too large of requests when the entities are put in a single
