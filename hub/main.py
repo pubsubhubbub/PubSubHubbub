@@ -1878,7 +1878,26 @@ def parse_feed(feed_record, headers, content):
   # at the same time. Otherwise, if any of these fails individually we could
   # drop messages on the floor. If this transaction fails, the whole fetch
   # will be redone and find the same entries again (thus it is idempotent).
-  db.run_in_transaction(lambda: db.put(entities_to_save))
+  all_entities = [entities_to_save]
+  def txn():
+    while all_entities:
+      group = all_entities.pop(0)
+      try:
+        db.put(group)
+      except apiproxy_errors.RequestTooLargeError:
+        logging.exception('Could not insert %d entities; splitting in half',
+                          len(group))
+        all_entities.append(group[:len(group)/2])
+        all_entities.append(group[len(group)/2:])
+        raise
+
+  for i in xrange(10):
+    try:
+      db.run_in_transaction(txn)
+      break
+    except apiproxy_errors.RequestTooLargeError:
+      pass
+
   # TODO(bslatkin): Make this transactional with the call to work.done()
   # that happens in the PullFeedHandler.post() method.
   if event_to_deliver:

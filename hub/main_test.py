@@ -1514,6 +1514,48 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
     self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
 
+  def testPutSplitting(self):
+    """Tests that put() calls for feed records are split when too large."""
+    # Make the content way too big.
+    content_template = ('content' * 100 + '%s')
+    self.all_ids = [str(i) for i in xrange(1000)]
+    self.entry_payloads = [
+      (content_template % entry_id) for entry_id in self.all_ids
+    ]
+    self.entry_list = [
+        FeedEntryRecord.create_entry_for_topic(
+            self.topic, entry_id, 'content%s' % entry_id)
+        for entry_id in self.all_ids
+    ]
+
+    FeedToFetch.insert([self.topic])
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response,
+        response_headers=self.headers)
+    self.handle('post', ('topic', self.topic))
+
+    # Verify that all feed entry records have been written along with the
+    # EventToDeliver and FeedRecord.
+    feed_entries = list(FeedEntryRecord.all())
+    self.assertEquals(set(self.all_ids), set(e.entry_id for e in feed_entries))
+
+    work = EventToDeliver.all().get()
+    event_key = work.key()
+    self.assertEquals(self.topic, work.topic)
+    self.assertTrue('\n'.join(self.entry_payloads) in work.payload)
+    work.delete()
+
+    record = FeedRecord.get_or_create(self.topic)
+    self.assertEquals(self.header_footer, record.header_footer)
+    self.assertEquals(self.etag, record.etag)
+    self.assertEquals(self.last_modified, record.last_modified)
+    self.assertEquals('application/atom+xml', record.content_type)
+
+    task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
+    self.assertEquals(str(event_key), task['params']['event_key'])
+    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
+
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
 
