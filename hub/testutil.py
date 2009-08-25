@@ -79,20 +79,30 @@ def setup_for_testing():
     logging.getLogger().setLevel(before_level)
 
 
-def create_test_request(method, *params):
+def create_test_request(method, body, *params):
   """Creates a webapp.Request object for use in testing.
   
   Args:
     method: Method to use for the test.
+    body: The body to use for the request; implies that *params is empty.
     *params: List of (key, value) tuples to use in the post-body or query
       string of the request.
   
   Returns:
     A new webapp.Request object for testing.
   """
+  assert not(body and params), 'Must specify body or params, not both'
   from google.appengine.ext import webapp
-  body = StringIO.StringIO()
-  encoded_params = urllib.urlencode(params)
+
+  if body:
+    body = StringIO.StringIO(body)
+    encoded_params = ''
+  else:
+    encoded_params = urllib.urlencode(params)
+    body = StringIO.StringIO()
+    body.write(encoded_params)
+    body.seek(0)
+
   environ = os.environ.copy()
   environ.update({
     'QUERY_STRING': '',
@@ -102,8 +112,6 @@ def create_test_request(method, *params):
     environ['REQUEST_METHOD'] = method.upper()
     environ['QUERY_STRING'] = encoded_params
   else:
-    body.write(encoded_params)
-    body.seek(0)
     environ['REQUEST_METHOD'] = method.upper()
     environ['CONTENT_TYPE'] = 'application/x-www-form-urlencoded'
     environ['CONTENT_LENGTH'] = str(len(body.getvalue()))
@@ -147,7 +155,41 @@ class HandlerTestBase(unittest.TestCase):
       if not before_email:
         os.environ['USER_EMAIL'] = ''
       self.resp = webapp.Response()
-      self.req = create_test_request(method, *params)
+      self.req = create_test_request(method, None, *params)
+      handler = self.handler_class()
+      handler.initialize(self.req, self.resp)
+      getattr(handler, method.lower())()
+      logging.info('%r returned status %d: %s', self.handler_class,
+                   self.response_code(), self.response_body())
+    finally:
+      del os.environ['SERVER_SOFTWARE']
+      del os.environ['AUTH_DOMAIN']
+      del os.environ['USER_EMAIL']
+
+  def handle_body(self, method, body):
+    """Runs a test of a webapp.RequestHandler with a POST body.
+
+    Args:
+      method: The HTTP method to invoke for this test.
+      body: The body payload bytes.
+    """
+    from google.appengine.ext import webapp
+    before_software = os.environ.get('SERVER_SOFTWARE')
+    before_auth_domain = os.environ.get('AUTH_DOMAIN')
+    before_email = os.environ.get('USER_EMAIL')
+
+    os.environ['wsgi.url_scheme'] = 'http'
+    os.environ['SERVER_NAME'] = 'example.com'
+    os.environ['SERVER_PORT'] = ''
+    try:
+      if not before_software:
+        os.environ['SERVER_SOFTWARE'] = 'Development/1.0'
+      if not before_auth_domain:
+        os.environ['AUTH_DOMAIN'] = 'example.com'
+      if not before_email:
+        os.environ['USER_EMAIL'] = ''
+      self.resp = webapp.Response()
+      self.req = create_test_request(method, body)
       handler = self.handler_class()
       handler.initialize(self.req, self.resp)
       getattr(handler, method.lower())()

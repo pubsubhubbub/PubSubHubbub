@@ -241,20 +241,23 @@ def utf8encoded(data):
   """
   if data is None:
     return None
-  return unicode(data).encode('utf-8')
+  if isinstance(data, unicode):
+    return unicode(data).encode('utf-8')
+  else:
+    return data
 
 
-def unicode_to_iri(url):
-  """Converts a URL containing unicode characters to an IRI.
+def normalize_iri(url):
+  """Converts a URL (possibly containing unicode characters) to an IRI.
 
   Args:
-    url: Unicode string containing a URL with unicode characters.
+    url: String (normal or unicode) containing a URL.
 
   Returns:
     A properly encoded IRI (see RFC 3987).
   """
-  scheme, rest = unicode(url).encode('utf-8').split(':', 1)
-  return '%s:%s' % (scheme, urllib.quote(rest))
+  parts = unicode(url).encode('utf-8').split(':')
+  return ':'.join(urllib.quote(part) for part in parts)
 
 
 def sha1_hash(value):
@@ -1356,12 +1359,12 @@ def confirm_subscription(mode, topic, callback, verify_token,
                 'verify_token = %r, secret = %r, lease_seconds = %s',
                 mode, topic, callback, verify_token, secret, lease_seconds)
 
-  parsed_url = list(urlparse.urlparse(callback))
+  parsed_url = list(urlparse.urlparse(utf8encoded(callback)))
   challenge = get_random_challenge()
   real_lease_seconds = min(lease_seconds, MAX_LEASE_SECONDS)
   params = {
     'hub.mode': mode,
-    'hub.topic': topic,
+    'hub.topic': utf8encoded(topic),
     'hub.challenge': challenge,
     'hub.lease_seconds': real_lease_seconds,
   }
@@ -1418,12 +1421,12 @@ class SubscribeHandler(webapp.RequestHandler):
     if not callback or not is_valid_url(callback):
       error_message = 'Invalid parameter: hub.callback'
     else:
-      callback = unicode_to_iri(callback)
+      callback = normalize_iri(callback)
 
     if not topic or not is_valid_url(topic):
       error_message = 'Invalid parameter: hub.topic'
     else:
-      topic = unicode_to_iri(topic)
+      topic = normalize_iri(topic)
 
     enabled_types = [vt for vt in verify_type_list if vt in ('async', 'sync')]
     if not enabled_types:
@@ -1618,6 +1621,10 @@ class PublishHandlerBase(webapp.RequestHandler):
       if not is_valid_url(url):
         self.response.set_status(400)
         return '%s invalid: %s' % (param_name, url)
+
+    # Normalize all URLs. This assumes our web framework has already decoded
+    # any POST-body encoded URLs that were passed in to the 'urls' parameter.
+    urls = set(normalize_iri(u) for u in urls)
 
     # Only insert FeedToFetch entities for feeds that are known to have
     # subscribers. The rest will be ignored.
@@ -2213,7 +2220,7 @@ class TopicDetailHandler(webapp.RequestHandler):
 
   @dos.limit(count=5, period=60)
   def get(self):
-    topic_url = self.request.get('hub.url')
+    topic_url = normalize_iri(self.request.get('hub.url'))
     feed = FeedRecord.get_by_key_name(FeedRecord.create_key_name(topic_url))
     if not feed:
       self.response.set_status(400)
@@ -2315,6 +2322,8 @@ class HookManager(object):
       globals_dict = globals()
 
     hook_directory = os.path.join(os.getcwd(), hooks_path)
+    if not os.path.exists(hook_directory):
+      return
     module_list = os.listdir(hook_directory)
     for module_name in sorted(module_list):
       if not module_name.endswith('.py'):

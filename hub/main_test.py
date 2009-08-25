@@ -26,6 +26,7 @@ import sys
 import time
 import tempfile
 import unittest
+import urllib
 
 import testutil
 testutil.fix_path()
@@ -50,6 +51,7 @@ import urlfetch_test_stub
 sha1_hash = main.sha1_hash
 get_hash_key_name = main.get_hash_key_name
 
+OTHER_STRING = '/~one:two/&='
 FUNNY = '/CaSeSeNsItIvE'
 FUNNY_UNICODE = u'/blah/\u30d6\u30ed\u30b0\u8846'
 FUNNY_UTF8 = '/blah/\xe3\x83\x96\xe3\x83\xad\xe3\x82\xb0\xe8\xa1\x86'
@@ -83,6 +85,23 @@ class UtilityFunctionTest(unittest.TestCase):
     self.assertFalse(main.is_valid_url('httpm://example.com'))
     self.assertFalse(main.is_valid_url('http://example.com:9999'))
     self.assertFalse(main.is_valid_url('http://example.com/blah#bad'))
+
+  def testNormalizeIri(self):
+    uri_with_port = u'http://foo.com:9120/url/with/a/port'
+    self.assertEquals(uri_with_port, main.normalize_iri(uri_with_port))
+
+    not_unicode = 'http://foo.com:9120/url/with/a/port'
+    self.assertEquals(not_unicode, main.normalize_iri(not_unicode))
+
+    uri_with_port = u'http://foo.com:9120/url/with/a/port'
+    self.assertEquals(uri_with_port, main.normalize_iri(uri_with_port))
+
+    good_iri = (
+        'http://www.google.com/reader/public/atom/user'
+        '/07256788297315478906/label/%E3%83%96%E3%83%AD%E3%82%B0%E8%A1%86')
+    iri = (u'http://www.google.com/reader/public/atom/user'
+           u'/07256788297315478906/label/\u30d6\u30ed\u30b0\u8846')
+    self.assertEquals(good_iri, main.normalize_iri(iri))
 
 
 class AutoDiscoverUrlsTest(unittest.TestCase):
@@ -1100,6 +1119,58 @@ class PublishHandlerTest(testutil.HandlerTestBase):
     expected_topics = set([self.topic, self.topic2, self.topic3])
     inserted_topics = set(f.topic for f in FeedToFetch.all())
     self.assertEquals(expected_topics, inserted_topics)
+
+  def testNormalization(self):
+    """Tests that URLs are properly normalized."""
+    self.topic += OTHER_STRING
+    self.topic2 += OTHER_STRING
+    self.topic3 += OTHER_STRING
+    normalized = [
+        main.normalize_iri(t)
+        for t in [self.topic, self.topic2, self.topic3]]
+    db.put([KnownFeed.create(t) for t in normalized])
+    self.handle('post',
+                ('hub.mode', 'PuBLisH'),
+                ('hub.url', self.topic),
+                ('hub.url', self.topic2),
+                ('hub.url', self.topic3))
+    self.assertEquals(204, self.response_code())
+    inserted_topics = set(f.topic for f in FeedToFetch.all())
+    self.assertEquals(set(normalized), inserted_topics)
+
+  def testIri(self):
+    """Tests publishing with an IRI with international characters."""
+    topic = main.normalize_iri(self.topic + FUNNY_UNICODE)
+    topic2 = main.normalize_iri(self.topic2 + FUNNY_UNICODE)
+    topic3 = main.normalize_iri(self.topic3 + FUNNY_UNICODE)
+    normalized = [topic, topic2, topic3]
+    db.put([KnownFeed.create(t) for t in normalized])
+    self.handle('post',
+                ('hub.mode', 'PuBLisH'),
+                ('hub.url', self.topic + FUNNY_UTF8),
+                ('hub.url', self.topic2 + FUNNY_UTF8),
+                ('hub.url', self.topic3 + FUNNY_UTF8))
+    self.assertEquals(204, self.response_code())
+    inserted_topics = set(f.topic for f in FeedToFetch.all())
+    self.assertEquals(set(normalized), inserted_topics)
+
+  def testUnicode(self):
+    """Tests publishing with a URL that has unicode characters."""
+    topic = main.normalize_iri(self.topic + FUNNY_UNICODE)
+    topic2 = main.normalize_iri(self.topic2 + FUNNY_UNICODE)
+    topic3 = main.normalize_iri(self.topic3 + FUNNY_UNICODE)
+    normalized = [topic, topic2, topic3]
+    db.put([KnownFeed.create(t) for t in normalized])
+
+    payload = (
+        'hub.mode=publish'
+        '&hub.url=' + urllib.quote(self.topic) + FUNNY_UTF8 +
+        '&hub.url=' + urllib.quote(self.topic2) + FUNNY_UTF8 +
+        '&hub.url=' + urllib.quote(self.topic3) + FUNNY_UTF8)
+    self.handle_body('post', payload)
+    self.assertEquals(204, self.response_code())
+    inserted_topics = set(f.topic for f in FeedToFetch.all())
+    self.assertEquals(set(normalized), inserted_topics)
 
   def testSources(self):
     """Tests that derived sources are properly set on FeedToFetch instances."""
@@ -2534,8 +2605,42 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
 
-  def testSubscribeUnicode(self):
-    """Tests when the topic, callback, verify_token, and secrets are unicode."""
+  def testSubscribeNormalization(self):
+    """Tests that the topic and callback URLs are properly normalized."""
+    self.topic += OTHER_STRING
+    orig_callback = self.callback
+    self.callback += OTHER_STRING
+    sub_key = Subscription.create_key_name(
+        main.normalize_iri(self.callback),
+        main.normalize_iri(self.topic))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.verify_callback_querystring_template = (
+        orig_callback + '/%%7Eone:two/%%26%%3D'
+        '?hub.verify_token=the_token'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic%%2F'
+            '%%257Eone%%3Atwo%%2F%%2526%%253D'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
+
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token))
+    self.assertEquals(204, self.response_code())
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(KnownFeed.create_key(
+        main.normalize_iri(self.topic))) is not None)
+
+  def testSubscribeIri(self):
+    """Tests when the topic, callback, verify_token, and secrets are IRIs."""
     topic = self.topic + FUNNY_UNICODE
     topic_utf8 = self.topic + FUNNY_UTF8
     callback = self.callback + FUNNY_UNICODE
@@ -2544,8 +2649,8 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     verify_token_utf8 = self.verify_token + FUNNY_UTF8
 
     sub_key = Subscription.create_key_name(
-        main.unicode_to_iri(callback),
-        main.unicode_to_iri(topic))
+        main.normalize_iri(callback),
+        main.normalize_iri(topic))
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     self.verify_callback_querystring_template = (
         self.callback +
@@ -2568,6 +2673,56 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         ('hub.mode', 'subscribe'),
         ('hub.verify', 'sync'),
         ('hub.verify_token', verify_token_utf8))
+    self.assertEquals(204, self.response_code())
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertTrue(db.get(
+        KnownFeed.create_key(self.topic + FUNNY_IRI)) is not None)
+
+  def testSubscribeUnicode(self):
+    """Tests when UTF-8 encoded bytes show up in the requests.
+
+    Technically this isn't well-formed or allowed by the HTTP/URI spec, but
+    people do it anyways and we may as well allow it.
+    """
+    quoted_topic = urllib.quote(self.topic)
+    topic = self.topic + FUNNY_UNICODE
+    topic_utf8 = self.topic + FUNNY_UTF8
+    quoted_callback = urllib.quote(self.callback)
+    callback = self.callback + FUNNY_UNICODE
+    callback_utf8 = self.callback + FUNNY_UTF8
+    quoted_verify_token = urllib.quote(self.verify_token)
+    verify_token = self.verify_token + FUNNY_UNICODE
+    verify_token_utf8 = self.verify_token + FUNNY_UTF8
+
+    sub_key = Subscription.create_key_name(
+        main.normalize_iri(callback),
+        main.normalize_iri(topic))
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    self.verify_callback_querystring_template = (
+        self.callback +
+            '/blah/%%E3%%83%%96%%E3%%83%%AD%%E3%%82%%B0%%E8%%A1%%86'
+        '?hub.verify_token=the_token%%2F'
+            'blah%%2F%%E3%%83%%96%%E3%%83%%AD%%E3%%82%%B0%%E8%%A1%%86'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic%%2F'
+            'blah%%2F%%25E3%%2583%%2596%%25E3%%2583%%25AD'
+            '%%25E3%%2582%%25B0%%25E8%%25A1%%2586'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
+
+    payload = (
+        'hub.callback=' + quoted_callback + FUNNY_UTF8 +
+        '&hub.topic=' + quoted_topic + FUNNY_UTF8 +
+        '&hub.mode=subscribe'
+        '&hub.verify=sync'
+        '&hub.verify_token=' + quoted_verify_token + FUNNY_UTF8)
+
+    self.handle_body('post', payload)
     self.assertEquals(204, self.response_code())
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
@@ -2795,8 +2950,12 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=3))
 
     # Run another post handler, which will pick up the remaining subscription
-    # confirmation and finish the work effort.
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=4)
+    # confirmation and finish the work effort. Properly handle a race
+    # condition where Subscription tasks may be inserted with an ETA before
+    # the continuation task.
+    all_tasks = testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
+    task = [a for a in all_tasks[1:] if 'time_offset' in a['params']][0]
+
     self.handle('post', *task['params'].items())
     confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=5))
 
@@ -2944,6 +3103,15 @@ class HookManagerTest(unittest.TestCase):
     """Causes the hooks to load."""
     self.manager.load(hooks_path=self.hooks_directory,
                       globals_dict=self.globals_dict)
+
+  def testNoHooksDir(self):
+    """Tests when there is no hooks directory present at all."""
+    hooks_path = tempfile.mktemp()
+    self.assertFalse(os.path.exists(hooks_path))
+    self.manager.load(hooks_path=hooks_path,
+                      globals_dict=self.globals_dict)
+    for entry, hooks in self.manager._mapping.iteritems():
+      self.assertEquals(0, len(hooks))
 
   def testNoHooks(self):
     """Tests loading a directory with no hooks modules."""
