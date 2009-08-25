@@ -115,36 +115,38 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.emit(xml.sax.saxutils.escape(content))
 
 
-def strip_whitespace(type, all_parts):
+def strip_whitespace(enclosing_tag, all_parts):
   """Strips the whitespace from a SAX parser list for a feed.
 
   Args:
+    enclosing_tag: The enclosing tag of the feed.
     all_parts: List of SAX parser elements.
 
   Returns:
     header_footer for those parts with trailing whitespace removed.
   """
-  if type == 'atom':
+  if 'feed' in enclosing_tag:
     first_part = ''.join(all_parts[:-3]).strip('\n\r\t ')
-    return '%s\n</feed>' % first_part
+    return '%s\n</%s>' % (first_part, enclosing_tag)
   else:
     first_part = ''.join(all_parts[:-3]).strip('\n\r\t ')
     channel_part = first_part.rfind('</channel>')
     if channel_part == -1:
       raise Error('Could not find </channel> after trimming whitespace')
     stripped = first_part[:channel_part].strip('\n\r\t ')
-    return '%s\n</channel>\n</rss>' % stripped
+    return '%s\n</channel>\n</%s>' % (stripped, enclosing_tag)
 
 
 class AtomFeedHandler(FeedContentHandler):
   """Sax content handler for Atom feeds."""
 
   def handleEvent(self, event, content):
+    depth, tag = event[0], event[1].lower()
     if event[0] == 1:
-      if event[1] != 'feed':
+      if tag != 'feed':
         raise Error('Enclosing tag is not <feed></feed>')
       else:
-        self.header_footer = strip_whitespace('atom', self.pop())
+        self.header_footer = strip_whitespace(event[1], self.pop())
     elif event == (2, 'entry'):
       self.entries_map[self.last_id] = ''.join(self.pop())
     elif event == (3, 'id'):
@@ -158,11 +160,12 @@ class RssFeedHandler(FeedContentHandler):
   """Sax content handler for RSS feeds."""
 
   def handleEvent(self, event, content):
+    depth, tag = event[0], event[1].lower()
     if event[0] == 1:
-      if event[1] != 'rss':
-        raise Error('Enclosing tag is not <rss></rss>')
+      if tag.lower() != 'rss' and 'rdf' not in tag:
+        raise Error('Enclosing tag is not <rss></rss> or <rdf></rdf>')
       else:
-        self.header_footer = strip_whitespace('rss', self.pop())
+        self.header_footer = strip_whitespace(event[1], self.pop())
     elif event == (3, 'item'):
       item_id = (self.last_id or self.last_link or
                  self.last_title or self.last_description)

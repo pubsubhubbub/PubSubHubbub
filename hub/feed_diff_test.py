@@ -231,6 +231,23 @@ class RssFeedDiffTest(TestBase):
       self.fail()
 
 
+class RssRdfFeedDiffTest(TestBase):
+
+  format = 'rss'
+  feed_open = '<rdf:RDF'
+  feed_close = '</rdf:RDF>'
+  entry_open = '<item'
+  entry_close = '</item>'
+
+  def testParsingRss10Rdf(self):
+    """Tests parsing RSS 1.0, which is actually an RDF document."""
+    header_footer, entries = self.load_feed('rss_rdf.xml')
+    expected_list = [
+        u'http://writetheweb.com/read.php?item=23',
+        u'http://writetheweb.com/read.php?item=24',
+    ]
+    self.verify_entries(expected_list, entries)
+
 
 if __name__ == '__main__':
   ## feed_diff.DEBUG = True
