@@ -90,6 +90,12 @@ class UtilityFunctionTest(unittest.TestCase):
     uri_with_port = u'http://foo.com:9120/url/with/a/port'
     self.assertEquals(uri_with_port, main.normalize_iri(uri_with_port))
 
+    uri_with_query = u'http://foo.com:9120/url?doh=this&port=1'
+    self.assertEquals(uri_with_query, main.normalize_iri(uri_with_query))
+
+    uri_with_funny = u'http://foo.com/~myuser/@url!with#nice;delimiter:chars'
+    self.assertEquals(uri_with_funny, main.normalize_iri(uri_with_funny))
+
     not_unicode = 'http://foo.com:9120/url/with/a/port'
     self.assertEquals(not_unicode, main.normalize_iri(not_unicode))
 
@@ -2652,11 +2658,11 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         main.normalize_iri(self.topic))
     self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
     self.verify_callback_querystring_template = (
-        orig_callback + '/%%7Eone:two/%%26%%3D'
+        orig_callback + '/~one:two/&='
         '?hub.verify_token=the_token'
         '&hub.challenge=this_is_my_fake_challenge_string'
-        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic%%2F'
-            '%%257Eone%%3Atwo%%2F%%2526%%253D'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
+          '%%2F%%7Eone%%3Atwo%%2F%%26%%3D'
         '&hub.mode=%s'
         '&hub.lease_seconds=2592000')
     urlfetch_test_stub.instance.expect(

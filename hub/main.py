@@ -251,13 +251,19 @@ def normalize_iri(url):
   """Converts a URL (possibly containing unicode characters) to an IRI.
 
   Args:
-    url: String (normal or unicode) containing a URL.
+    url: String (normal or unicode) containing a URL, presumably having
+      already been percent-decoded by a web framework receiving request
+      parameters in a POST body or GET request's URL.
 
   Returns:
     A properly encoded IRI (see RFC 3987).
   """
-  parts = unicode(url).encode('utf-8').split(':')
-  return ':'.join(urllib.quote(part) for part in parts)
+  def chr_or_escape(unicode_char):
+    if ord(unicode_char) > 0x7f:
+      return urllib.quote(unicode_char.encode('utf-8'))
+    else:
+      return unicode_char
+  return ''.join(chr_or_escape(c) for c in unicode(url))
 
 
 def sha1_hash(value):
@@ -1548,7 +1554,7 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
     datetime_offset = datetime.datetime.utcfromtimestamp(int(time_offset))
     key_offset = self.request.get('key_offset')
     logging.info('Handling reconfirmations for time_offset = %s, '
-                 'current_key = %s', time_offset, key_offset)
+                 'current_key = %s', datetime_offset, key_offset)
 
     query = (Subscription.all()
              .filter('subscription_state =', Subscription.STATE_VERIFIED)
