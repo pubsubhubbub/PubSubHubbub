@@ -1425,12 +1425,16 @@ class SubscribeHandler(webapp.RequestHandler):
 
     error_message = None
     if not callback or not is_valid_url(callback):
-      error_message = 'Invalid parameter: hub.callback'
+      error_message = ('Invalid parameter: hub.callback; '
+                       'must be valid URI with no fragment and '
+                       'optional port %s' % ','.join(VALID_PORTS))
     else:
       callback = normalize_iri(callback)
 
     if not topic or not is_valid_url(topic):
-      error_message = 'Invalid parameter: hub.topic'
+      error_message = ('Invalid parameter: hub.topic; '
+                       'must be valid URI with no fragment and '
+                       'optional port %s' % ','.join(VALID_PORTS))
     else:
       topic = normalize_iri(topic)
 
