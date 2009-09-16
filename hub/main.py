@@ -67,7 +67,9 @@ and will be retried at a later time.
  -----------------           ----------------
 """
 
-# Bigger TODOs (now in priority order)
+# Bigger TODOs (in priority order)
+#
+# - Add cron cleanup for Subscriptions in the "TO_DELETE" state.
 #
 # - Add Subscription delivery diagnostics, so subscribers can understand what
 #   error the hub has been seeing when we try to deliver a feed to them.
@@ -537,6 +539,9 @@ class Subscription(db.Model):
                   expiration_time=now_time)
       sub.subscription_state = cls.STATE_VERIFIED
       sub.expiration_time = now_time + datetime.timedelta(seconds=lease_seconds)
+      sub.confirm_failures = 0
+      sub.verify_token = verify_token
+      sub.secret = secret
       sub.put()
       return sub_is_new
     return db.run_in_transaction(txn)
@@ -547,6 +552,7 @@ class Subscription(db.Model):
                      topic,
                      verify_token,
                      secret,
+                     auto_reconfirm=False,
                      hash_func='sha1',
                      lease_seconds=DEFAULT_LEASE_SECONDS,
                      now=datetime.datetime.now):
@@ -563,6 +569,9 @@ class Subscription(db.Model):
       verify_token: The verification token to use to confirm the
         subscription request.
       secret: Shared secret used for HMACs.
+      auto_reconfirm: True if this task is being run by the auto-reconfirmation
+        offline process; False if this is a user-requested task. Defaults
+        to False.
       hash_func: String with the name of the hash function to use for HMACs.
       lease_seconds: Number of seconds the client would like the subscription
         to last before expiring. Must be a number.
@@ -589,12 +598,14 @@ class Subscription(db.Model):
                   lease_seconds=lease_seconds,
                   expiration_time=(
                       now() + datetime.timedelta(seconds=lease_seconds)))
+      sub.confirm_failures = 0
       sub.put()
       return (sub_is_new, sub)
     new, sub = db.run_in_transaction(txn)
     # Note: This enqueuing must come *after* the transaction is submitted, or
     # else we'll actually run the task *before* the transaction is submitted.
-    sub.enqueue_task(cls.STATE_VERIFIED)
+    sub.enqueue_task(cls.STATE_VERIFIED, verify_token, secret=secret,
+                     auto_reconfirm=auto_reconfirm)
     return new
 
   @classmethod
@@ -641,6 +652,7 @@ class Subscription(db.Model):
     def txn():
       sub = cls.get_by_key_name(key_name)
       if sub is not None:
+        sub.confirm_failures = 0
         sub.put()
         return (True, sub)
       return (False, sub)
@@ -648,8 +660,25 @@ class Subscription(db.Model):
     # Note: This enqueuing must come *after* the transaction is submitted, or
     # else we'll actually run the task *before* the transaction is submitted.
     if sub:
-      sub.enqueue_task(cls.STATE_TO_DELETE)
+      sub.enqueue_task(cls.STATE_TO_DELETE, verify_token)
     return removed
+
+  @classmethod
+  def archive(cls, callback, topic):
+    """Archives a subscription as no longer active.
+
+    Args:
+      callback: URL that will receive callbacks.
+      topic: The topic to subscribe to.
+    """
+    key_name = cls.create_key_name(callback, topic)
+    def txn():
+      sub = cls.get_by_key_name(key_name)
+      if sub is not None:
+        sub.subscription_state = cls.STATE_TO_DELETE
+        sub.confirm_failures = 0
+        sub.put()
+    return db.run_in_transaction(txn)
 
   @classmethod
   def has_subscribers(cls, topic):
@@ -692,11 +721,22 @@ class Subscription(db.Model):
 
     return query.fetch(count)
 
-  def enqueue_task(self, next_state):
+  def enqueue_task(self,
+                   next_state,
+                   verify_token,
+                   auto_reconfirm=False,
+                   secret=None):
     """Enqueues a task to confirm this Subscription.
 
     Args:
       next_state: The next state this subscription should be in.
+      verify_token: The verify_token to use when confirming this request.
+      auto_reconfirm: True if this task is being run by the auto-reconfirmation
+        offline process; False if this is a user-requested task. Defaults
+        to False.
+      secret: Only required for subscription confirmation (not unsubscribe).
+        The new secret to use for this subscription after successful
+        confirmation.
     """
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
@@ -707,7 +747,10 @@ class Subscription(db.Model):
             url='/work/subscriptions',
             eta=self.eta,
             params={'subscription_key_name': self.key().name(),
-                    'next_state': next_state}
+                    'next_state': next_state,
+                    'verify_token': verify_token,
+                    'secret': secret or '',
+                    'auto_reconfirm': str(auto_reconfirm)}
             ).add(target_queue)
       except (taskqueue.Error, apiproxy_errors.Error):
         logging.exception('Could not insert task to confirm '
@@ -720,6 +763,9 @@ class Subscription(db.Model):
 
   def confirm_failed(self,
                      next_state,
+                     verify_token,
+                     auto_reconfirm=False,
+                     secret=None,
                      max_failures=MAX_SUBSCRIPTION_CONFIRM_FAILURES,
                      retry_period=SUBSCRIPTION_RETRY_PERIOD,
                      now=datetime.datetime.utcnow):
@@ -730,26 +776,32 @@ class Subscription(db.Model):
 
     Args:
       next_state: The next state this subscription should be in.
+      verify_token: The verify_token to use when confirming this request.
+      auto_reconfirm: True if this task is being run by the auto-reconfirmation
+        offline process; False if this is a user-requested task.
+      secret: The new secret to use for this subscription after successful
+        confirmation.
       max_failures: Maximum failures to allow before giving up.
       retry_period: Initial period for doing exponential (base-2) backoff.
       now: Returns the current time as a UTC datetime.
 
     Returns:
-      True if this Subscription confirmation should be retried again; in this
-      case the caller should use the 'eta' field to insert the next Task for
-      confirming the subscription. Returns False if we should give up and never
-      try again.
+      True if this Subscription confirmation should be retried again. Returns
+      False if we should give up and never try again.
     """
     if self.confirm_failures >= max_failures:
       logging.warning('Max subscription failures exceeded, giving up.')
-      self.delete()
+      return False
     else:
       retry_delay = retry_period * (2 ** self.confirm_failures)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.confirm_failures += 1
       self.put()
       # TODO(bslatkin): Do this enqueuing transactionally.
-      self.enqueue_task(next_state)
+      self.enqueue_task(next_state, verify_token,
+                        auto_reconfirm=auto_reconfirm,
+                        secret=secret)
+      return True
 
 
 class FeedToFetch(db.Model):
@@ -1391,11 +1443,16 @@ def confirm_subscription(mode, topic, callback, verify_token,
       Subscription.insert(callback, topic, verify_token, secret,
                           lease_seconds=real_lease_seconds)
       # Blindly put the feed's record so we have a record of all feeds.
-      print 'topic is', topic
       db.put(KnownFeed.create(topic))
     else:
       Subscription.remove(callback, topic)
-    logging.info('Subscription action verified: %s', mode)
+    logging.info('Subscription action verified, '
+                 'callback = %s, topic = %s: %s', callback, topic, mode)
+    return True
+  elif mode == 'subscribe' and response.status_code == 404:
+    Subscription.archive(callback, topic)
+    logging.info('Subscribe request returned 404 for callback = %s, '
+                 'topic = %s; subscription archived', callback, topic)
     return True
   else:
     logging.warning('Could not confirm subscription; encountered '
@@ -1508,6 +1565,9 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
   def post(self):
     sub_key_name = self.request.get('subscription_key_name')
     next_state = self.request.get('next_state')
+    verify_token = self.request.get('verify_token')
+    secret = self.request.get('secret') or None
+    auto_reconfirm = self.request.get('auto_reconfirm', 'False') == 'True'
     sub = Subscription.get_by_key_name(sub_key_name)
     if not sub:
       logging.debug('No subscriptions to confirm '
@@ -1524,8 +1584,19 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
 
     if not hooks.execute(confirm_subscription,
         mode, sub.topic, sub.callback,
-        sub.verify_token, sub.secret, sub.lease_seconds):
-      sub.confirm_failed(next_state)
+        verify_token, secret, sub.lease_seconds):
+      # After repeated re-confirmation failures for a subscription, assume that
+      # the callback is dead and archive it. End-user-initiated subscription
+      # requests cannot possibly follow this code path, preventing attacks
+      # from unsubscribing callbacks without ownership.
+      if (not sub.confirm_failed(next_state, verify_token,
+                                 auto_reconfirm=auto_reconfirm,
+                                 secret=secret) and
+          auto_reconfirm and mode == 'subscribe'):
+        logging.info('Auto-renewal subscribe request failed the maximum '
+                     'number of times for callback = %s, topic = %s; '
+                     'subscription archived', sub.callback, sub.topic)
+        Subscription.archive(sub.callback, sub.topic)
 
 
 class SubscriptionReconfirmHandler(webapp.RequestHandler):
@@ -1583,7 +1654,8 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
 
     for sub in subscriptions:
       if sub.expiration_time < datetime_offset:
-        sub.enqueue_task(Subscription.STATE_VERIFIED)
+        sub.request_insert(sub.callback, sub.topic, sub.verify_token,
+                           sub.secret, auto_reconfirm=True)
 
 ################################################################################
 # Publishing handlers

@@ -344,14 +344,19 @@ class SubscriptionTest(unittest.TestCase):
     return Subscription.get_by_key_name(
         Subscription.create_key_name(self.callback, self.topic))
 
-  def verify_tasks(self, next_state, **kwargs):
+  def verify_tasks(self, next_state, verify_token, secret, **kwargs):
     """Verifies the required tasks have been submitted.
 
     Args:
       next_state: The next state the Subscription should have.
+      verify_token: The token that should be used to confirm the
+        subscription action.
+      **kwargs: Passed to testutil.get_tasks().
     """
     task = testutil.get_tasks(main.SUBSCRIPTION_QUEUE, **kwargs)
     self.assertEquals(next_state, task['params']['next_state'])
+    self.assertEquals(verify_token, task['params']['verify_token'])
+    self.assertEquals(secret, task['params']['secret'])
 
   def testRequestInsert_defaults(self):
     now_datetime = datetime.datetime.now()
@@ -361,11 +366,13 @@ class SubscriptionTest(unittest.TestCase):
     self.assertTrue(Subscription.request_insert(
         self.callback, self.topic, self.token,
         self.secret, lease_seconds=lease_seconds, now=now))
-    self.verify_tasks(Subscription.STATE_VERIFIED, expected_count=1, index=0)
+    self.verify_tasks(Subscription.STATE_VERIFIED, self.token, self.secret,
+                      expected_count=1, index=0)
     self.assertFalse(Subscription.request_insert(
         self.callback, self.topic, self.token,
         self.secret, lease_seconds=lease_seconds, now=now))
-    self.verify_tasks(Subscription.STATE_VERIFIED, expected_count=2, index=1)
+    self.verify_tasks(Subscription.STATE_VERIFIED, self.token, self.secret,
+                      expected_count=2, index=1)
 
     sub = self.get_subscription()
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -375,6 +382,7 @@ class SubscriptionTest(unittest.TestCase):
     self.assertEquals(sha1_hash(self.topic), sub.topic_hash)
     self.assertEquals(self.token, sub.verify_token)
     self.assertEquals(self.secret, sub.secret)
+    self.assertEquals(0, sub.confirm_failures)
     self.assertEquals(now_datetime + datetime.timedelta(seconds=lease_seconds),
                       sub.expiration_time)
     self.assertEquals(lease_seconds, sub.lease_seconds)
@@ -400,21 +408,34 @@ class SubscriptionTest(unittest.TestCase):
     self.assertEquals(sha1_hash(self.topic), sub.topic_hash)
     self.assertEquals(self.token, sub.verify_token)
     self.assertEquals(self.secret, sub.secret)
+    self.assertEquals(0, sub.confirm_failures)
     self.assertEquals(now_datetime + datetime.timedelta(seconds=lease_seconds),
                       sub.expiration_time)
     self.assertEquals(lease_seconds, sub.lease_seconds)
 
-  def testInsert_override(self):
-    """Tests that insert will override the existing subscription state."""
+  def testInsertOverride(self):
+    """Tests that insert will override the existing Subscription fields."""
     self.assertTrue(Subscription.request_insert(
         self.callback, self.topic, self.token, self.secret))
     self.assertEquals(Subscription.STATE_NOT_VERIFIED,
                       self.get_subscription().subscription_state)
+
+    second_token = 'second token'
+    second_secret = 'second secret'
+    sub = self.get_subscription()
+    sub.confirm_failures = 123
+    sub.put()
     self.assertFalse(Subscription.insert(
-        self.callback, self.topic, self.token, self.secret))
-    self.assertEquals(Subscription.STATE_VERIFIED,
-                      self.get_subscription().subscription_state)
-    self.verify_tasks(Subscription.STATE_VERIFIED, expected_count=1, index=0)
+        self.callback, self.topic, second_token, second_secret))
+
+    sub = self.get_subscription()
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertEquals(0, sub.confirm_failures)
+    self.assertEquals(second_token, sub.verify_token)
+    self.assertEquals(second_secret, sub.secret)
+
+    self.verify_tasks(Subscription.STATE_VERIFIED, self.token, self.secret,
+                      expected_count=1, index=0)
 
   def testInsert_expiration(self):
     """Tests that the expiration time is updated on repeated insert() calls."""
@@ -436,22 +457,47 @@ class SubscriptionTest(unittest.TestCase):
     self.assertTrue(Subscription.remove(self.callback, self.topic))
     self.assertFalse(Subscription.remove(self.callback, self.topic))
     # Only task should be the initial insertion request.
-    self.verify_tasks(Subscription.STATE_VERIFIED, expected_count=1, index=0)
+    self.verify_tasks(Subscription.STATE_VERIFIED, self.token, self.secret,
+                      expected_count=1, index=0)
 
   def testRequestRemove(self):
+    """Tests the request remove method."""
     self.assertFalse(Subscription.request_remove(
         self.callback, self.topic, self.token))
-    # No tasks should be enqueued.
+    # No tasks should be enqueued and this request should do nothing because
+    # no subscription currently exists.
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=0)
 
     self.assertTrue(Subscription.request_insert(
         self.callback, self.topic, self.token, self.secret))
+    second_token = 'this is the second token'
     self.assertTrue(Subscription.request_remove(
-        self.callback, self.topic, self.token))
-    self.assertEquals(Subscription.STATE_NOT_VERIFIED,
-                      self.get_subscription().subscription_state)
-    self.verify_tasks(Subscription.STATE_VERIFIED, expected_count=2, index=0)
-    self.verify_tasks(Subscription.STATE_TO_DELETE, expected_count=2, index=1)
+        self.callback, self.topic, second_token))
+
+    sub = self.get_subscription()
+    self.assertEquals(self.token, sub.verify_token)
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
+
+    self.verify_tasks(Subscription.STATE_VERIFIED, self.token, self.secret,
+                      expected_count=2, index=0)
+    self.verify_tasks(Subscription.STATE_TO_DELETE, second_token, '',
+                      expected_count=2, index=1)
+
+  def testRequestInsertOverride(self):
+    """Tests that requesting insertion does not override the verify_token."""
+    self.assertTrue(Subscription.insert(
+         self.callback, self.topic, self.token, self.secret))
+    second_token = 'this is the second token'
+    second_secret = 'another secret here'
+    self.assertFalse(Subscription.request_insert(
+        self.callback, self.topic, second_token, second_secret))
+
+    sub = self.get_subscription()
+    self.assertEquals(self.token, sub.verify_token)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+
+    self.verify_tasks(Subscription.STATE_VERIFIED, second_token, second_secret,
+                      expected_count=1, index=0)
 
   def testHasSubscribers_unverified(self):
     """Tests that unverified subscribers do not make the subscription active."""
@@ -565,15 +611,18 @@ class SubscriptionTest(unittest.TestCase):
     self.assertEquals(0, sub.confirm_failures)
 
     for i, delay in enumerate((5, 10, 20, 40, 80)):
-      sub.confirm_failed(Subscription.STATE_VERIFIED,
-                         max_failures=5, retry_period=5, now=now)
+      self.assertTrue(
+          sub.confirm_failed(Subscription.STATE_VERIFIED, self.token, False,
+                             max_failures=5, retry_period=5, now=now))
       self.assertEquals(sub.eta, start + datetime.timedelta(seconds=delay))
       self.assertEquals(i+1, sub.confirm_failures)
 
-    # It will be deleted on the last try.
-    sub.confirm_failed(Subscription.STATE_VERIFIED,
-                       max_failures=5, retry_period=5)
-    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    # It will give up on the last try.
+    self.assertFalse(
+        sub.confirm_failed(Subscription.STATE_VERIFIED, self.token, False,
+                           max_failures=5, retry_period=5))
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, index=0, expected_count=6)
 
   def testQueuePreserved(self):
@@ -590,6 +639,23 @@ class SubscriptionTest(unittest.TestCase):
 
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
     testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
+
+  def testArchiveExists(self):
+    """Tests the archive method when the subscription exists."""
+    Subscription.insert(self.callback, self.topic, self.token, self.secret)
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    Subscription.archive(self.callback, self.topic)
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+
+  def testArchiveMissing(self):
+    """Tests the archive method when the subscription does not exist."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+    Subscription.archive(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
 
 ################################################################################
 
@@ -2817,21 +2883,36 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     """
     task = testutil.get_tasks(main.SUBSCRIPTION_QUEUE,
                               index=0, expected_count=1)
-    self.assertEquals(self.sub_key, task['params']['subscription_key_name'])
-    self.assertEquals(next_state, task['params']['next_state'])
+    params = task['params']
+    self.assertEquals(self.sub_key, params['subscription_key_name'])
+    self.assertEquals(next_state, params['next_state'])
 
-  def verify_retry_task(self, eta, next_state):
+  def verify_retry_task(self,
+                        eta,
+                        next_state,
+                        verify_token=None,
+                        secret=None,
+                        auto_reconfirm=False):
     """Verifies that a subscription worker retry task is present.
 
     Args:
       eta: The ETA the retry task should have.
       next_state: The next state the task should cause the Subscription to have.
+      verify_token: The verify token the retry task should have. Defaults to
+        the current token.
+      secret: The secret the retry task should have. Defaults to the
+        current secret.
+      auto_reconfirm: The confirmation type the retry task should have.
     """
     task = testutil.get_tasks(main.SUBSCRIPTION_QUEUE,
                               index=1, expected_count=2)
+    params = task['params']
     self.assertEquals(testutil.task_eta(eta), task['eta'])
-    self.assertEquals(self.sub_key, task['params']['subscription_key_name'])
-    self.assertEquals(next_state, task['params']['next_state'])
+    self.assertEquals(self.sub_key, params['subscription_key_name'])
+    self.assertEquals(next_state, params['next_state'])
+    self.assertEquals(verify_token or self.verify_token, params['verify_token'])
+    self.assertEquals(secret or self.secret, params['secret'])
+    self.assertEquals(str(auto_reconfirm), params['auto_reconfirm'])
 
   def testNoWork(self):
     """Tests when a task is enqueued for a Subscription that doesn't exist."""
@@ -2848,9 +2929,15 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
     self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('secret', self.secret),
                         ('next_state', Subscription.STATE_VERIFIED))
     self.verify_task(Subscription.STATE_VERIFIED)
     self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertEquals(self.verify_token, sub.verify_token)
+    self.assertEquals(self.secret, sub.secret)
 
   def testSubscribeFailed(self):
     """Tests when a subscription task fails."""
@@ -2860,11 +2947,34 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'subscribe', 500, '')
     self.handle('post', ('subscription_key_name', self.sub_key),
-                        ('next_state', Subscription.STATE_VERIFIED))
+                        ('verify_token', self.verify_token),
+                        ('secret', self.secret),
+                        ('next_state', Subscription.STATE_VERIFIED),
+                        ('auto_reconfirm', 'True'))
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
     self.assertEquals(1, sub.confirm_failures)
-    self.verify_retry_task(sub.eta, Subscription.STATE_VERIFIED)
+    self.assertEquals(self.verify_token, sub.verify_token)
+    self.assertEquals(self.secret, sub.secret)
+    self.verify_retry_task(sub.eta, Subscription.STATE_VERIFIED,
+                           auto_reconfirm=True,
+                           verify_token=self.verify_token,
+                           secret=self.secret)
+
+  def testSubscribeConflict(self):
+    """Tests when confirmation hits a conflict and archives the subscription."""
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
+    Subscription.request_insert(
+        self.callback, self.topic, self.verify_token, self.secret)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template % 'subscribe', 404, '')
+    self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('secret', self.secret),
+                        ('next_state', Subscription.STATE_VERIFIED))
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
 
   def testSubscribeBadChallengeResponse(self):
     """Tests when the subscriber responds with a bad challenge."""
@@ -2874,6 +2984,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'subscribe', 200, 'bad')
     self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('secret', self.secret),
                         ('next_state', Subscription.STATE_VERIFIED))
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
@@ -2890,6 +3002,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
         'get', self.verify_callback_querystring_template % 'unsubscribe', 200,
         self.challenge)
     self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
                         ('next_state', Subscription.STATE_TO_DELETE))
     self.verify_task(Subscription.STATE_TO_DELETE)
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
@@ -2903,13 +3016,57 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get',
         self.verify_callback_querystring_template % 'unsubscribe', 500, '')
     self.handle('post', ('subscription_key_name', self.sub_key),
-                        ('next_state', Subscription.STATE_TO_DELETE))
+                        ('verify_token', self.verify_token),
+                        ('next_state', Subscription.STATE_TO_DELETE),
+                        ('secret', self.secret))
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(1, sub.confirm_failures)
     self.verify_retry_task(sub.eta, Subscription.STATE_TO_DELETE)
 
+  def testUnsubscribeGivesUp(self):
+    """Tests when an unsubscription task completely gives up."""
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
+    Subscription.insert(
+        self.callback, self.topic, self.verify_token, self.secret)
+    Subscription.request_remove(self.callback, self.topic, self.verify_token)
+    sub = Subscription.get_by_key_name(self.sub_key)
+    sub.confirm_failures = 100
+    sub.put()
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template % 'unsubscribe', 500, '')
+    self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('next_state', Subscription.STATE_TO_DELETE))
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(100, sub.confirm_failures)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.verify_task(Subscription.STATE_TO_DELETE)
+
+  def testSubscribeOverwrite(self):
+    """Tests that subscriptions can be overwritten with new parameters."""
+    Subscription.insert(
+        self.callback, self.topic, self.verify_token, self.secret)
+    second_token = 'second_verify_token'
+    second_secret = 'second secret'
+    new_template = self.verify_callback_querystring_template.replace(
+        self.verify_token, second_token)
+    urlfetch_test_stub.instance.expect(
+        'get', new_template % 'subscribe', 200, self.challenge)
+    self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', second_token),
+                        ('secret', second_secret),
+                        ('next_state', Subscription.STATE_VERIFIED))
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertEquals(second_token, sub.verify_token)
+    self.assertEquals(second_secret, sub.secret)
+
   def testConfirmError(self):
-    """Tests when an exception is raised while confirming a subscription."""
+    """Tests when an exception is raised while confirming a subscription.
+
+    This will just propagate up in the stack and cause the task to retry
+    via the normal task queue retries.
+    """
     called = [False]
     Subscription.request_insert(
         self.callback, self.topic, self.verify_token, self.secret)
@@ -2928,6 +3085,44 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     finally:
       main.hooks.reset_for_test(main.confirm_subscription)
     self.assertTrue(called[0])
+    self.verify_task(Subscription.STATE_VERIFIED)
+
+  def testRenewNack(self):
+    """Tests when an auto-subscription-renewal returns a 404."""
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
+    Subscription.insert(
+        self.callback, self.topic, self.verify_token, self.secret)
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template % 'subscribe', 404, '')
+    self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('secret', self.secret),
+                        ('next_state', Subscription.STATE_VERIFIED),
+                        ('auto_reconfirm', 'True'))
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=0)
+
+  def testRenewErrorFailure(self):
+    """Tests when an auto-subscription-renewal returns errors repeatedly.
+
+    In this case, since it's auto-renewal, the subscription should be dropped.
+    """
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
+    Subscription.insert(
+        self.callback, self.topic, self.verify_token, self.secret)
+    sub = Subscription.get_by_key_name(self.sub_key)
+    sub.confirm_failures = 100
+    sub.put()
+    urlfetch_test_stub.instance.expect('get',
+        self.verify_callback_querystring_template % 'subscribe', 500, '')
+    self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('next_state', Subscription.STATE_VERIFIED),
+                        ('auto_reconfirm', 'True'))
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_TO_DELETE, sub.subscription_state)
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=0)
 
 
 class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
