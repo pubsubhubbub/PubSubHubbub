@@ -740,7 +740,8 @@ class Subscription(db.Model):
     """
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    target_queue = os.environ.get('X_APPENGINE_QUEUENAME', SUBSCRIPTION_QUEUE)
+    target_queue = os.environ.get(
+        'HTTP_X_APPENGINE_QUEUENAME', SUBSCRIPTION_QUEUE)
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
@@ -915,7 +916,7 @@ class FeedToFetch(db.Model):
     """Enqueues a task to fetch this feed."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    target_queue = os.environ.get('X_APPENGINE_QUEUENAME', FEED_QUEUE)
+    target_queue = os.environ.get('HTTP_X_APPENGINE_QUEUENAME', FEED_QUEUE)
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
@@ -1280,7 +1281,7 @@ class EventToDeliver(db.Model):
     """Enqueues a Task that will execute this EventToDeliver."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    target_queue = os.environ.get('X_APPENGINE_QUEUENAME', EVENT_QUEUE)
+    target_queue = os.environ.get('HTTP_X_APPENGINE_QUEUENAME', EVENT_QUEUE)
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(

@@ -630,12 +630,12 @@ class SubscriptionTest(unittest.TestCase):
     self.assertTrue(Subscription.request_insert(
         self.callback, self.topic, self.token, self.secret))
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
-    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
     try:
       self.assertFalse(Subscription.request_insert(
           self.callback, self.topic, self.token, self.secret))
     finally:
-      del os.environ['X_APPENGINE_QUEUENAME']
+      del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
     testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
@@ -743,14 +743,14 @@ class FeedToFetchTest(unittest.TestCase):
     testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
     feed.delete()
 
-    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
     try:
       FeedToFetch.insert([self.topic])
       feed = FeedToFetch.all().get()
       testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
       testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
     finally:
-      del os.environ['X_APPENGINE_QUEUENAME']
+      del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
   def testSources(self):
     """Tests when sources are supplied."""
@@ -1064,11 +1064,11 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
     event.enqueue()
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
-    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
     try:
       event.enqueue()
     finally:
-      del os.environ['X_APPENGINE_QUEUENAME']
+      del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
     testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
@@ -3139,13 +3139,13 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.original_chunk_size = main.SUBSCRIPTION_CHECK_CHUNK_SIZE
     main.SUBSCRIPTION_CHECK_CHUNK_SIZE = 2
-    os.environ['X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
 
   def tearDown(self):
     """Tears down the test harness."""
     testutil.HandlerTestBase.tearDown(self)
     main.SUBSCRIPTION_CHECK_CHUNK_SIZE = self.original_chunk_size
-    del os.environ['X_APPENGINE_QUEUENAME']
+    del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
   def testFullFlow(self):
     """Tests a full flow through multiple chunks of the reconfirm worker."""
