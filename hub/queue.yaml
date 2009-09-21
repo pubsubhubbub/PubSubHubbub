@@ -2,10 +2,12 @@ queue:
   - name: subscriptions
     rate: 0.5/s
   - name: polling
-    rate: 1/s
+    rate: 0.5/s
   - name: feed-pulls
-    rate: 3/s
+    rate: 4/s
   - name: event-delivery
-    rate: 5/s
+    rate: 4/s
+  - name: mappings
+    rate: 1/s
   - name: default
     rate: 0/s

@@ -19,6 +19,7 @@
 
 import collections
 import logging
+import sys
 
 from google.appengine.api import apiproxy_stub_map
 from google.appengine.runtime import apiproxy

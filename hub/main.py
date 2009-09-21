@@ -114,6 +114,7 @@ from google.appengine.runtime import apiproxy_errors
 import async_apiproxy
 import dos
 import feed_diff
+import feed_identifier
 import urlfetch_async
 
 async_proxy = async_apiproxy.AsyncAPIProxy()
@@ -146,6 +147,9 @@ MAX_DELIVERY_FAILURES = 4
 
 # Period to use for exponential backoff on feed event delivery.
 DELIVERY_RETRY_PERIOD = 30 # seconds
+
+# Period at which feed IDs should be refreshed.
+FEED_IDENTITY_UPDATE_PERIOD = (10 * 24 * 60 * 60) # 10 days
 
 # Number of polling feeds to fetch from the Datastore at a time.
 BOOSTRAP_FEED_CHUNK_SIZE = 200
@@ -206,6 +210,8 @@ FEED_QUEUE = 'feed-pulls'
 POLLING_QUEUE = 'polling'
 
 SUBSCRIPTION_QUEUE = 'subscriptions'
+
+MAPPINGS_QUEUE = 'mappings'
 
 WEBLOGS_XMLRPC_ERROR = """<?xml version="1.0"?>
 <methodResponse><params><param><value><struct>
@@ -740,8 +746,10 @@ class Subscription(db.Model):
     """
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    target_queue = os.environ.get(
-        'HTTP_X_APPENGINE_QUEUENAME', SUBSCRIPTION_QUEUE)
+    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      target_queue = POLLING_QUEUE
+    else:
+      target_queue = SUBSCRIPTION_QUEUE
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
@@ -916,7 +924,10 @@ class FeedToFetch(db.Model):
     """Enqueues a task to fetch this feed."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    target_queue = os.environ.get('HTTP_X_APPENGINE_QUEUENAME', FEED_QUEUE)
+    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      target_queue = POLLING_QUEUE
+    else:
+      target_queue = FEED_QUEUE
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
@@ -1281,7 +1292,10 @@ class EventToDeliver(db.Model):
     """Enqueues a Task that will execute this EventToDeliver."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    target_queue = os.environ.get('HTTP_X_APPENGINE_QUEUENAME', EVENT_QUEUE)
+    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      target_queue = POLLING_QUEUE
+    else:
+      target_queue = EVENT_QUEUE
     for i in xrange(RETRIES):
       try:
         taskqueue.Task(
@@ -1308,6 +1322,8 @@ class KnownFeed(db.Model):
   """
 
   topic = db.TextProperty(required=True)
+  feed_id = db.TextProperty()
+  update_time = db.DateTimeProperty(auto_now=True)
 
   @classmethod
   def create(cls, topic):
@@ -1320,6 +1336,29 @@ class KnownFeed(db.Model):
       The KnownFeed instance that hasn't been added to the Datastore.
     """
     return cls(key_name=get_hash_key_name(topic), topic=topic)
+
+  @classmethod
+  def record(cls, topic):
+    """Enqueues a task to create a new KnownFeed and initiate feed ID discovery.
+
+    Args:
+      topic: The feed's topic URL.
+    """
+    RETRIES = 3
+    target_queue = MAPPINGS_QUEUE
+    for i in xrange(RETRIES):
+      try:
+        taskqueue.Task(
+            url='/work/record_feeds',
+            params={'topic': topic}
+            ).add(target_queue)
+      except (taskqueue.Error, apiproxy_errors.Error):
+        logging.exception('Could not insert task to do feed ID '
+                          'discovery for topic = %s', topic)
+        if i == (RETRIES - 1):
+          raise
+      else:
+        return
 
   @classmethod
   def create_key(cls, topic):
@@ -1393,6 +1432,123 @@ class PollingMarker(db.Model):
     else:
       return False
 
+
+class KnownFeedIdentity(db.Model):
+  """Stores a set of known URL aliases for a particular feed."""
+
+  feed_id = db.TextProperty(required=True)
+  topics = db.ListProperty(db.Text)
+  last_update = db.DateTimeProperty(auto_now=True)
+
+  @classmethod
+  def create_key(cls, feed_id):
+    """Creates a key for a KnownFeedIdentity.
+
+    Args:
+      feed_id: The feed's identity. For Atom this is the //feed/id element;
+        for RSS it is the //rss/channel/link element. If for whatever reason
+        the ID is missing, then the feed URL itself should be used.
+
+    Returns:
+      Key instance for this feed identity.
+    """
+    return datastore_types.Key.from_path(cls.kind(), get_hash_key_name(feed_id))
+
+  @classmethod
+  def update(cls, feed_id, topic):
+    """Updates a KnownFeedIdentity to have a topic URL mapping.
+
+    Args:
+      feed_id: The identity of the feed to update with the mapping.
+      topic: The topic URL to add to the feed's list of aliases.
+
+    Returns:
+      The KnownFeedIdentity that has been created or updated.
+    """
+    def txn():
+      known_feed = db.get(cls.create_key(feed_id))
+      if not known_feed:
+        known_feed = cls(feed_id=feed_id, key_name=get_hash_key_name(feed_id))
+      if topic not in known_feed.topics:
+        known_feed.topics.append(db.Text(topic))
+      known_feed.put()
+      return known_feed
+    return db.run_in_transaction(txn)
+
+  @classmethod
+  def remove(cls, feed_id, topic):
+    """Updates a KnownFeedIdentity to no longer have a topic URL mapping.
+
+    Args:
+      feed_id: The identity of the feed to update with the mapping.
+      topic: The topic URL to remove from the feed's list of aliases.
+
+    Returns:
+      The KnownFeedIdentity that has been updated or None if the mapping
+      did not exist previously or has now been deleted because it has no
+      active mappings.
+    """
+    def txn():
+      known_feed = db.get(cls.create_key(feed_id))
+      if not known_feed:
+        return None
+      try:
+        known_feed.topics.remove(db.Text(topic))
+      except ValueError:
+        return None
+
+      if not known_feed.topics:
+        known_feed.delete()
+        return None
+      else:
+        known_feed.put()
+        return known_feed
+    return db.run_in_transaction(txn)
+
+  @classmethod
+  def derive_additional_topics(cls, topics):
+    """Derives topic URL aliases from a set of topics by using feed IDs.
+
+    If a topic URL has a KnownFeed entry but no valid feed_id or
+    KnownFeedIdentity record, the input topic will be echoed in the output
+    dictionary directly. This properly handles the case where the feed_id has
+    not yet been recorded for the feed.
+
+    Args:
+      topics: Iterable of topic URLs.
+
+    Returns:
+      Dictionary mapping input topic URLs to their full set of aliases,
+      including the input topic URL.
+    """
+    topics = set(topics)
+    output_dict = {}
+    known_feeds = KnownFeed.get([KnownFeed.create_key(t) for t in topics])
+
+    # No expansion for feeds that have no known topic -> feed_id relation, but
+    # record those with KnownFeed as having a mapping from topic -> topic for
+    # backwards compatibility with existing production data.
+    feed_ids = []
+    for feed in known_feeds:
+      if feed is None:
+        continue
+      if feed.feed_id:
+        feed_ids.append(feed.feed_id)
+      else:
+        output_dict[feed.topic] = set([feed.topic])
+
+    known_feed_ids = cls.get([cls.create_key(f) for f in feed_ids])
+
+    for known, identified in zip(known_feeds, known_feed_ids):
+      if identified:
+        topic_set = output_dict.get(known.topic)
+        if topic_set is None:
+          topic_set = set([known.topic])
+          output_dict[known.topic] = topic_set
+        topic_set.update(identified.topics)
+
+    return output_dict
+
 ################################################################################
 # Subscription handlers and workers
 
@@ -1443,8 +1599,8 @@ def confirm_subscription(mode, topic, callback, verify_token,
     if mode == 'subscribe':
       Subscription.insert(callback, topic, verify_token, secret,
                           lease_seconds=real_lease_seconds)
-      # Blindly put the feed's record so we have a record of all feeds.
-      db.put(KnownFeed.create(topic))
+      # Enqueue a task to record the feed and do discovery for it's ID.
+      KnownFeed.record(topic)
     else:
       Subscription.remove(callback, topic)
     logging.info('Subscription action verified, '
@@ -1711,8 +1867,18 @@ class PublishHandlerBase(webapp.RequestHandler):
 
     # Only insert FeedToFetch entities for feeds that are known to have
     # subscribers. The rest will be ignored.
-    urls = KnownFeed.check_exists(urls)
-    if urls:
+    topic_map = KnownFeedIdentity.derive_additional_topics(urls)
+    if not topic_map:
+      urls = set()
+    else:
+      # Expand topic URLs by their feed ID to properly handle any aliases
+      # this feed may have active subscriptions for.
+      # TODO(bslatkin): Do something more intelligent here, like collate
+      # all of these topics into a single feed fetch and push, instead of
+      # one separately for each alias the feed may have.
+      urls = set()
+      for topic, value in topic_map.iteritems():
+        urls.update(value)
       logging.info('Topics with known subscribers: %s', urls)
 
     source_dict = hooks.execute(derive_sources, self, urls)
@@ -2276,6 +2442,83 @@ class PollBootstrapHandler(webapp.RequestHandler):
       current_key = None
 
 ################################################################################
+# feed canonicalization
+
+class RecordFeedHandler(webapp.RequestHandler):
+  """Background worker for categorizing/classifying feed URLs by their ID."""
+
+  def __init__(self, now=datetime.datetime.now):
+    """Initializer.
+
+    Args:
+      now: Callable that returns the current time as a datetime.datetime.
+    """
+    webapp.RequestHandler.__init__(self)
+    self.now = now
+
+  @work_queue_only
+  def post(self):
+    topic = self.request.get('topic')
+
+    known_feed_key = KnownFeed.create_key(topic)
+    known_feed = KnownFeed.get(known_feed_key)
+    if known_feed:
+      seconds_since_update = self.now() - known_feed.update_time
+      if (seconds_since_update <
+          datetime.timedelta(seconds=FEED_IDENTITY_UPDATE_PERIOD)):
+        logging.debug('Ignoring feed identity update for topic = %s '
+                      'due to update %s ago', topic, seconds_since_update)
+        return
+    else:
+      known_feed = KnownFeed.create(topic)
+
+    try:
+      response = urlfetch.fetch(topic)
+    except (apiproxy_errors.Error, urlfetch.Error):
+      logging.exception('Could not fetch topic = %s for feed ID', topic)
+      known_feed.put()
+      return
+
+    # TODO(bslatkin): Add more intelligent retrying of feed identification.
+    if response.status_code != 200:
+      logging.warning('Fetching topic = %s for feed ID returned response %s',
+                      topic, response.status_code)
+      known_feed.put()
+      return
+
+    order = (ATOM, RSS)
+    parse_failures = 0
+    for feed_type in order:
+      try:
+        feed_id = feed_identifier.identify(response.content, feed_type)
+        if feed_id:
+          break
+      except xml.sax.SAXException:
+        error_traceback = traceback.format_exc()
+        logging.debug(
+            'Could not parse feed for content of %d bytes in format "%s":\n%s',
+            len(response.content), feed_type, error_traceback)
+        parse_failures += 1
+
+    if parse_failures == len(order):
+      logging.error('Could not record feed ID for topic = %s:\n%s',
+                    topic, error_traceback)
+      known_feed.put()
+      return
+
+    logging.info('For topic = %s found new feed ID %r; old feed ID was %r',
+                topic, feed_id, known_feed.feed_id)
+
+    if known_feed.feed_id and known_feed.feed_id != feed_id:
+      logging.info('Removing old feed_id relation from '
+                   'topic = %r to feed_id = %r', topic, known_feed.feed_id)
+      KnownFeedIdentity.remove(known_feed.feed_id, topic)
+
+    KnownFeedIdentity.update(feed_id, topic)
+    known_feed.feed_id = feed_id
+    known_feed.put()
+
+################################################################################
 
 class HubHandler(webapp.RequestHandler):
   """Handler to multiplex subscribe and publish events on the same URL."""
@@ -2543,6 +2786,7 @@ def main():
       (r'/work/subscriptions', SubscriptionConfirmHandler),
       (r'/work/pull_feeds', PullFeedHandler),
       (r'/work/push_events', PushEventHandler),
+      (r'/work/record_feeds', RecordFeedHandler),
       # Periodic workers
       (r'/work/poll_bootstrap', PollBootstrapHandler),
       (r'/work/event_cleanup', EventCleanupHandler),

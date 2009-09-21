@@ -27,6 +27,7 @@ import time
 import tempfile
 import unittest
 import urllib
+import xml.sax
 
 import testutil
 testutil.fix_path()
@@ -34,7 +35,6 @@ testutil.fix_path()
 
 from google.appengine import runtime
 from google.appengine.api import memcache
-from google.appengine.api.labs.taskqueue import taskqueue_stub
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.runtime import apiproxy_errors
@@ -316,6 +316,107 @@ class KnownFeedTest(unittest.TestCase):
             [self.topic, self.topic, self.topic,
              self.topic2, self.topic2,
              self.topic3, self.topic3])))
+
+  def testRecord(self):
+    """Tests the method for recording a feed's identity."""
+    KnownFeed.record(self.topic)
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
+
+################################################################################
+
+KnownFeedIdentity = main.KnownFeedIdentity
+
+class KnownFeedIdentityTest(unittest.TestCase):
+  """Tests for the KnownFeedIdentity class."""
+
+  def setUp(self):
+    testutil.setup_for_testing()
+    self.feed_id = 'my;feed;id'
+    self.feed_id2 = 'my;feed;id;2'
+    self.topic = 'http://example.com/foobar1'
+    self.topic2 = 'http://example.com/meep2'
+    self.topic3 = 'http://example.com/stuff3'
+    self.topic4 = 'http://example.com/blah4'
+    self.topic5 = 'http://example.com/woot5'
+    self.topic6 = 'http://example.com/neehaw6'
+
+  def testUpdate(self):
+    """Tests the update method."""
+    feed = KnownFeedIdentity.update(self.feed_id, self.topic)
+    feed_key = KnownFeedIdentity.create_key(self.feed_id)
+    self.assertEquals(feed_key, feed.key())
+    self.assertEquals(self.feed_id, feed.feed_id)
+    self.assertEquals([self.topic], feed.topics)
+
+    feed = KnownFeedIdentity.update(self.feed_id, self.topic2)
+    self.assertEquals(self.feed_id, feed.feed_id)
+    self.assertEquals([self.topic, self.topic2], feed.topics)
+
+  def testRemove(self):
+    """Tests the remove method."""
+    # Removing a mapping from an unknown ID does nothing.
+    self.assertTrue(KnownFeedIdentity.remove(self.feed_id, self.topic) is None)
+
+    KnownFeedIdentity.update(self.feed_id, self.topic)
+    KnownFeedIdentity.update(self.feed_id, self.topic2)
+
+    # Removing an unknown mapping for a known ID does nothing.
+    self.assertTrue(KnownFeedIdentity.remove(self.feed_id, self.topic3) is None)
+
+    # Removing from a known ID returns the updated copy.
+    feed = KnownFeedIdentity.remove(self.feed_id, self.topic2)
+    self.assertEquals([self.topic], feed.topics)
+
+    # Removing a second time does nothing.
+    self.assertTrue(KnownFeedIdentity.remove(self.feed_id, self.topic2) is None)
+    feed = KnownFeedIdentity.get(KnownFeedIdentity.create_key(self.feed_id))
+    self.assertEquals([self.topic], feed.topics)
+
+    # Removing the last one will delete the mapping completely.
+    self.assertTrue(KnownFeedIdentity.remove(self.feed_id, self.topic) is None)
+    feed = KnownFeedIdentity.get(KnownFeedIdentity.create_key(self.feed_id))
+    self.assertTrue(feed is None)
+
+  def testDeriveAdditionalTopics(self):
+    """Tests the derive_additional_topics method."""
+    # topic, topic2 -> feed_id
+    for topic in (self.topic, self.topic2):
+      feed = KnownFeed.create(topic)
+      feed.feed_id = self.feed_id
+      feed.put()
+    KnownFeedIdentity.update(self.feed_id, self.topic)
+    KnownFeedIdentity.update(self.feed_id, self.topic2)
+
+    # topic3, topic4 -> feed_id2
+    for topic in (self.topic3, self.topic4):
+      feed = KnownFeed.create(topic)
+      feed.feed_id = self.feed_id2
+      feed.put()
+    KnownFeedIdentity.update(self.feed_id2, self.topic3)
+    KnownFeedIdentity.update(self.feed_id2, self.topic4)
+
+    # topic5 -> KnownFeed missing; should not be expanded at all
+    # topic6 -> KnownFeed where feed_id = None; default to simple mapping
+    KnownFeed.create(self.topic6).put()
+
+    result = KnownFeedIdentity.derive_additional_topics(set([
+        self.topic, self.topic2, self.topic3,
+        self.topic4, self.topic5, self.topic6]))
+
+    expected = {
+      'http://example.com/foobar1':
+          set(['http://example.com/foobar1', u'http://example.com/meep2']),
+      'http://example.com/meep2':
+          set([u'http://example.com/foobar1', 'http://example.com/meep2']),
+      'http://example.com/blah4':
+          set(['http://example.com/blah4', u'http://example.com/stuff3']),
+      'http://example.com/neehaw6':
+          set(['http://example.com/neehaw6']),
+      'http://example.com/stuff3':
+          set([u'http://example.com/blah4', 'http://example.com/stuff3'])
+    }
+    self.assertEquals(expected, result)
 
 ################################################################################
 
@@ -626,7 +727,7 @@ class SubscriptionTest(unittest.TestCase):
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, index=0, expected_count=6)
 
   def testQueuePreserved(self):
-    """Tests that insert will put the task on the environment's queue."""
+    """Tests that insert will put the task on the polling queue."""
     self.assertTrue(Subscription.request_insert(
         self.callback, self.topic, self.token, self.secret))
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
@@ -737,7 +838,7 @@ class FeedToFetchTest(unittest.TestCase):
     self.assertEquals(etas, found_etas)
 
   def testQueuePreserved(self):
-    """Tests the request's queue is preserved for inserted FeedToFetchs."""
+    """Tests the request's polling queue is preserved for new FeedToFetch."""
     FeedToFetch.insert([self.topic])
     feed = FeedToFetch.all().get()
     testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
@@ -1060,7 +1161,7 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.assertEquals(etas, found_etas)
 
   def testQueuePreserved(self):
-    """Tests that enqueueing an EventToDeliver will preserve the queue."""
+    """Tests that enqueueing an EventToDeliver preserves the polling queue."""
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
     event.enqueue()
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
@@ -2314,6 +2415,18 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.tearDown(self)
     main.get_random_challenge = self.old_get_challenge
 
+  def verify_record_task(self, topic):
+    """Tests there is a valid KnownFeedIdentity task enqueued.
+  
+    Args:
+      topic: The topic the task should be for.
+
+    Raises:
+      AssertionError if the task isn't there.
+    """
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=0, expected_count=1)
+    self.assertEquals(topic, task['params']['topic'])
+
   def testDebugFormRenders(self):
     self.handle('get')
     self.assertTrue('<html>' in self.response_body())
@@ -2430,7 +2543,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.verify_record_task(self.topic)
 
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'unsubscribe', 200,
@@ -2464,7 +2577,6 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
     # Sync subscription overwrites.
     urlfetch_test_stub.instance.expect(
@@ -2480,7 +2592,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.verify_record_task(self.topic)
 
     # Async unsubscribe queues removal, but does not change former state.
     self.handle('post',
@@ -2523,7 +2635,6 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
     # Async un-subscription does not change previous subscription state.
     self.handle('post',
@@ -2551,7 +2662,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.verify_record_task(self.topic)
 
   def testMaxLeaseSeconds(self):
     """Tests when the max lease period is specified."""
@@ -2579,7 +2690,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.verify_record_task(self.topic)
 
   def testInvalidChallenge(self):
     """Tests when the returned challenge is bad."""
@@ -2712,7 +2823,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.verify_record_task(self.topic)
 
   def testSubscribeNormalization(self):
     """Tests that the topic and callback URLs are properly normalized."""
@@ -2745,8 +2856,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(KnownFeed.create_key(
-        main.normalize_iri(self.topic))) is not None)
+    self.verify_record_task(main.normalize_iri(self.topic))
 
   def testSubscribeIri(self):
     """Tests when the topic, callback, verify_token, and secrets are IRIs."""
@@ -2786,8 +2896,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(
-        KnownFeed.create_key(self.topic + FUNNY_IRI)) is not None)
+    self.verify_record_task(self.topic + FUNNY_IRI)
 
   def testSubscribeUnicode(self):
     """Tests when UTF-8 encoded bytes show up in the requests.
@@ -2836,8 +2945,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     sub = Subscription.get_by_key_name(sub_key)
     self.assertTrue(sub is not None)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
-    self.assertTrue(db.get(
-        KnownFeed.create_key(self.topic + FUNNY_IRI)) is not None)
+    self.verify_record_task(self.topic + FUNNY_IRI)
 
 
 class SubscribeHandlerThroughHubUrlTest(SubscribeHandlerTest):
@@ -2914,6 +3022,18 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(secret or self.secret, params['secret'])
     self.assertEquals(str(auto_reconfirm), params['auto_reconfirm'])
 
+  def verify_record_task(self, topic):
+    """Tests there is a valid KnownFeedIdentity task enqueued.
+  
+    Args:
+      topic: The topic the task should be for.
+
+    Raises:
+      AssertionError if the task isn't there.
+    """
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=0, expected_count=1)
+    self.assertEquals(topic, task['params']['topic'])
+
   def testNoWork(self):
     """Tests when a task is enqueued for a Subscription that doesn't exist."""
     self.handle('post', ('subscription_key_name', 'unknown'),
@@ -2933,7 +3053,8 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
                         ('secret', self.secret),
                         ('next_state', Subscription.STATE_VERIFIED))
     self.verify_task(Subscription.STATE_VERIFIED)
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is not None)
+    self.verify_record_task(self.topic)
+
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertEquals(self.verify_token, sub.verify_token)
@@ -3060,6 +3181,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertEquals(second_token, sub.verify_token)
     self.assertEquals(second_secret, sub.secret)
+    self.verify_record_task(self.topic)
 
   def testConfirmError(self):
     """Tests when an exception is raised while confirming a subscription.
@@ -3292,6 +3414,173 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     task = testutil.get_tasks(main.POLLING_QUEUE, index=3, expected_count=4)
     self.assertNotEquals(sequence, task['params']['sequence'])
+
+################################################################################
+
+KnownFeedIdentity = main.KnownFeedIdentity
+
+
+class RecordFeedHandlerTest(testutil.HandlerTestBase):
+  """Tests for the RecordFeedHandler flow."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    self.now = [datetime.datetime.utcnow()]
+    self.handler_class = lambda: main.RecordFeedHandler(now=lambda: self.now[0])
+    testutil.HandlerTestBase.setUp(self)
+
+    self.old_identify = main.feed_identifier.identify
+    self.expected_calls = []
+    self.expected_results = []
+    def new_identify(content, feed_type):
+      self.assertEquals(self.expected_calls.pop(0), (content, feed_type))
+      result = self.expected_results.pop(0)
+      if isinstance(result, Exception):
+        raise result
+      else:
+        return result
+
+    main.feed_identifier.identify = new_identify
+    self.topic = 'http://www.example.com/meepa'
+    self.feed_id = 'my_feed_id'
+    self.content = 'my_atom_content'
+
+  def tearDown(self):
+    """Tears down the test harness."""
+    main.feed_identifier.identify = self.old_identify
+    testutil.HandlerTestBase.tearDown(self)
+    urlfetch_test_stub.instance.verify_and_reset()
+
+  def verify_update(self):
+    """Verifies the feed_id has been added for the topic."""
+    feed_id = KnownFeedIdentity.get(KnownFeedIdentity.create_key(self.feed_id))
+    feed = KnownFeed.get(KnownFeed.create_key(self.topic))
+    self.assertEquals([self.topic], feed_id.topics)
+    self.assertEquals(feed.feed_id, self.feed_id)
+    self.assertEquals(feed.feed_id, feed_id.feed_id)
+
+  def testNewFeed(self):
+    """Tests recording details for a known feed."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(self.feed_id)
+    self.handle('post', ('topic', self.topic))
+    self.verify_update()
+
+  def testNewFeedFetchFailure(self):
+    """Tests when fetching a feed to record returns a non-200 response."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 404, '')
+    self.handle('post', ('topic', self.topic))
+    feed = KnownFeed.get(KnownFeed.create_key(self.topic))
+    self.assertTrue(feed.feed_id is None)
+
+  def testNewFeedFetchException(self):
+    """Tests when fetching a feed to record returns an exception."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, '',
+                                       urlfetch_error=True)
+    self.handle('post', ('topic', self.topic))
+    feed = KnownFeed.get(KnownFeed.create_key(self.topic))
+    self.assertTrue(feed.feed_id is None)
+
+  def testParseRetry(self):
+    """Tests when parsing as Atom fails, but RSS is successful."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(xml.sax.SAXException('Mock error'))
+    self.expected_calls.append((self.content, 'rss'))
+    self.expected_results.append(self.feed_id)
+    self.handle('post', ('topic', self.topic))
+    self.verify_update()
+
+  def testParseFails(self):
+    """Tests when parsing completely fails."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(xml.sax.SAXException('Mock error'))
+    self.expected_calls.append((self.content, 'rss'))
+    self.expected_results.append(xml.sax.SAXException('Mock error 2'))
+    self.handle('post', ('topic', self.topic))
+    feed = KnownFeed.get(KnownFeed.create_key(self.topic))
+    self.assertTrue(feed.feed_id is None)
+
+  def testExistingFeedNeedsRefresh(self):
+    """Tests recording details for an existing feed that needs a refresh."""
+    KnownFeed.create(self.topic).put()
+    self.now[0] += datetime.timedelta(
+        seconds=main.FEED_IDENTITY_UPDATE_PERIOD + 1)
+
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(self.feed_id)
+    self.handle('post', ('topic', self.topic))
+    self.verify_update()
+
+  def testExistingFeedNoRefresh(self):
+    """Tests recording details when the feed does not need a refresh."""
+    KnownFeed.create(self.topic).put()
+    self.handle('post', ('topic', self.topic))
+    # Confirmed by no calls to urlfetch or feed_identifier.
+
+  def testNewFeedRelation(self):
+    """Tests when the feed ID relation changes for a topic."""
+    KnownFeedIdentity.update(self.feed_id, self.topic)
+    feed = KnownFeed.create(self.topic)
+    feed.feed_id = self.feed_id
+    feed.put()
+    self.now[0] += datetime.timedelta(
+        seconds=main.FEED_IDENTITY_UPDATE_PERIOD + 1)
+
+    new_feed_id = 'other_feed_id'
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(new_feed_id)
+    self.handle('post', ('topic', self.topic))
+
+    feed_id = KnownFeedIdentity.get(KnownFeedIdentity.create_key(new_feed_id))
+    feed = KnownFeed.get(feed.key())
+    self.assertEquals([self.topic], feed_id.topics)
+    self.assertEquals(feed.feed_id, new_feed_id)
+    self.assertEquals(feed.feed_id, feed_id.feed_id)
+
+    # Old KnownFeedIdentity should have been deleted.
+    self.assertTrue(KnownFeedIdentity.get(
+        KnownFeedIdentity.create_key(self.feed_id)) is None)
+
+
+class RecordFeedHandlerWithParsingTest(testutil.HandlerTestBase):
+  """Tests for the RecordFeedHandler that excercise parsing."""
+
+  handler_class = main.RecordFeedHandler
+
+  def testAtomParsing(self):
+    """Tests parsing an Atom feed."""
+    topic = 'http://example.com/atom'
+    feed_id = 'my-id'
+    data = ('<?xml version="1.0" encoding="utf-8"?>'
+            '<feed><id>my-id</id></feed>')
+    urlfetch_test_stub.instance.expect('GET', topic, 200, data)
+    self.handle('post', ('topic', topic))
+
+    known_id = KnownFeedIdentity.get(KnownFeedIdentity.create_key(feed_id))
+    feed = KnownFeed.get(KnownFeed.create_key(topic))
+    self.assertEquals([topic], known_id.topics)
+    self.assertEquals(feed.feed_id, feed_id)
+    self.assertEquals(feed.feed_id, known_id.feed_id)
+
+  def testRssParsing(self):
+    """Tests parsing an Atom feed."""
+    topic = 'http://example.com/rss'
+    feed_id = 'http://example.com/blah'
+    data = ('<?xml version="1.0" encoding="utf-8"?><rss><channel>'
+            '<link>http://example.com/blah</link></channel></rss>')
+    urlfetch_test_stub.instance.expect('GET', topic, 200, data)
+    self.handle('post', ('topic', topic))
+
+    known_id = KnownFeedIdentity.get(KnownFeedIdentity.create_key(feed_id))
+    feed = KnownFeed.get(KnownFeed.create_key(topic))
+    self.assertEquals([topic], known_id.topics)
+    self.assertEquals(feed.feed_id, feed_id)
+    self.assertEquals(feed.feed_id, known_id.feed_id)
 
 ################################################################################
 
