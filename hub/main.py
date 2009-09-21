@@ -2396,6 +2396,7 @@ class PollBootstrapHandler(webapp.RequestHandler):
 
   @work_queue_only
   def get(self):
+    poll_type = self.request.get('poll_type', 'bootstrap')
     the_mark = PollingMarker.get()
     if the_mark.should_progress():
       # Naming the task based on the current start time here allows us to
@@ -2411,7 +2412,9 @@ class PollBootstrapHandler(webapp.RequestHandler):
       try:
         taskqueue.Task(
             url='/work/poll_bootstrap',
-            name=name, params=dict(sequence=name)).add(POLLING_QUEUE)
+            name=name,
+            params=dict(sequence=name, poll_type=poll_type)
+        ).add(POLLING_QUEUE)
       except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
         logging.exception('Could not enqueue FIRST polling task')
 
@@ -2421,8 +2424,10 @@ class PollBootstrapHandler(webapp.RequestHandler):
   def post(self):
     sequence = self.request.get('sequence')
     current_key = self.request.get('current_key')
-    logging.info('Handling polling for sequence = %s, current_key = %s',
-                 sequence, current_key)
+    poll_type = self.request.get('poll_type')
+    logging.info('Handling polling for sequence = %s, '
+                 'current_key = %r, poll_type = %r',
+                 sequence, current_key, poll_type)
 
     query = KnownFeed.all()
     if current_key:
@@ -2438,11 +2443,16 @@ class PollBootstrapHandler(webapp.RequestHandler):
             url='/work/poll_bootstrap',
             name='%s-%s' % (sequence, sha1_hash(current_key)),
             params=dict(sequence=sequence,
-                        current_key=current_key)).add(POLLING_QUEUE)
+                        current_key=current_key,
+                        poll_type=poll_type)).add(POLLING_QUEUE)
       except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
         logging.exception('Could not enqueue continued polling task')
 
-      FeedToFetch.insert([k.topic for k in known_feeds])
+      if poll_type == 'record':
+        for feed in known_feeds:
+          KnownFeed.record(feed.topic)
+      else:
+        FeedToFetch.insert([k.topic for k in known_feeds])
     else:
       logging.info('Polling cycle complete')
       current_key = None

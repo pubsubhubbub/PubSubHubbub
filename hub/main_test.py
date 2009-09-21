@@ -3371,6 +3371,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     task = testutil.get_tasks(main.POLLING_QUEUE, index=0, expected_count=1)
     sequence = task['params']['sequence']
+    self.assertEquals('bootstrap', task['params']['poll_type'])
 
     # Now run the post handler with the params from this first task. It will
     # enqueue another task that starts *after* the last one in the chunk.
@@ -3385,6 +3386,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.handle('post', *task['params'].items())
     task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=2)
     self.assertEquals(sequence, task['params']['sequence'])
+    self.assertEquals('bootstrap', task['params']['poll_type'])
     self.assertEquals(str(KnownFeed.create_key(topic2)),
                       task['params']['current_key'])
     self.assertTrue(task['name'].startswith(sequence))
@@ -3397,6 +3399,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
 
     task = testutil.get_tasks(main.POLLING_QUEUE, index=2, expected_count=3)
     self.assertEquals(sequence, task['params']['sequence'])
+    self.assertEquals('bootstrap', task['params']['poll_type'])
     self.assertEquals(str(KnownFeed.create_key(topic3)),
                       task['params']['current_key'])
     self.assertTrue(task['name'].startswith(sequence))
@@ -3414,6 +3417,41 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     task = testutil.get_tasks(main.POLLING_QUEUE, index=3, expected_count=4)
     self.assertNotEquals(sequence, task['params']['sequence'])
+
+  def testRecord(self):
+    """Tests when the parameter "poll_type=record" is specified."""
+    topic = 'http://example.com/feed1'
+    topic2 = 'http://example.com/feed2'
+    topic3 = 'http://example.com/feed3-124'  # alphabetical on the hash of this
+    db.put([KnownFeed.create(topic), KnownFeed.create(topic2),
+            KnownFeed.create(topic3)])
+    self.assertTrue(FeedToFetch.get_by_topic(topic) is None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic2) is None)
+    self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
+
+    # This will insert the initial task to start the polling process.
+    self.handle('get', ('poll_type', 'record'))
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=0, expected_count=1)
+    sequence = task['params']['sequence']
+    self.assertEquals('record', task['params']['poll_type'])
+
+    # Now run the post handler with the params from this first task. It will
+    # enqueue another task that starts *after* the last one in the chunk.
+    self.handle('post', *task['params'].items())
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=2)
+    self.assertEquals('record', task['params']['poll_type'])
+
+    # Now running another post handler will handle the rest of the feeds.
+    self.handle('post', *task['params'].items())
+
+    # And there will be tasks in the MAPPINGS_QUEUE to update all of the
+    # KnownFeeds that we have found.
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=0, expected_count=3)
+    self.assertEquals(topic, task['params']['topic'])
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=1, expected_count=3)
+    self.assertEquals(topic2, task['params']['topic'])
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=2, expected_count=3)
+    self.assertEquals(topic3, task['params']['topic'])
 
 ################################################################################
 
