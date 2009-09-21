@@ -25,9 +25,15 @@
 * FeedToFetch: Work item inserted when a publish event occurs. This will be
   moved to the Task Queue API once available.
 
-* KnownFeed: Materialized view of all distinct topic URLs. Written blindly on
-  successful subscriptions; may be out of date after unsubscription. Used for
-  doing bootstrap polling of feeds that are not Hub aware.
+* KnownFeed: Materialized view of all distinct topic URLs. Written by
+  background task every time a new subscription is made for a topic URL.
+  Used for mapping from input topic URLs to feed IDs and then back to topic
+  URLs, to properly handle any feed aliases. Also used for doing bootstrap
+  polling of feeds.
+
+* KnownFeedIdentity: Reverse index of feed ID to topic URLs. Used in
+  conjunction with KnownFeed to properly canonicalize feed aliases on
+  subscription and pinging.
 
 * FeedRecord: Metadata information about a feed, the last time it was polled,
   and any headers that may affect future polling. Also contains any debugging
