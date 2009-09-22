@@ -108,7 +108,7 @@ def identify(data, format):
   elif format == 'rss':
     handler = RssFeedIdentifier(parser)
   else:
-    raise Error('Invalid feed format "%s"' % format)
+    assert False, 'Invalid feed format "%s"' % format
 
   parser.setContentHandler(handler)
   parser.parse(data_stream)

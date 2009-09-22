@@ -3541,6 +3541,17 @@ class RecordFeedHandlerTest(testutil.HandlerTestBase):
     feed = KnownFeed.get(KnownFeed.create_key(self.topic))
     self.assertTrue(feed.feed_id is None)
 
+  def testParseFindsNoIds(self):
+    """Tests when no SAX exception is raised but no feed ID is found."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(None)
+    self.expected_calls.append((self.content, 'rss'))
+    self.expected_results.append(None)
+    self.handle('post', ('topic', self.topic))
+    feed = KnownFeed.get(KnownFeed.create_key(self.topic))
+    self.assertTrue(feed.feed_id is None)
+
   def testExistingFeedNeedsRefresh(self):
     """Tests recording details for an existing feed that needs a refresh."""
     KnownFeed.create(self.topic).put()
@@ -3555,9 +3566,20 @@ class RecordFeedHandlerTest(testutil.HandlerTestBase):
 
   def testExistingFeedNoRefresh(self):
     """Tests recording details when the feed does not need a refresh."""
-    KnownFeed.create(self.topic).put()
+    feed = KnownFeed.create(self.topic)
+    feed.feed_id = 'meep'
+    feed.put()
     self.handle('post', ('topic', self.topic))
     # Confirmed by no calls to urlfetch or feed_identifier.
+
+  def testExistingFeedNoIdRefresh(self):
+    """Tests that a KnownFeed with no ID will be refreshed."""
+    feed = KnownFeed.create(self.topic)
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append(self.feed_id)
+    self.handle('post', ('topic', self.topic))
+    self.verify_update()
 
   def testNewFeedRelation(self):
     """Tests when the feed ID relation changes for a topic."""

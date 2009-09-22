@@ -2480,7 +2480,7 @@ class RecordFeedHandler(webapp.RequestHandler):
     known_feed = KnownFeed.get(known_feed_key)
     if known_feed:
       seconds_since_update = self.now() - known_feed.update_time
-      if (seconds_since_update <
+      if known_feed.feed_id and (seconds_since_update <
           datetime.timedelta(seconds=FEED_IDENTITY_UPDATE_PERIOD)):
         logging.debug('Ignoring feed identity update for topic = %s '
                       'due to update %s ago', topic, seconds_since_update)
@@ -2509,6 +2509,9 @@ class RecordFeedHandler(webapp.RequestHandler):
         feed_id = feed_identifier.identify(response.content, feed_type)
         if feed_id:
           break
+        else:
+          parse_failures += 1
+          error_traceback = 'Could not determine feed_id'
       except xml.sax.SAXException:
         error_traceback = traceback.format_exc()
         logging.debug(
@@ -2516,14 +2519,14 @@ class RecordFeedHandler(webapp.RequestHandler):
             len(response.content), feed_type, error_traceback)
         parse_failures += 1
 
-    if parse_failures == len(order):
-      logging.error('Could not record feed ID for topic = %s:\n%s',
-                    topic, error_traceback)
+    if parse_failures == len(order) or feed_id is None:
+      logging.warning('Could not record feed ID for topic = %s:\n%s',
+                      topic, error_traceback)
       known_feed.put()
       return
 
     logging.info('For topic = %s found new feed ID %r; old feed ID was %r',
-                topic, feed_id, known_feed.feed_id)
+                 topic, feed_id, known_feed.feed_id)
 
     if known_feed.feed_id and known_feed.feed_id != feed_id:
       logging.info('Removing old feed_id relation from '
