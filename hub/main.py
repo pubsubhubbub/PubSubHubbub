@@ -2475,6 +2475,7 @@ class RecordFeedHandler(webapp.RequestHandler):
   @work_queue_only
   def post(self):
     topic = self.request.get('topic')
+    logging.debug('Recording topic = %s', topic)
 
     known_feed_key = KnownFeed.create_key(topic)
     known_feed = KnownFeed.get(known_feed_key)
