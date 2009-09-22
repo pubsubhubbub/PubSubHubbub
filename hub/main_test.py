@@ -400,9 +400,11 @@ class KnownFeedIdentityTest(unittest.TestCase):
     # topic6 -> KnownFeed where feed_id = None; default to simple mapping
     KnownFeed.create(self.topic6).put()
 
-    result = KnownFeedIdentity.derive_additional_topics(set([
-        self.topic, self.topic2, self.topic3,
-        self.topic4, self.topic5, self.topic6]))
+    # Put missing topics first to provoke potential ordering errors in the
+    # iteration order of the retrieval loop.
+    result = KnownFeedIdentity.derive_additional_topics([
+        self.topic5, self.topic6, self.topic,
+        self.topic2, self.topic3, self.topic4])
 
     expected = {
       'http://example.com/foobar1':

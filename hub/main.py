@@ -1534,23 +1534,25 @@ class KnownFeedIdentity(db.Model):
     # No expansion for feeds that have no known topic -> feed_id relation, but
     # record those with KnownFeed as having a mapping from topic -> topic for
     # backwards compatibility with existing production data.
+    topics = []
     feed_ids = []
     for feed in known_feeds:
       if feed is None:
         continue
       if feed.feed_id:
+        topics.append(feed.topic)
         feed_ids.append(feed.feed_id)
       else:
         output_dict[feed.topic] = set([feed.topic])
 
     known_feed_ids = cls.get([cls.create_key(f) for f in feed_ids])
 
-    for known, identified in zip(known_feeds, known_feed_ids):
+    for known_topic, identified in zip(topics, known_feed_ids):
       if identified:
-        topic_set = output_dict.get(known.topic)
+        topic_set = output_dict.get(known_topic)
         if topic_set is None:
-          topic_set = set([known.topic])
-          output_dict[known.topic] = topic_set
+          topic_set = set([known_topic])
+          output_dict[known_topic] = topic_set
         topic_set.update(identified.topics)
 
     return output_dict
