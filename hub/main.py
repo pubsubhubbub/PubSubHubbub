@@ -934,10 +934,10 @@ class FeedToFetch(db.Model):
     """Enqueues a task to fetch this feed."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
-      target_queue = POLLING_QUEUE
-    elif self.fetching_failures > 0:
+    if self.fetching_failures > 0:
       target_queue = FEED_RETRIES_QUEUE
+    elif os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      target_queue = POLLING_QUEUE
     else:
       target_queue = FEED_QUEUE
     for i in xrange(RETRIES):
@@ -1304,10 +1304,10 @@ class EventToDeliver(db.Model):
     """Enqueues a Task that will execute this EventToDeliver."""
     # TODO(bslatkin): Remove these retries when they're not needed in userland.
     RETRIES = 3
-    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
-      target_queue = POLLING_QUEUE
-    elif self.delivery_mode == EventToDeliver.RETRY:
+    if self.delivery_mode == EventToDeliver.RETRY:
       target_queue = EVENT_RETRIES_QUEUE
+    elif os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      target_queue = POLLING_QUEUE
     else:
       target_queue = EVENT_QUEUE
     for i in xrange(RETRIES):
