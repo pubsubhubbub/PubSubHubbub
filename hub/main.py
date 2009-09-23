@@ -2745,9 +2745,6 @@ class HookManager(object):
     modifiable_kwargs = dict(kwargs)
     matches = []
     for filename, hook in hook_list:
-      logging.debug('Inspecting args for %s by hook from module %s: '
-                    'args=%r, kwargs=%r', original, filename,
-                    modifiable_args, modifiable_kwargs)
       if hook.inspect(modifiable_args, modifiable_kwargs):
         matches.append((filename, hook))
 
@@ -2755,8 +2752,6 @@ class HookManager(object):
     designated_hook = original
     if len(matches) >= 1:
       filename, designated_hook = matches[0]
-      logging.debug('Using matched hook for %s from module %s',
-                    original, filename)
 
     if len(matches) > 1:
       logging.critical(
