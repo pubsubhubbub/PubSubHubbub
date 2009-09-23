@@ -158,7 +158,7 @@ DELIVERY_RETRY_PERIOD = 30 # seconds
 FEED_IDENTITY_UPDATE_PERIOD = (10 * 24 * 60 * 60) # 10 days
 
 # Number of polling feeds to fetch from the Datastore at a time.
-BOOSTRAP_FEED_CHUNK_SIZE = 200
+BOOSTRAP_FEED_CHUNK_SIZE = 50
 
 # Maximum age in seconds of a failed EventToDeliver before it is cleaned up.
 EVENT_CLEANUP_MAX_AGE_SECONDS = (10 * 24 * 60 * 60)  # 10 days
@@ -211,7 +211,11 @@ VALID_PORTS = frozenset([
 
 EVENT_QUEUE = 'event-delivery'
 
+EVENT_RETRIES_QUEUE = 'event-delivery-retries'
+
 FEED_QUEUE = 'feed-pulls'
+
+FEED_RETRIES_QUEUE = 'feed-pulls-retries'
 
 POLLING_QUEUE = 'polling'
 
@@ -932,6 +936,8 @@ class FeedToFetch(db.Model):
     RETRIES = 3
     if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
       target_queue = POLLING_QUEUE
+    elif self.fetching_failures > 0:
+      target_queue = FEED_RETRIES_QUEUE
     else:
       target_queue = FEED_QUEUE
     for i in xrange(RETRIES):
@@ -1300,6 +1306,8 @@ class EventToDeliver(db.Model):
     RETRIES = 3
     if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
       target_queue = POLLING_QUEUE
+    elif self.delivery_mode == EventToDeliver.RETRY:
+      target_queue = EVENT_RETRIES_QUEUE
     else:
       target_queue = EVENT_QUEUE
     for i in xrange(RETRIES):
@@ -2393,6 +2401,25 @@ class EventCleanupHandler(webapp.RequestHandler):
 
 ################################################################################
 
+def take_polling_action(topic_list, poll_type):
+  """Takes an action on a set of topics to be polled.
+
+  Args:
+    topic_list: The iterable of topic URLs to take a polling action on.
+    poll_type: The type of polling to do.
+  """
+  try:
+    if poll_type == 'record':
+      for topic in topic_list:
+        KnownFeed.record(topic)
+    else:
+      FeedToFetch.insert(topic_list)
+  except (taskqueue.Error, apiproxy_errors.Error,
+          db.Error, runtime.DeadlineExceededError):
+    logging.exception('Could not take polling action '
+                      'of type %r for topics: %s', poll_type, topic_list)
+
+
 class PollBootstrapHandler(webapp.RequestHandler):
   """Boostrap handler automatically polls feeds."""
 
@@ -2450,11 +2477,11 @@ class PollBootstrapHandler(webapp.RequestHandler):
       except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
         logging.exception('Could not enqueue continued polling task')
 
-      if poll_type == 'record':
-        for feed in known_feeds:
-          KnownFeed.record(feed.topic)
-      else:
-        FeedToFetch.insert([k.topic for k in known_feeds])
+      # TODO(bslatkin): Do more intelligent retrying of polling actions.
+      hooks.execute(take_polling_action,
+                    [k.topic for k in known_feeds],
+                    poll_type)
+
     else:
       logging.info('Polling cycle complete')
       current_key = None
@@ -2821,13 +2848,14 @@ def main():
 # Declare and load external hooks.
 
 hooks = HookManager()
-hooks.declare(preprocess_urls)
-hooks.declare(derive_sources)
 hooks.declare(confirm_subscription)
-hooks.declare(pull_feed)
+hooks.declare(derive_sources)
 hooks.declare(inform_event)
-hooks.declare(push_event)
 hooks.declare(modify_handlers)
+hooks.declare(preprocess_urls)
+hooks.declare(pull_feed)
+hooks.declare(push_event)
+hooks.declare(take_polling_action)
 hooks.load()
 
 
