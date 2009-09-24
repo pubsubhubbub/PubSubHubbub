@@ -8,6 +8,7 @@
 
 <h1>Subscribe/Unsubscribe</h1>
 
+Create a new subscription.
 <form action="/subscribe" method="post" accept-charset="utf-8">
   <p>
     <label for="callback">Callback: <em>(the subscriber URL)</em></label>
@@ -42,6 +43,26 @@
   <p><input type="submit" value="Do it"></p>
 </form>  
 <em>Note: submission will result in a HTTP 204 response to acknowledge; in browsers this looks like a no-op</em>
+
+<h1>Subscriber Diagnostics</h1>
+
+Retrieve details about a subscription.
+<form action="/subscription-details" method="get" accept-charset="utf-8">
+  <p>
+    <label for="callback">Callback:  <em>(the subscriber URL)</em></label>
+    <input type="text" name="hub.callback" value="" size="50" id="callback">
+  </p>
+  <p>
+    <label for="topic">Topic:  <em>(the feed URL)</em></label>
+    <input type="text" name="hub.topic" value="" size="50" id="topic">
+  </p>
+  <p>
+    <label for="secret">Secret:  <em>(optional)</em></label>
+    <input type="text" name="hub.secret" value="" size="50" id="secret">
+  </p>
+
+  <p><input type="submit" value="Get info"></p>
+</form>
 
 </body>
 </html>

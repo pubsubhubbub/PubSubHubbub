@@ -77,9 +77,6 @@ and will be retried at a later time.
 #
 # - Add cron cleanup for Subscriptions in the "TO_DELETE" state.
 #
-# - Add Subscription delivery diagnostics, so subscribers can understand what
-#   error the hub has been seeing when we try to deliver a feed to them.
-#
 # - Add subscription counting to PushEventHandler so we can deliver a header
 #   with the number of subscribers the feed has. This will simply just keep
 #   count of the subscribers seen so far and then when the pushing is done it
@@ -2625,6 +2622,54 @@ class TopicDetailHandler(webapp.RequestHandler):
         })
     self.response.out.write(template.render('topic_details.html', context))
 
+
+class SubscriptionDetailHandler(webapp.RequestHandler):
+  """Handler that serves details about subscriber deliveries to end-users."""
+
+  @dos.limit(count=5, period=60)
+  def get(self):
+    topic_url = normalize_iri(self.request.get('hub.topic'))
+    callback_url = normalize_iri(self.request.get('hub.callback'))
+    secret = normalize_iri(self.request.get('hub.secret'))
+    subscription = Subscription.get_by_key_name(
+        Subscription.create_key_name(callback_url, topic_url))
+
+    context = {
+      'topic_url': topic_url,
+      'callback_url': callback_url,
+    }
+
+    if not subscription or (
+       subscription.secret and subscription.secret != secret):
+      context.update({
+        'error': 'Could not find any subscription for '
+                 'the given (callback, topic, secret) tuple'
+      })
+    else:
+      failed_events = (EventToDeliver.all()
+        .filter('failed_callbacks =', subscription.key())
+        .order('-last_modified')
+        .fetch(25))
+      context.update({
+        'created_time': subscription.created_time,
+        'last_modified': subscription.last_modified,
+        'lease_seconds': subscription.lease_seconds,
+        'expiration_time': subscription.expiration_time,
+        'confirm_failures': subscription.confirm_failures,
+        'subscription_state': subscription.subscription_state,
+        'failed_events': [
+          {
+            'last_modified': e.last_modified,
+            'retry_attempts': e.retry_attempts,
+            'totally_failed': e.totally_failed,
+            'content_type': e.content_type,
+            'payload_trunc': e.payload[:10000],
+          }
+          for e in failed_events]
+      })
+
+    self.response.out.write(template.render('event_details.html', context))
+
 ################################################################################
 # Hook system
 
@@ -2830,6 +2875,7 @@ def main():
       (r'/publish', PublishHandler),
       (r'/subscribe', SubscribeHandler),
       (r'/topic-details', TopicDetailHandler),
+      (r'/subscription-details', SubscriptionDetailHandler),
       # Low-latency workers
       (r'/work/subscriptions', SubscriptionConfirmHandler),
       (r'/work/pull_feeds', PullFeedHandler),

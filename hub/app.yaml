@@ -38,6 +38,11 @@ handlers:
   upload: bookmarklet/.+\.(min\.js|html|xml)
   secure: optional
 
+# Always require the subscriber details form to be securely accessed.
+- url: /subscription-details
+  script: main.py
+  secure: always
+
 - url: .*
   script: main.py
   secure: optional
