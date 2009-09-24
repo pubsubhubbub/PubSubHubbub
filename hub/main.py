@@ -1823,7 +1823,9 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
           params=dict(time_offset=time_offset,
                       key_offset=next_key)).add(POLLING_QUEUE)
     except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
-      logging.exception('Could not enqueue continued reconfirmation task')
+      logging.exception('Continued polling task already present; '
+                        'this work has already been done')
+      return
 
     for sub in subscriptions:
       if sub.expiration_time < datetime_offset:
@@ -2475,7 +2477,9 @@ class PollBootstrapHandler(webapp.RequestHandler):
                         current_key=current_key,
                         poll_type=poll_type)).add(POLLING_QUEUE)
       except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
-        logging.exception('Could not enqueue continued polling task')
+        logging.exception('Continued polling task already present; '
+                          'this work has already been done')
+        return
 
       # TODO(bslatkin): Do more intelligent retrying of polling actions.
       hooks.execute(take_polling_action,

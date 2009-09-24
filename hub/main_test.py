@@ -3332,6 +3332,8 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     all_tasks = testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
     task = [a for a in all_tasks[1:] if 'time_offset' in a['params']][0]
 
+    # Run this task twice; the second time should do nothing.
+    self.handle('post', *task['params'].items())
     self.handle('post', *task['params'].items())
     confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=5))
 
@@ -3389,11 +3391,13 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     testutil.HandlerTestBase.setUp(self)
     self.original_chunk_size = main.BOOSTRAP_FEED_CHUNK_SIZE
     main.BOOSTRAP_FEED_CHUNK_SIZE = 2
+    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
 
   def tearDown(self):
     """Tears down the test harness."""
     testutil.HandlerTestBase.tearDown(self)
     main.BOOSTRAP_FEED_CHUNK_SIZE = self.original_chunk_size
+    del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
   def testFullFlow(self):
     """Tests a full flow through multiple chunks."""
@@ -3427,7 +3431,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     # add tasks for them, but it will not duplicate the polling queue Task in
     # the chain of iterating through all KnownFeed entries.
     self.handle('post', *task['params'].items())
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=2)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=4)
     self.assertEquals(sequence, task['params']['sequence'])
     self.assertEquals('bootstrap', task['params']['poll_type'])
     self.assertEquals(str(KnownFeed.create_key(topic2)),
@@ -3440,7 +3444,11 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(FeedToFetch.get_by_topic(topic2) is not None)
     self.assertTrue(FeedToFetch.get_by_topic(topic3) is not None)
 
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=2, expected_count=3)
+    # Running this post handler again will do nothing because we de-dupe on
+    # the continuation task to prevent doing any more work in the current cycle.
+    self.handle('post', *task['params'].items())
+
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=6)
     self.assertEquals(sequence, task['params']['sequence'])
     self.assertEquals('bootstrap', task['params']['poll_type'])
     self.assertEquals(str(KnownFeed.create_key(topic3)),
@@ -3449,7 +3457,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
 
     # Starting the cycle again will do nothing.
     self.handle('get')
-    testutil.get_tasks(main.POLLING_QUEUE, expected_count=3)
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=6)
 
     # Resetting the next start time to before the present time will
     # cause the iteration to start again.
@@ -3458,7 +3466,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
         datetime.datetime.utcnow() - datetime.timedelta(seconds=120)
     db.put(the_mark)
     self.handle('get')
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=3, expected_count=4)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=6, expected_count=7)
     self.assertNotEquals(sequence, task['params']['sequence'])
 
   def testRecord(self):
@@ -3495,7 +3503,6 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(topic2, task['params']['topic'])
     task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=2, expected_count=3)
     self.assertEquals(topic3, task['params']['topic'])
-
 
 ################################################################################
 

@@ -154,9 +154,13 @@ def limit(param=None,
 
       if not whitelisted and result > count:
         rate = float(result) / period
-        logging.error('Hit rate limit on "%s" by "%s" where '
-                      'count = %s, period = %s, rate = %.3f/s, limit = %.3f/s',
-                      method, key, count, period, rate, limit)
+        if (result - count) == 1:
+          log_level = logging.error
+        else:
+          log_level = logging.debug
+        log_level('Hit rate limit on "%s" by "%s" where '
+                  'count = %s, period = %s, rate = %.3f/s, limit = %.3f/s',
+                  method, key, count, period, rate, limit)
         myself.response.set_status(error_code)
         myself.response.headers['Content-Type'] = 'text/plain'
         if retry_after is not None:
