@@ -163,6 +163,9 @@ EVENT_CLEANUP_MAX_AGE_SECONDS = (10 * 24 * 60 * 60)  # 10 days
 # How many completely failed EventToDeliver instances to clean up at a time.
 EVENT_CLEANUP_CHUNK_SIZE = 50
 
+# How many old Subscription instances to clean up at a time.
+SUBSCRIPTION_CLEANUP_CHUNK_SIZE = 100
+
 # How far before expiration to refresh subscriptions.
 SUBSCRIPTION_CHECK_BUFFER_SECONDS = (24 * 60 * 60)  # 24 hours
 
@@ -1830,6 +1833,22 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
         sub.request_insert(sub.callback, sub.topic, sub.verify_token,
                            sub.secret, auto_reconfirm=True)
 
+
+class SubscriptionCleanupHandler(webapp.RequestHandler):
+  """Background worker for cleaning up deleted Subscription instances."""
+
+  @work_queue_only
+  def get(self):
+    subscriptions = (Subscription.all()
+              .filter('subscription_state =', Subscription.STATE_TO_DELETE)
+              .fetch(SUBSCRIPTION_CLEANUP_CHUNK_SIZE))
+    if subscriptions:
+      logging.info('Cleaning up %d subscriptions', len(subscriptions))
+      try:
+        db.delete(subscriptions)
+      except (db.Error, apiproxy_errors.Error, runtime.DeadlineExceededError):
+        logging.exception('Could not clean-up Subscription instances')
+
 ################################################################################
 # Publishing handlers
 
@@ -2887,6 +2906,7 @@ def main():
       # Periodic workers
       (r'/work/poll_bootstrap', PollBootstrapHandler),
       (r'/work/event_cleanup', EventCleanupHandler),
+      (r'/work/subscription_cleanup', SubscriptionCleanupHandler),
       (r'/work/reconfirm_subscriptions', SubscriptionReconfirmHandler)
     ])
   application = webapp.WSGIApplication(HANDLERS, debug=DEBUG)

@@ -3350,6 +3350,31 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
         t['params']['subscription_key_name'] for t in confirm_tasks]
     self.assertEquals(confirm_key_names, found_key_names)
 
+
+class SubscriptionCleanupHandlerTest(testutil.HandlerTestBase):
+  """Tests fo the SubscriptionCleanupHandler."""
+
+  handler_class = main.SubscriptionCleanupHandler
+
+  def testEmpty(self):
+    """Tests cleaning up empty subscriptions."""
+    self.handle('get')
+
+  def testCleanup(self):
+    """Tests cleaning up a few deleted subscriptions."""
+    callback = 'http://example.com/callback/%d'
+    topic = 'http://example.com/mytopic'
+    self.assertTrue(Subscription.insert(callback % 1, topic, '', ''))
+    self.assertTrue(Subscription.insert(callback % 2, topic, '', ''))
+    self.assertTrue(Subscription.insert(callback % 3, topic, '', ''))
+    self.assertEquals(3 * [Subscription.STATE_VERIFIED],
+                      [s.subscription_state for s in Subscription.all()])
+
+    Subscription.archive(callback % 1, topic)
+    self.handle('get')
+    self.assertEquals(2 * [Subscription.STATE_VERIFIED],
+                      [s.subscription_state for s in Subscription.all()])
+
 ################################################################################
 
 PollingMarker = main.PollingMarker
