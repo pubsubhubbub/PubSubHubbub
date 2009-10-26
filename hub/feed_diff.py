@@ -34,6 +34,13 @@ class Error(Exception):
   """Exception for errors in this module."""
 
 
+class TrivialEntityResolver(xml.sax.handler.EntityResolver):
+  """Pass-through entity resolver."""
+
+  def resolveEntity(self, publicId, systemId):
+    return cStringIO.StringIO()
+
+
 class FeedContentHandler(xml.sax.handler.ContentHandler):
   """Sax content handler for quickly parsing Atom and RSS feeds."""
 
@@ -217,7 +224,11 @@ def filter(data, format):
     raise Error('Invalid feed format "%s"' % format)
 
   parser.setContentHandler(handler)
-  parser.parse(data_stream)
+  parser.setEntityResolver(TrivialEntityResolver())
+  try:
+    parser.parse(data_stream)
+  except IOError, e:
+    raise Error('Encountered IOError while parsing: %s' % e)
 
   for entry_id, content in handler.entries_map.iteritems():
     if format == 'atom' and not entry_id:

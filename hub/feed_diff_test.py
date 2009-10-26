@@ -249,6 +249,19 @@ class RssRdfFeedDiffTest(TestBase):
     self.verify_entries(expected_list, entries)
 
 
+class FilterTest(TestBase):
+
+  format = 'atom'
+
+  def testEntities(self):
+    """Tests that external entities cause parsing to fail."""
+    try:
+      self.load_feed('xhtml_entities.xml')
+      self.fail('Should have raised an exception')
+    except feed_diff.Error, e:
+      self.assertFalse('IOError' in str(e))
+
+
 if __name__ == '__main__':
   ## feed_diff.DEBUG = True
   ## logging.getLogger().setLevel(logging.DEBUG)
