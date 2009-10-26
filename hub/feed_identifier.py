@@ -50,7 +50,7 @@ class FeedIdentifier(xml.sax.handler.ContentHandler):
       parser: Instance of the xml.sax parser being used with this handler.
     """
     self.parser = parser
-    self.link = None
+    self.link = []
     self.tag_stack = []
     self.capture_next_element = False
 
@@ -69,14 +69,21 @@ class FeedIdentifier(xml.sax.handler.ContentHandler):
           self.capture_next_element = True
 
   def endElement(self, name):
-    if not self.link:
+    if self.link:
+      self.capture_next_element = False
+    else:
       if DEBUG: logging.debug('End stack level %r', name)
       self.tag_stack.pop()
 
   def characters(self, content):
     if self.capture_next_element:
-      self.capture_next_element = False
-      self.link = content
+      self.link.append(content)
+
+  def get_link(self):
+    if not self.link:
+      return None
+    else:
+      return ''.join(self.link).strip()
 
 
 class AtomFeedIdentifier(FeedIdentifier):
@@ -121,7 +128,7 @@ def identify(data, format):
   parser.setEntityResolver(TrivialEntityResolver())
   parser.parse(data_stream)
 
-  return handler.link
+  return handler.get_link()
 
 
 __all__ = ['identify', 'DEBUG']

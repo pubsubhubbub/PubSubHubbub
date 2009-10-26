@@ -1543,10 +1543,14 @@ class KnownFeedIdentity(db.Model):
       if feed is None:
         continue
 
+      fix_feed_id = feed.feed_id
+      if fix_feed_id is not None:
+        fix_feed_id = fix_feed_id.strip()
+
       # No expansion for feeds that have no known topic -> feed_id relation, but
       # record those with KnownFeed as having a mapping from topic -> topic for
       # backwards compatibility with existing production data.
-      if feed.feed_id:
+      if fix_feed_id:
         topics.append(feed.topic)
         feed_ids.append(feed.feed_id)
       else:
@@ -2558,7 +2562,7 @@ class RecordFeedHandler(webapp.RequestHandler):
     for feed_type in order:
       try:
         feed_id = feed_identifier.identify(response.content, feed_type)
-        if feed_id:
+        if feed_id is not None:
           break
         else:
           parse_failures += 1

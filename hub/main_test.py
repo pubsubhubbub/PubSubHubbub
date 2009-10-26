@@ -408,15 +408,49 @@ class KnownFeedIdentityTest(unittest.TestCase):
 
     expected = {
       'http://example.com/foobar1':
-          set(['http://example.com/foobar1', u'http://example.com/meep2']),
+          set(['http://example.com/foobar1', 'http://example.com/meep2']),
       'http://example.com/meep2':
-          set([u'http://example.com/foobar1', 'http://example.com/meep2']),
+          set(['http://example.com/foobar1', 'http://example.com/meep2']),
       'http://example.com/blah4':
-          set(['http://example.com/blah4', u'http://example.com/stuff3']),
+          set(['http://example.com/blah4', 'http://example.com/stuff3']),
       'http://example.com/neehaw6':
           set(['http://example.com/neehaw6']),
       'http://example.com/stuff3':
-          set([u'http://example.com/blah4', 'http://example.com/stuff3'])
+          set(['http://example.com/blah4', 'http://example.com/stuff3'])
+    }
+    self.assertEquals(expected, result)
+
+  def testDeriveAdditionalTopicsWhitespace(self):
+    """Tests when the feed ID contains whitespace it is handled correctly.
+
+    This test is only required because the 'feed_identifier' module did not
+    properly strip whitespace in its initial version.
+    """
+    # topic -> feed_id with whitespace
+    feed = KnownFeed.create(self.topic)
+    feed.feed_id = self.feed_id
+    feed.put()
+    KnownFeedIdentity.update(self.feed_id, self.topic)
+
+    # topic2 -> feed_id without whitespace
+    feed = KnownFeed.create(self.topic2)
+    feed.feed_id = '\n  %s  \n \n' % self.feed_id
+    feed.put()
+    KnownFeedIdentity.update(self.feed_id, self.topic2)
+
+    # topic3 -> KnownFeed where feed_id = all whitespace
+    feed = KnownFeed.create(self.topic3)
+    feed.feed_id = '\n  \n \n'
+    feed.put()
+
+    result = KnownFeedIdentity.derive_additional_topics([
+        self.topic, self.topic2, self.topic3])
+
+    expected = {
+        'http://example.com/foobar1':
+            set(['http://example.com/foobar1', 'http://example.com/meep2']),
+        'http://example.com/stuff3':
+            set(['http://example.com/stuff3']),
     }
     self.assertEquals(expected, result)
 

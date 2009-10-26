@@ -52,6 +52,10 @@ class AtomTest(TestBase):
     feed_id = feed_identifier.identify(self.load('rss_rdf.xml'), 'atom')
     self.assertTrue(feed_id is None)
 
+  def testWhitespace(self):
+    feed_id = feed_identifier.identify(self.load('whitespace_id.xml'), 'atom')
+    self.assertEquals('my feed id here', feed_id)
+
   def testBadFormat(self):
     self.assertRaises(xml.sax.SAXParseException,
                       feed_identifier.identify,
