@@ -75,8 +75,6 @@ and will be retried at a later time.
 
 # Bigger TODOs (in priority order)
 #
-# - Add cron cleanup for Subscriptions in the "TO_DELETE" state.
-#
 # - Add subscription counting to PushEventHandler so we can deliver a header
 #   with the number of subscribers the feed has. This will simply just keep
 #   count of the subscribers seen so far and then when the pushing is done it
