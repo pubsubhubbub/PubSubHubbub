@@ -1536,14 +1536,15 @@ class KnownFeedIdentity(db.Model):
     output_dict = {}
     known_feeds = KnownFeed.get([KnownFeed.create_key(t) for t in topics])
 
-    # No expansion for feeds that have no known topic -> feed_id relation, but
-    # record those with KnownFeed as having a mapping from topic -> topic for
-    # backwards compatibility with existing production data.
     topics = []
     feed_ids = []
     for feed in known_feeds:
       if feed is None:
         continue
+
+      # No expansion for feeds that have no known topic -> feed_id relation, but
+      # record those with KnownFeed as having a mapping from topic -> topic for
+      # backwards compatibility with existing production data.
       if feed.feed_id:
         topics.append(feed.topic)
         feed_ids.append(feed.feed_id)
@@ -2150,8 +2151,10 @@ def parse_feed(feed_record, headers, content):
       parse_failures += 1
 
   if parse_failures == len(order):
-    logging.error('Could not parse feed content:\n%s', error_traceback)
-    return False
+    logging.error('Could not parse feed; giving up:\n%s', error_traceback)
+    # That's right, we return True. This will cause the fetch to be
+    # abandoned on parse failures because the feed is beyond hope!
+    return True
 
   # If we have more entities than we'd like to handle, only save a subset of
   # them and force this task to retry as if it failed. This will cause two
@@ -2543,7 +2546,7 @@ class RecordFeedHandler(webapp.RequestHandler):
         else:
           parse_failures += 1
           error_traceback = 'Could not determine feed_id'
-      except xml.sax.SAXException:
+      except Exception:
         error_traceback = traceback.format_exc()
         logging.debug(
             'Could not parse feed for content of %d bytes in format "%s":\n%s',

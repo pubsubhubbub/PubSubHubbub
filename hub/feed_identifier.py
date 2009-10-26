@@ -31,6 +31,13 @@ import xml.sax.saxutils
 DEBUG = False
 
 
+class TrivialEntityResolver(xml.sax.handler.EntityResolver):
+  """Pass-through entity resolver."""
+
+  def resolveEntity(self, publicId, systemId):
+    return cStringIO.StringIO()
+
+
 class FeedIdentifier(xml.sax.handler.ContentHandler):
   """Base SAX content handler for identifying feeds."""
 
@@ -111,6 +118,7 @@ def identify(data, format):
     assert False, 'Invalid feed format "%s"' % format
 
   parser.setContentHandler(handler)
+  parser.setEntityResolver(TrivialEntityResolver())
   parser.parse(data_stream)
 
   return handler.link

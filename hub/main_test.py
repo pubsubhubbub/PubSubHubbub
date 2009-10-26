@@ -1643,12 +1643,12 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('topic', self.topic))
 
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
-    self.assertEquals(1, feed.fetching_failures)
+    self.assertTrue(feed is None)
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
-    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=0))
+    self.assertEquals([self.topic], [t['params']['topic'] for t in tasks])
 
   def testCacheHit(self):
     """Tests when the fetched feed matches the last cached version of it."""
@@ -1954,7 +1954,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
         'get', topic, 200, 'this does not parse')
     self.handle('post', ('topic', topic))
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
-    self.assertEquals(1, feed.fetching_failures)
+    self.assertTrue(feed is None)
 
   def testPullBadFeed(self):
     """Tests when the content parses, but is not a good Atom document."""
@@ -1967,7 +1967,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect('get', topic, 200, data)
     self.handle('post', ('topic', topic))
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
-    self.assertEquals(1, feed.fetching_failures)
+    self.assertTrue(feed is None)
 
   def testPullGoodAtom(self):
     """Tests when the Atom XML can parse just fine."""
