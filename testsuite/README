@@ -5,9 +5,10 @@ This suite is intended to be used for hub compliancy. The test examples came
 directly from the current 0.1 PubSubHubbub Core working draft. However, not 
 everything can be tested currently. This may change as the spec changes.
 
-This requires Ruby and RSpec, the later which can be installed with Ruby Gems
-using "gem install rspec". RSpec is a great approach to testing and Ruby allows
-for nice DSL-like testing. The interface is HTTP, so it's language independent.
+This requires Ruby, RSpec and Mechanize, the later two can be installed with 
+Ruby Gems using "gem install rspec mechanize". RSpec is a great approach to 
+testing and Ruby allows for nice DSL-like testing. The interface is HTTP, so 
+it's language independent.
 
 Using the Test Suite:
 

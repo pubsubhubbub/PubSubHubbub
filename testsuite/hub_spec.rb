@@ -6,7 +6,11 @@ HUB_URL = ENV['HUB_URL']
 raise "Specify a hub URL by setting the HUB_URL environment variable." unless HUB_URL
 
 def wait_on(something)
-  Timeout::timeout(3) { break unless something.nil? while true }
+  begin
+    Timeout::timeout(3) { break unless something.nil? while true }
+  rescue Timeout::Error
+    nil
+  end
 end
 
 def as_optional
