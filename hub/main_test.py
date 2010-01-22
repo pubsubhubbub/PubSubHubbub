@@ -3110,6 +3110,37 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(self.verify_token, sub.verify_token)
     self.assertEquals(self.secret, sub.secret)
 
+  def testSubscribeSuccessfulQueryStringArgs(self):
+    """Tests a subscription callback with querystring args."""
+    self.callback += '?some=query&string=params&to=mess&it=up'
+    self.sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
+    self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)
+    Subscription.request_insert(
+        self.callback, self.topic, self.verify_token, self.secret)
+    self.verify_callback_querystring_template = (
+        self.callback +
+        '&hub.verify_token=the_token'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
+    self.handle('post', ('subscription_key_name', self.sub_key),
+                        ('verify_token', self.verify_token),
+                        ('secret', self.secret),
+                        ('next_state', Subscription.STATE_VERIFIED))
+    self.verify_task(Subscription.STATE_VERIFIED)
+    self.verify_record_task(self.topic)
+
+    sub = Subscription.get_by_key_name(self.sub_key)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.assertEquals(self.verify_token, sub.verify_token)
+    self.assertEquals(self.secret, sub.secret)
+
   def testSubscribeFailed(self):
     """Tests when a subscription task fails."""
     self.assertTrue(Subscription.get_by_key_name(self.sub_key) is None)

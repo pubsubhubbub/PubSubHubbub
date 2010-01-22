@@ -1607,7 +1607,13 @@ def confirm_subscription(mode, topic, callback, verify_token,
   }
   if verify_token:
     params['hub.verify_token'] = utf8encoded(verify_token)
-  parsed_url[4] = urllib.urlencode(params)
+
+  if parsed_url[4]:
+    # Preserve subscriber-supplied callback parameters.
+    parsed_url[4] = '%s&%s' % (parsed_url[4], urllib.urlencode(params))
+  else:
+    parsed_url[4] = urllib.urlencode(params)
+
   adjusted_url = urlparse.urlunparse(parsed_url)
 
   try:
