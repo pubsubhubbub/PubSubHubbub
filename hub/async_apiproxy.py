@@ -59,13 +59,15 @@ class AsyncAPIProxy(object):
     # unclear event ordering dependencies.
     self.enqueued = collections.deque()
 
-  def start_call(self, package, call, pbrequest, pbresponse, user_callback):
+  def start_call(self, package, call, pbrequest, pbresponse, user_callback,
+                 deadline=None):
     """user_callback is a callback that takes (response, exception)"""
     if not callable(user_callback):
       raise TypeError('%r not callable' % user_callback)
 
     rpc = AsyncRPC(package, call, pbrequest, pbresponse,
-                   lambda: user_callback(pbresponse, None))
+                   lambda: user_callback(pbresponse, None),
+                   deadline=deadline)
     setattr(rpc, 'user_callback', user_callback) # TODO make this pretty
     self.enqueued.append(rpc)
     show_request = '...'

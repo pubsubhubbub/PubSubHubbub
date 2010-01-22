@@ -22,7 +22,8 @@ from google.appengine.runtime import apiproxy_errors
 
 
 def fetch(url, payload=None, method=urlfetch.GET, headers={},
-          allow_truncated=False, callback=None, async_proxy=None):
+          allow_truncated=False, callback=None, async_proxy=None,
+          deadline=5):
   """Fetches the given HTTP URL, blocking until the result is returned.
 
   Other optional parameters are:
@@ -37,6 +38,8 @@ def fetch(url, payload=None, method=urlfetch.GET, headers={},
       not None.
     async_proxy: If not None, instance of AsyncAPIProxy to use for executing
       asynchronous API calls.
+    deadline: How long to allow the request to wait, in seconds. Defaults
+      to 5 seconds.
 
   We use a HTTP/1.1 compliant proxy to fetch the result.
 
@@ -85,7 +88,7 @@ def fetch(url, payload=None, method=urlfetch.GET, headers={},
                                             allow_truncated)
       callback(result, user_exception)
     async_proxy.start_call('urlfetch', 'Fetch', request, response,
-                           completion_callback)
+                           completion_callback, deadline=deadline)
     return
 
   user_exception = None

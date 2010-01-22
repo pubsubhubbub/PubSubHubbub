@@ -182,6 +182,9 @@ MAX_LEASE_SECONDS = DEFAULT_LEASE_SECONDS * 3  # 90 days
 # Maximum number of redirects to follow when feed fetching.
 MAX_REDIRECTS = 7
 
+# Maximum time to wait for fetching a feed in seconds.
+MAX_FETCH_SECONDS = 10
+
 # Number of times to try to split FeedEntryRecord, EventToDeliver, and
 # FeedRecord entities when putting them and their size is too large.
 PUT_SPLITTING_ATTEMPTS = 10
@@ -1609,7 +1612,8 @@ def confirm_subscription(mode, topic, callback, verify_token,
 
   try:
     response = urlfetch.fetch(adjusted_url, method='get',
-                              follow_redirects=False)
+                              follow_redirects=False,
+                              deadline=MAX_FETCH_SECONDS)
   except urlfetch_errors.Error:
     logging.exception('Error encountered while confirming subscription')
     return False
@@ -2117,7 +2121,11 @@ def pull_feed(feed_to_fetch, fetch_url, headers):
     apiproxy_errors.Error if any RPC errors are encountered. urlfetch.Error if
     there are any fetching API errors.
   """
-  response = urlfetch.fetch(fetch_url, headers=headers, follow_redirects=False)
+  response = urlfetch.fetch(
+      fetch_url,
+      headers=headers,
+      follow_redirects=False,
+      deadline=MAX_FETCH_SECONDS)
   return response.status_code, response.headers, response.content
 
 
@@ -2341,7 +2349,8 @@ def push_event(sub, headers, payload, async_proxy, callback):
                        headers=headers,
                        payload=payload,
                        async_proxy=async_proxy,
-                       callback=callback)
+                       callback=callback,
+                       deadline=MAX_FETCH_SECONDS)
 
 
 class PushEventHandler(webapp.RequestHandler):
