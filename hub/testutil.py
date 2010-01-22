@@ -67,6 +67,7 @@ def setup_for_testing():
         login_url='',
         datastore_path=tempfile.mktemp(suffix='datastore_stub'),
         history_path=tempfile.mktemp(suffix='datastore_history'),
+        blobstore_path=tempfile.mktemp(suffix='blobstore_stub'),
         require_indexes=True,
         clear_datastore=False)
     dev_appserver_index.SetupIndexes(TEST_APP_ID, root_path)
@@ -238,6 +239,8 @@ def get_tasks(queue_name, index=None, expected_count=None):
   for task in tasks:
     del task['eta_delta']
     task['body'] = base64.b64decode(task['body'])
+    # Convert headers list into a dictionary-- we don't care about repeats
+    task['headers'] = dict(task['headers'])
     if ('application/x-www-form-urlencoded' in
         task['headers'].get('content-type')):
       task['params'] = dict(cgi.parse_qsl(task['body'], True))

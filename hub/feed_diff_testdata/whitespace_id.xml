@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="http://feeds.feedburner.com/~d/styles/atom10full.xsl" type="text/xsl" media="screen"?><?xml-stylesheet href="http://feeds.feedburner.com/~d/styles/itemcontent.css" type="text/css" media="screen"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0" xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0" xml:lang="en">
+<title type="text">dive into mark</title>
+<subtitle type="text">everything old is new again</subtitle>
+<updated>2008-08-23T04:49:22Z</updated>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/" />
+<id>
+  
+  
+  my feed id here    
+  		
+  </id>
+<link rel="self" href="http://feeds.feedburner.com/diveintomark/all" type="application/atom+xml" />
+<entry>
+<author>
+<name>Mark</name>
+<uri>http://diveintomark.org/</uri>
+</author>
+<title type="html"><![CDATA[The ampersands of Linux]]></title>
+<link rel="alternate" type="text/html" href="http://diveintomark.org/archives/2008/08/14/the-ampersands-of-linux" />
+<id>tag:diveintomark.org,2008-08-14:/archives/20080814215936</id>
+<updated>2008-08-14T23:08:54Z</updated>
+<published>2008-08-14T21:59:36Z</published>
+<category scheme="http://diveintomark.org" term="unfiled" /><category scheme="http://diveintomark.org" term="css" /><category scheme="http://diveintomark.org" term="fonts" /><category scheme="http://diveintomark.org" term="linux" /><category scheme="http://diveintomark.org" term="typography" /><summary type="html">Please try to contain your excitement.</summary>
+<content type="html" xml:base="http://diveintomark.org/archives/2008/08/14/the-ampersands-of-linux">&lt;p&gt;Taking an idea from &lt;a href="http://www.simplebits.com/notebook/2008/08/14/ampersands.html"&gt;Use the Best Available Ampersand&lt;/a&gt; and a list of pre-installed fonts from the &lt;a href="http://www.apaddedcell.com/web-fonts"&gt;Complete Guide to Pre-Installed Fonts in Linux, Mac, and Windows&lt;/a&gt;, I present &amp;#8220;The Ampersands of Linux&amp;#8221;:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="http://wearehugh.com/public/2008/08/ampersands-of-linux3.png" alt="[ampersands in 28 fonts]" height="900" width="600"&gt;&lt;/p&gt;
+
+&lt;p&gt;(&lt;a href="http://wearehugh.com/public/2008/08/ampersands-of-linux.html"&gt;&lt;abbr&gt;HTML&lt;/abbr&gt;&lt;/a&gt;)&lt;/p&gt;
+
+&lt;p&gt;Please try to contain your excitement.&lt;/p&gt;</content>
+</entry>
+</feed>

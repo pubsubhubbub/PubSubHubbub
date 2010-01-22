@@ -90,8 +90,8 @@ class URLFetchServiceTestStub(urlfetch_stub.URLFetchServiceStub):
       assert False, '%d expectations remain: %r' % (
           len(old_expectations), old_expectations)
 
-  def _RetrieveURL(self, url, payload, method, headers, response,
-                   follow_redirects=True, deadline=None):
+  def _RetrieveURL(self, url, payload, method, headers, request,
+                   response, follow_redirects=True, deadline=None):
     """Test implementation of retrieving a URL.
 
     Args:

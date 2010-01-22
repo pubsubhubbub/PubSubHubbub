@@ -101,5 +101,4 @@ class RssTest(TestBase):
 
 if __name__ == '__main__':
   feed_identifier.DEBUG = True
-  logging.getLogger().setLevel(logging.DEBUG)
   unittest.main()
