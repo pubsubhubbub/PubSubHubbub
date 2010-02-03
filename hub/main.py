@@ -2426,7 +2426,6 @@ class EventCleanupHandler(webapp.RequestHandler):
     threshold = (self.now() -
         datetime.timedelta(seconds=EVENT_CLEANUP_MAX_AGE_SECONDS))
     events = (EventToDeliver.all()
-              .filter('totally_failed =', True)
               .filter('last_modified <=', threshold)
               .order('last_modified').fetch(EVENT_CLEANUP_CHUNK_SIZE))
     if events:

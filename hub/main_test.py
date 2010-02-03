@@ -2403,20 +2403,11 @@ class EventCleanupHandlerTest(testutil.HandlerTestBase):
     self.topic = 'http://example.com/mytopic'
     self.header_footer = '<feed></feed>'
 
-  def testNoEvents(self):
-    """Tests when there are no failed events to clean up."""
-    event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, [])
-    event.put()
-    self.handle('get')
-    self.assertTrue(db.get(event.key()) is not None)
-
   def testEventCleanupTooYoung(self):
     """Tests when there are events present, but they're too young to remove."""
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, [])
     event.last_modified = self.expire_time + datetime.timedelta(seconds=1)
-    event.totally_failed = True
     event.put()
     self.handle('get')
     self.assertTrue(db.get(event.key()) is not None)
@@ -2426,7 +2417,6 @@ class EventCleanupHandlerTest(testutil.HandlerTestBase):
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, [])
     event.last_modified = self.expire_time
-    event.totally_failed = True
     event.put()
 
     too_young_event = EventToDeliver.create_event_for_topic(

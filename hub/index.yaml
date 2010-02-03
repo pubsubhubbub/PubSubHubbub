@@ -1,11 +1,5 @@
 indexes:
 
-# For cleaning up EventToDeliver instances.
-- kind: EventToDeliver
-  properties:
-  - name: totally_failed
-  - name: last_modified
-
 # For iterating through subscribers to deliver events to.
 - kind: Subscription
   properties:
