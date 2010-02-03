@@ -339,6 +339,22 @@ def get_random_challenge():
   """Returns a string containing a random challenge token."""
   return ''.join(random.choice(_VALID_CHARS) for i in xrange(128))
 
+
+def retry_datastore_op(func, retries=5):
+  """Executes the given function and retries it on Datastore errors.
+
+  Args:
+    func: Callable to do the datastore operation.
+    retries: How many times to retry the operation.
+  """
+  for i in xrange(retries):
+    try:
+      return func()
+    except db.Error:
+      logging.exception('Error running Datastore operation, attempt %d', i+1)
+      if i == (retries-1):
+        raise
+
 ################################################################################
 # Models
 
@@ -691,7 +707,7 @@ class Subscription(db.Model):
       retry_delay = retry_period * (2 ** self.confirm_failures)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.confirm_failures += 1
-      self.put()
+      retry_datastore_op(lambda: self.put())
       # TODO(bslatkin): Do this enqueuing transactionally.
       self.enqueue_task(next_state, verify_token,
                         auto_reconfirm=auto_reconfirm,
@@ -753,7 +769,7 @@ class FeedToFetch(db.Model):
             source_keys=list(source_keys),
             source_values=list(source_values))
         for topic in set(topic_list)]
-    db.put(feed_list)
+    retry_datastore_op(lambda: db.put(feed_list))
     # TODO(bslatkin): Use a bulk interface or somehow merge combined fetches
     # into a single task.
     for feed in feed_list:
@@ -776,13 +792,13 @@ class FeedToFetch(db.Model):
     if self.fetching_failures >= max_failures:
       logging.warning('Max fetching failures exceeded, giving up.')
       self.totally_failed = True
-      self.put()
+      retry_datastore_op(lambda: self.put())
     else:
       retry_delay = retry_period * (2 ** self.fetching_failures)
       logging.warning('Fetching failed. Will retry in %s seconds', retry_delay)
       self.eta = now() + datetime.timedelta(seconds=retry_delay)
       self.fetching_failures += 1
-      self.put()
+      retry_datastore_op(lambda: self.put())
       # TODO(bslatkin): Do this enqueuing transactionally.
       self._enqueue_task()
 
@@ -1150,7 +1166,7 @@ class EventToDeliver(db.Model):
     if not more_callbacks and not self.failed_callbacks:
       logging.info('EventToDeliver complete: topic = %s, delivery_mode = %s',
                    self.topic, self.delivery_mode)
-      self.delete()
+      retry_datastore_op(lambda: self.delete())
       return
     elif not more_callbacks:
       self.last_callback = ''
@@ -1171,7 +1187,7 @@ class EventToDeliver(db.Model):
                         len(self.failed_callbacks), self.last_modified,
                         self.totally_failed)
 
-    self.put()
+    retry_datastore_op(lambda: self.put())
     if not self.totally_failed:
       # TODO(bslatkin): Do this enqueuing transactionally.
       self.enqueue()
@@ -1985,6 +2001,13 @@ def parse_feed(feed_record, headers, content):
           'Could not get entries for content of %d bytes in format "%s":\n%s',
           len(content), format, error_traceback)
       parse_failures += 1
+    except LookupError, e:
+      error_traceback = traceback.format_exc()
+      logging.warning('Could not decode encoding of feed document %s\n%s',
+                      feed_record.topic, error_traceback)
+      # Yes-- returning True here. This feed is beyond all hope because we just
+      # don't support this character encoding presently.
+      return True
 
   if parse_failures == len(order):
     logging.error('Could not parse feed; giving up:\n%s', error_traceback)
@@ -2100,6 +2123,11 @@ class PullFeedHandler(webapp.RequestHandler):
             work, fetch_url, feed_record.get_request_headers())
       except urlfetch.ResponseTooLargeError:
         logging.critical('Feed response too large for topic %s at url %s; '
+                         'skipping', work.topic, fetch_url)
+        work.done()
+        return
+      except urlfetch.InvalidURLError:
+        logging.critical('Invalid redirection for topic %s to url %s; '
                          'skipping', work.topic, fetch_url)
         work.done()
         return
@@ -2362,14 +2390,14 @@ class RecordFeedHandler(webapp.RequestHandler):
       response = urlfetch.fetch(topic)
     except (apiproxy_errors.Error, urlfetch.Error):
       logging.exception('Could not fetch topic = %s for feed ID', topic)
-      known_feed.put()
+      retry_datastore_op(lambda: known_feed.put())
       return
 
     # TODO(bslatkin): Add more intelligent retrying of feed identification.
     if response.status_code != 200:
       logging.warning('Fetching topic = %s for feed ID returned response %s',
                       topic, response.status_code)
-      known_feed.put()
+      retry_datastore_op(lambda: known_feed.put())
       return
 
     order = (ATOM, RSS)
@@ -2392,7 +2420,9 @@ class RecordFeedHandler(webapp.RequestHandler):
     if parse_failures == len(order) or feed_id is None:
       logging.warning('Could not record feed ID for topic = %s:\n%s',
                       topic, error_traceback)
-      known_feed.put()
+      retry_datastore_op(lambda: known_feed.put())
+      # Just give up, since we can't parse it. This case also covers when
+      # the character encoding for the document is unsupported.
       return
 
     logging.info('For topic = %s found new feed ID %r; old feed ID was %r',
@@ -2405,7 +2435,7 @@ class RecordFeedHandler(webapp.RequestHandler):
 
     KnownFeedIdentity.update(feed_id, topic)
     known_feed.feed_id = feed_id
-    known_feed.put()
+    retry_datastore_op(lambda: known_feed.put())
 
 ################################################################################
 

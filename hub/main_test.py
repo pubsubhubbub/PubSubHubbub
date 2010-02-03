@@ -109,6 +109,17 @@ class UtilityFunctionTest(unittest.TestCase):
            u'/07256788297315478906/label/\u30d6\u30ed\u30b0\u8846')
     self.assertEquals(good_iri, main.normalize_iri(iri))
 
+  def testRetryDatastoreOp(self):
+    """Tests the retry_datastore_op function."""
+    tries = [0]
+    def my_func():
+      tries[0] += 1
+      raise db.Error('Doh')
+    self.assertRaises(db.Error,
+                      main.retry_datastore_op,
+                      my_func)
+    self.assertEquals(5, tries[0])
+
 ################################################################################
 
 class TestWorkQueueHandler(webapp.RequestHandler):
@@ -1741,6 +1752,23 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
     self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
 
+  def testRedirectToBadUrl(self):
+    """Tests when the redirect URL is bad."""
+    info = FeedRecord.get_or_create(self.topic)
+    info.update(self.headers)
+    info.put()
+    FeedToFetch.insert([self.topic])
+
+    real_topic = '/not/a/valid-redirect-location'
+    self.headers['Location'] = real_topic
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 302, '',
+        response_headers=self.headers.copy())
+
+    self.handle('post', ('topic', self.topic))
+    self.assertTrue(EventToDeliver.all().get() is None)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
   def testPutSplitting(self):
     """Tests that put() calls for feed records are split when too large."""
     # Make the content way too big.
@@ -1909,6 +1937,20 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     """Tests when the content parses, but is not a good Atom document."""
     data = ('<?xml version="1.0" encoding="utf-8"?>\n'
             '<meep><entry>wooh</entry></meep>')
+    topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect('get', topic, 200, data)
+    self.handle('post', ('topic', topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
+    self.assertTrue(feed is None)
+
+  def testPullBadEncoding(self):
+    """Tests when the content has a bad character encoding."""
+    data = ('<?xml version="1.0" encoding="x-windows-874"?>\n'
+            '<feed><my header="data"/>'
+            '<entry><id>1</id><updated>123</updated>wooh</entry></feed>')
     topic = 'http://example.com/my-topic'
     callback = 'http://example.com/my-subscriber'
     self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
