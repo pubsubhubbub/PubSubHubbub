@@ -1512,7 +1512,10 @@ def confirm_subscription(mode, topic, callback, verify_token,
                               follow_redirects=False,
                               deadline=MAX_FETCH_SECONDS)
   except urlfetch_errors.Error:
-    logging.exception('Error encountered while confirming subscription')
+    error_traceback = traceback.format_exc()
+    logging.warning('Error encountered while confirming subscription '
+                    'to %s for callback %s:\n%s',
+                    topic, callback, error_traceback)
     return False
 
   if 200 <= response.status_code < 300 and response.content == challenge:
@@ -2132,7 +2135,9 @@ class PullFeedHandler(webapp.RequestHandler):
         work.done()
         return
       except (apiproxy_errors.Error, urlfetch.Error):
-        logging.exception('Failed to fetch feed')
+        error_traceback = traceback.format_exc()
+        logging.warning('Failed to fetch topic %s at url %s:\n%s',
+                        work.topic, fetch_url, error_traceback)
         work.fetch_failed()
         return
 
