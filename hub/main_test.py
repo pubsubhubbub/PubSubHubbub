@@ -1376,13 +1376,14 @@ class FindFeedUpdatesTest(unittest.TestCase):
   @staticmethod
   def get_entry(entry_id, entry_list):
     """Finds the entry with the given ID in the list of entries."""
-    return [e for e in entry_list if e.entry_id == entry_id][0]
+    return [e for e in entry_list if e.entry_id_hash == sha1_hash(entry_id)][0]
 
   def testAllNewContent(self):
     """Tests when al pulled feed content is new."""
     entry_list, entry_payloads = self.run_test()
-    entry_id_set = set(f.entry_id for f in entry_list)
-    self.assertEquals(set(self.entries_map.keys()), entry_id_set)
+    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    self.assertEquals(set(sha1_hash(k) for k in self.entries_map.keys()),
+                      entry_id_hash_set)
     self.assertEquals(self.entries_map.values(), entry_payloads)
 
   def testSomeExistingEntries(self):
@@ -1393,8 +1394,8 @@ class FindFeedUpdatesTest(unittest.TestCase):
         self.topic, 'id2', sha1_hash('content2')).put()
 
     entry_list, entry_payloads = self.run_test()
-    entry_id_set = set(f.entry_id for f in entry_list)
-    self.assertEquals(set(['id3']), entry_id_set)
+    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    self.assertEquals(set(sha1_hash(k) for k in ['id3']), entry_id_hash_set)
     self.assertEquals(['content3'], entry_payloads)
 
   def testPulledEntryNewer(self):
@@ -1406,8 +1407,9 @@ class FindFeedUpdatesTest(unittest.TestCase):
     self.entries_map['id1'] = 'newcontent1'
 
     entry_list, entry_payloads = self.run_test()
-    entry_id_set = set(f.entry_id for f in entry_list)
-    self.assertEquals(set(['id1', 'id3']), entry_id_set)
+    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    self.assertEquals(set(sha1_hash(k) for k in ['id1', 'id3']),
+                      entry_id_hash_set)
 
     # Verify the old entry would be overwritten.
     entry1 = self.get_entry('id1', entry_list)
@@ -1418,8 +1420,9 @@ class FindFeedUpdatesTest(unittest.TestCase):
     """Tests when the content contains unicode characters."""
     self.entries_map['id2'] = u'\u2019 asdf'
     entry_list, entry_payloads = self.run_test()
-    entry_id_set = set(f.entry_id for f in entry_list)
-    self.assertEquals(set(self.entries_map.keys()), entry_id_set)
+    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    self.assertEquals(set(sha1_hash(k) for k in self.entries_map.keys()),
+                      entry_id_hash_set)
 
   def testMultipleParallelBatches(self):
     """Tests that retrieving FeedEntryRecords is done in multiple batches."""
@@ -1435,8 +1438,9 @@ class FindFeedUpdatesTest(unittest.TestCase):
     main.MAX_FEED_ENTRY_RECORD_LOOKUPS = 1
     try:
       entry_list, entry_payloads = self.run_test()
-      entry_id_set = set(f.entry_id for f in entry_list)
-      self.assertEquals(set(self.entries_map.keys()), entry_id_set)
+      entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+      self.assertEquals(set(sha1_hash(k) for k in self.entries_map.keys()),
+                        entry_id_hash_set)
       self.assertEquals(self.entries_map.values(), entry_payloads)
       self.assertEquals(3, calls[0])
     finally:
@@ -1510,7 +1514,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     # EventToDeliver and FeedRecord.
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
-    self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
+    self.assertEquals(
+        [sha1_hash(k) for k in self.all_ids],
+        [e.entry_id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1543,7 +1549,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
-    self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
+    self.assertEquals(
+        [sha1_hash(k) for k in self.all_ids],
+        [e.entry_id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1576,7 +1584,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
-    self.assertEquals(self.all_ids, [e.entry_id for e in feed_entries])
+    self.assertEquals(
+        [sha1_hash(k) for k in self.all_ids],
+        [e.entry_id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1798,7 +1808,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     # Verify that all feed entry records have been written along with the
     # EventToDeliver and FeedRecord.
     feed_entries = list(FeedEntryRecord.all())
-    self.assertEquals(set(self.all_ids), set(e.entry_id for e in feed_entries))
+    self.assertEquals(
+        set(sha1_hash(k) for k in self.all_ids),
+        set(e.entry_id_hash for e in feed_entries))
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1820,7 +1832,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
   def testPutSplittingFails(self):
     """Tests when splitting put() calls still doesn't help and we give up."""
     # Make the content way too big.
-    content_template = ('content' * 100 + '%s')
+    content_template = ('content' * 150 + '%s')
     self.all_ids = [str(i) for i in xrange(1000)]
     self.entry_payloads = [
       (content_template % entry_id) for entry_id in self.all_ids
@@ -1895,8 +1907,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     feed_entries = FeedEntryRecord.get_entries_for_topic(
         self.topic, self.all_ids)
     expected_records = main.MAX_NEW_FEED_ENTRY_RECORDS
-    self.assertEquals(self.all_ids[:expected_records],
-                      [e.entry_id for e in feed_entries])
+    self.assertEquals(
+        [sha1_hash(k) for k in self.all_ids[:expected_records]],
+        [e.entry_id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()

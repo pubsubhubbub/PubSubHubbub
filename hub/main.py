@@ -926,16 +926,14 @@ class FeedRecord(db.Model):
     return headers
 
 
-class FeedEntryRecord(db.Model):
+class FeedEntryRecord(db.Expando):
   """Represents a feed entry that has been seen.
 
   The key name of this entity is a get_hash_key_name() hash of the combination
   of the topic URL and the entry_id.
   """
-
-  entry_id = db.TextProperty(required=True)  # To allow 500+ length entry IDs.
-  entry_id_hash = db.StringProperty(required=True)
-  entry_content_hash = db.StringProperty()
+  entry_id_hash = db.StringProperty(required=True, indexed=False)
+  entry_content_hash = db.StringProperty(indexed=False)
   update_time = db.DateTimeProperty(auto_now=True)
 
   @classmethod
@@ -992,7 +990,6 @@ class FeedEntryRecord(db.Model):
     key = cls.create_key(topic, entry_id)
     return cls(key_name=key.name(),
                parent=key.parent(),
-               entry_id=entry_id,
                entry_id_hash=sha1_hash(entry_id),
                entry_content_hash=content_hash)
 
@@ -1904,7 +1901,7 @@ def find_feed_updates(topic, format, feed_content,
     existing_entries.extend(FeedEntryRecord.get_entries_for_topic(
         topic, key_set))
 
-  existing_dict = dict((e.entry_id, e.entry_content_hash)
+  existing_dict = dict((e.entry_id_hash, e.entry_content_hash)
                        for e in existing_entries if e)
   logging.debug('Retrieved %d feed entries, %d of which have been seen before',
                 len(entries_map), len(existing_dict))
@@ -1913,9 +1910,10 @@ def find_feed_updates(topic, format, feed_content,
   entry_payloads = []
   for entry_id, new_content in entries_map.iteritems():
     new_content_hash = sha1_hash(new_content)
+    new_entry_id_hash = sha1_hash(entry_id)
     # Mark the entry as new if the sha1 hash is different.
     try:
-      old_content_hash = existing_dict[entry_id]
+      old_content_hash = existing_dict[new_entry_id_hash]
       if old_content_hash == new_content_hash:
         continue
     except KeyError:
