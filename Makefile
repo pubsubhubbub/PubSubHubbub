@@ -1,7 +1,8 @@
-spec: pubsubhubbub-core-0.2.html
+spec: pubsubhubbub-core-0.3.html
 
-pubsubhubbub-core-0.2.html: pubsubhubbub-core-0.2.xml
-	xml2rfc pubsubhubbub-core-0.2.xml pubsubhubbub-core-0.2.html
-	cat pubsubhubbub-core-0.2.html | head -n -1 > pubsubhubbub-core-0.2.html
-	cat analytics.txt >> pubsubhubbub-core-0.2.html
+pubsubhubbub-core-0.3.html: pubsubhubbub-core-0.3.xml
+	xml2rfc pubsubhubbub-core-0.3.xml pubsubhubbub-core-0.3.html
+	cat pubsubhubbub-core-0.3.html | head -n -1 > out.html
+	cat analytics.txt >> out.html
+	mv out.html pubsubhubbub-core-0.3.html
 
