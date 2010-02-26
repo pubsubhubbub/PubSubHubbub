@@ -1,0 +1,61 @@
+<html>
+<head>
+  <title>Hub - Statistics</title>
+  <link rel="stylesheet" href="/base.css" type="text/css">
+  <link rel="shortcut icon" type="image/vnd.microsoft.icon" href="/favicon.ico">
+</head>
+<body>
+
+<h1>Table of contents</h1>
+<ul>
+{% for config in all_configs %}
+<li><a href="#{{config.title}}">{{config.title}}</a></li>
+{% endfor %}
+</ul>
+
+<h1>Fetch stats</h1>
+<h2>Per-URL error rate</h2>
+{% for result in fetch_url_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Per-URL latency</h2>
+{% for result in fetch_url_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Per-domain error rate</h2>
+{% for result in fetch_domain_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Per-domain latency</h2>
+{% for result in fetch_domain_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+
+<h1>Delivery stats</h1>
+<h2>Per-URL error rate</h2>
+{% for result in delivery_url_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Per-URL latency</h2>
+{% for result in delivery_url_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Per-domain error rate</h2>
+{% for result in delivery_domain_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Per-domain latency</h2>
+{% for result in delivery_domain_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+
+</body>
+</html>

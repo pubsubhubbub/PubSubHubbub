@@ -36,8 +36,37 @@
     <td>Confirmation failures:</td>
     <td>{{confirm_failures}}</td>
   </tr>
+  <tr>
+    <td>Delivery to domain:</td>
+    <td>
+      {% if delivery_blocked %}
+        <span style="color: red">BLOCKED</span>
+      {% else %}
+        OK
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td>Delivery short-term:</td>
+    <td>{{delivery_errors|floatformat:"-2"}}% errors</td>
+  </tr>
 </table>
 
+<h2>Error rate statistics</h2>
+{% for result in delivery_url_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+{% for result in delivery_domain_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Latency statistics</h2>
+{% for result in delivery_url_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
+{% for result in delivery_domain_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
 
 {% for event in failed_events %}
 <hr size="1">

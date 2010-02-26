@@ -201,6 +201,350 @@ MAX_FEED_RECORD_SAVES = 100
 MAX_NEW_FEED_ENTRY_RECORDS = 200
 
 ################################################################################
+# URL scoring Parameters
+
+# Fetching feeds
+FETCH_SCORER = dos.UrlScorer(
+  period=300,  # Seconds
+  min_requests=5,  # per second
+  max_failure_percentage=1,  # TODO: Drop this to something more reasonable!
+  prefix='pull_feed')
+
+# Pushing events
+DELIVERY_SCORER = dos.UrlScorer(
+  period=300,  # Seconds
+  min_requests=0.5,  # per second
+  max_failure_percentage=1,  # TODO: Drop this to something more reasonable!
+  prefix='deliver_events')
+
+
+################################################################################
+# Fetching samplers
+
+FETCH_URL_SAMPLE_MINUTE = dos.ReservoirConfig(
+    'fetch_url_1m',
+    period=60,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+FETCH_URL_SAMPLE_30_MINUTE = dos.ReservoirConfig(
+    'fetch_url_30m',
+    period=1800,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+FETCH_URL_SAMPLE_HOUR = dos.ReservoirConfig(
+    'fetch_url_1h',
+    period=3600,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+FETCH_URL_SAMPLE_DAY = dos.ReservoirConfig(
+    'fetch_url_1d',
+    period=86400,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+FETCH_DOMAIN_SAMPLE_MINUTE = dos.ReservoirConfig(
+    'fetch_domain_1m',
+    period=60,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+FETCH_DOMAIN_SAMPLE_30_MINUTE = dos.ReservoirConfig(
+    'fetch_domain_30m',
+    period=1800,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+FETCH_DOMAIN_SAMPLE_HOUR = dos.ReservoirConfig(
+    'fetch_domain_1h',
+    period=3600,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+FETCH_DOMAIN_SAMPLE_DAY = dos.ReservoirConfig(
+    'fetch_domain_1d',
+    period=86400,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+FETCH_URL_SAMPLE_MINUTE_LATENCY = dos.ReservoirConfig(
+    'fetch_url_1m_latency',
+    period=60,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+FETCH_URL_SAMPLE_30_MINUTE_LATENCY = dos.ReservoirConfig(
+    'fetch_url_30m_latency',
+    period=1800,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+FETCH_URL_SAMPLE_HOUR_LATENCY = dos.ReservoirConfig(
+    'fetch_url_1h_latency',
+    period=3600,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+FETCH_URL_SAMPLE_DAY_LATENCY = dos.ReservoirConfig(
+    'fetch_url_1d_latency',
+    period=86400,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+FETCH_DOMAIN_SAMPLE_MINUTE_LATENCY = dos.ReservoirConfig(
+    'fetch_domain_1m_latency',
+    period=60,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+FETCH_DOMAIN_SAMPLE_30_MINUTE_LATENCY = dos.ReservoirConfig(
+    'fetch_domain_30m_latency',
+    period=1800,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+FETCH_DOMAIN_SAMPLE_HOUR_LATENCY = dos.ReservoirConfig(
+    'fetch_domain_1h_latency',
+    period=3600,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+FETCH_DOMAIN_SAMPLE_DAY_LATENCY = dos.ReservoirConfig(
+    'fetch_domain_1d_latency',
+    period=86400,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+
+def report_fetch(reporter, url, success, latency):
+  """Reports statistics information for a feed fetch.
+
+  Args:
+    reporter: dos.Reporter instance.
+    url: The URL of the topic URL that was fetched.
+    success: True if the fetch was successful, False otherwise.
+    latency: End-to-end fetch latency in milliseconds.
+  """
+  value = int(not success)
+  reporter.set(url, FETCH_URL_SAMPLE_MINUTE, value)
+  reporter.set(url, FETCH_URL_SAMPLE_30_MINUTE, value)
+  reporter.set(url, FETCH_URL_SAMPLE_HOUR, value)
+  reporter.set(url, FETCH_URL_SAMPLE_DAY, value)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_MINUTE, value)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_30_MINUTE, value)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_HOUR, value)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_DAY, value)
+  reporter.set(url, FETCH_URL_SAMPLE_MINUTE_LATENCY, latency)
+  reporter.set(url, FETCH_URL_SAMPLE_30_MINUTE_LATENCY, latency)
+  reporter.set(url, FETCH_URL_SAMPLE_HOUR_LATENCY, latency)
+  reporter.set(url, FETCH_URL_SAMPLE_DAY_LATENCY, latency)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_MINUTE_LATENCY, latency)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_30_MINUTE_LATENCY, latency)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_HOUR_LATENCY, latency)
+  reporter.set(url, FETCH_DOMAIN_SAMPLE_DAY_LATENCY, latency)
+
+
+FETCH_SAMPLER = dos.MultiSampler([
+    FETCH_URL_SAMPLE_MINUTE,
+    FETCH_URL_SAMPLE_30_MINUTE,
+    FETCH_URL_SAMPLE_HOUR,
+    FETCH_URL_SAMPLE_DAY,
+    FETCH_DOMAIN_SAMPLE_MINUTE,
+    FETCH_DOMAIN_SAMPLE_30_MINUTE,
+    FETCH_DOMAIN_SAMPLE_HOUR,
+    FETCH_DOMAIN_SAMPLE_DAY,
+    FETCH_URL_SAMPLE_MINUTE_LATENCY,
+    FETCH_URL_SAMPLE_30_MINUTE_LATENCY,
+    FETCH_URL_SAMPLE_HOUR_LATENCY,
+    FETCH_URL_SAMPLE_DAY_LATENCY,
+    FETCH_DOMAIN_SAMPLE_MINUTE_LATENCY,
+    FETCH_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+    FETCH_DOMAIN_SAMPLE_HOUR_LATENCY,
+    FETCH_DOMAIN_SAMPLE_DAY_LATENCY,
+])
+
+################################################################################
+# Delivery samplers
+
+DELIVERY_URL_SAMPLE_MINUTE = dos.ReservoirConfig(
+    'delivery_url_1m',
+    period=60,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+DELIVERY_URL_SAMPLE_30_MINUTE = dos.ReservoirConfig(
+    'delivery_url_30m',
+    period=1800,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+DELIVERY_URL_SAMPLE_HOUR = dos.ReservoirConfig(
+    'delivery_url_1h',
+    period=3600,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+DELIVERY_URL_SAMPLE_DAY = dos.ReservoirConfig(
+    'delivery_url_1d',
+    period=86400,
+    samples=10000,
+    by_url=True,
+    value_units='% errors')
+
+DELIVERY_DOMAIN_SAMPLE_MINUTE = dos.ReservoirConfig(
+    'delivery_domain_1m',
+    period=60,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+DELIVERY_DOMAIN_SAMPLE_30_MINUTE = dos.ReservoirConfig(
+    'delivery_domain_30m',
+    period=1800,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+DELIVERY_DOMAIN_SAMPLE_HOUR = dos.ReservoirConfig(
+    'delivery_domain_1h',
+    period=3600,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+DELIVERY_DOMAIN_SAMPLE_DAY = dos.ReservoirConfig(
+    'delivery_domain_1d',
+    period=86400,
+    samples=10000,
+    by_domain=True,
+    value_units='% errors')
+
+DELIVERY_URL_SAMPLE_MINUTE_LATENCY = dos.ReservoirConfig(
+    'delivery_url_1m_latency',
+    period=60,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY = dos.ReservoirConfig(
+    'delivery_url_30m_latency',
+    period=1800,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+DELIVERY_URL_SAMPLE_HOUR_LATENCY = dos.ReservoirConfig(
+    'delivery_url_1h_latency',
+    period=3600,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+DELIVERY_URL_SAMPLE_DAY_LATENCY = dos.ReservoirConfig(
+    'delivery_url_1d_latency',
+    period=86400,
+    samples=10000,
+    by_url=True,
+    value_units='ms')
+
+DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY = dos.ReservoirConfig(
+    'delivery_domain_1m_latency',
+    period=60,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY = dos.ReservoirConfig(
+    'delivery_domain_30m_latency',
+    period=1800,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY = dos.ReservoirConfig(
+    'delivery_domain_1h_latency',
+    period=3600,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY = dos.ReservoirConfig(
+    'delivery_domain_1d_latency',
+    period=86400,
+    samples=10000,
+    by_domain=True,
+    value_units='ms')
+
+
+def report_delivery(reporter, url, success, latency):
+  """Reports statistics information for a event delivery to a callback.
+
+  Args:
+    reporter: dos.Reporter instance.
+    url: The URL of the callback that received the event.
+    success: True if the delivery was successful, False otherwise.
+    latency: End-to-end fetch latency in milliseconds.
+  """
+  value = int(not success)
+  reporter.set(url, DELIVERY_URL_SAMPLE_MINUTE, value)
+  reporter.set(url, DELIVERY_URL_SAMPLE_30_MINUTE, value)
+  reporter.set(url, DELIVERY_URL_SAMPLE_HOUR, value)
+  reporter.set(url, DELIVERY_URL_SAMPLE_DAY, value)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_MINUTE, value)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_30_MINUTE, value)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_HOUR, value)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_DAY, value)
+  reporter.set(url, DELIVERY_URL_SAMPLE_MINUTE_LATENCY, latency)
+  reporter.set(url, DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY, latency)
+  reporter.set(url, DELIVERY_URL_SAMPLE_HOUR_LATENCY, latency)
+  reporter.set(url, DELIVERY_URL_SAMPLE_DAY_LATENCY, latency)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY, latency)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY, latency)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY, latency)
+  reporter.set(url, DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY, latency)
+
+
+DELIVERY_SAMPLER = dos.MultiSampler([
+    DELIVERY_URL_SAMPLE_MINUTE,
+    DELIVERY_URL_SAMPLE_30_MINUTE,
+    DELIVERY_URL_SAMPLE_HOUR,
+    DELIVERY_URL_SAMPLE_DAY,
+    DELIVERY_DOMAIN_SAMPLE_MINUTE,
+    DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
+    DELIVERY_DOMAIN_SAMPLE_HOUR,
+    DELIVERY_DOMAIN_SAMPLE_DAY,
+    DELIVERY_URL_SAMPLE_MINUTE_LATENCY,
+    DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY,
+    DELIVERY_URL_SAMPLE_HOUR_LATENCY,
+    DELIVERY_URL_SAMPLE_DAY_LATENCY,
+    DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
+    DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+    DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
+    DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY,
+])
+
+################################################################################
 # Constants
 
 ATOM = 'atom'
@@ -2115,8 +2459,18 @@ class PullFeedHandler(webapp.RequestHandler):
         db.delete(KnownFeed.create_key(work.topic))
       return
 
+    allow, percent = FETCH_SCORER.filter([work.topic])[0]
+    if not allow:
+      logging.warning('Scoring prevented fetch of %r with failure rate %.2f%%',
+                      work.topic, 100 * percent)
+      work.done()
+      return
+
     feed_record = FeedRecord.get_or_create(work.topic)
     fetch_url = work.topic
+    start_time = time.time()
+    should_parse = False
+    fetch_success = False
     for i in xrange(MAX_REDIRECTS):
       logging.debug('Fetching feed at %s', fetch_url)
       try:
@@ -2125,46 +2479,57 @@ class PullFeedHandler(webapp.RequestHandler):
       except urlfetch.ResponseTooLargeError:
         logging.critical('Feed response too large for topic %s at url %s; '
                          'skipping', work.topic, fetch_url)
-        work.done()
-        return
+        work.done() #success=False)
       except urlfetch.InvalidURLError:
         logging.critical('Invalid redirection for topic %s to url %s; '
                          'skipping', work.topic, fetch_url)
-        work.done()
-        return
+        work.done() #success=False)
       except (apiproxy_errors.Error, urlfetch.Error):
         error_traceback = traceback.format_exc()
         logging.warning('Failed to fetch topic %s at url %s:\n%s',
                         work.topic, fetch_url, error_traceback)
         work.fetch_failed()
-        return
-
-      if status_code == 200:
-        break
-      if status_code in (301, 302, 303, 307) and 'Location' in headers:
-        fetch_url = headers['Location']
-        logging.debug('Feed publisher returned %d redirect to "%s"',
-                      status_code, fetch_url)
-        continue
-      elif status_code == 304:
-        logging.debug('Feed publisher returned 304 response (cache hit)')
-        work.done()
-        return
       else:
-        logging.warning('Received bad status_code = %s, response_headers = %r',
-                        status_code, headers)
-        work.fetch_failed()
-        return
+        if status_code == 200:
+          should_parse = True
+        elif status_code in (301, 302, 303, 307) and 'Location' in headers:
+          fetch_url = headers['Location']
+          logging.debug('Feed publisher returned %d redirect to "%s"',
+                        status_code, fetch_url)
+          continue
+        elif status_code == 304:
+          logging.debug('Feed publisher returned 304 response (cache hit)')
+          work.done()
+          fetch_success = True
+        else:
+          logging.warning('Received bad status_code = %s, response_headers = %r',
+                          status_code, headers)
+          work.fetch_failed()
+
+      # Falling through to this point means we're done with any redirects.
+      break
     else:
       # This means we've done too many redirects and will fail this fetch.
       logging.warning('Too many redirects!')
       work.fetch_failed()
-      return
 
-    if parse_feed(feed_record, headers, content):
-      work.done()
+    end_time = time.time()
+    latency = int((end_time - start_time) * 1000)
+    if should_parse:
+      if parse_feed(feed_record, headers, content):
+        fetch_success = True
+        work.done()
+      else:
+        work.fetch_failed()
+
+    if fetch_success:
+      FETCH_SCORER.report([work.topic], [])
     else:
-      work.fetch_failed()
+      FETCH_SCORER.report([], [work.topic])
+
+    reporter = dos.Reporter()
+    report_fetch(reporter, work.topic, fetch_success, latency)
+    FETCH_SAMPLER.sample(reporter)
 
 ################################################################################
 # Event delivery
@@ -2207,29 +2572,51 @@ class PushEventHandler(webapp.RequestHandler):
                  'topic = %s, delivery_mode = %s',
                  len(subscription_list), work.topic, work.delivery_mode)
 
-    # Keep track of successful callbacks. Do this instead of tracking broken
+    # Keep track of failed callbacks. Do this instead of tracking successful
     # callbacks because the asynchronous API calls could be interrupted by a
     # deadline error. If that happens we'll want to mark all outstanding
-    # callback urls as still pending.
-    failed_callbacks = set(subscription_list)
+    # callback urls as still pending (and thus failed).
+    all_callbacks = set(subscription_list)
+    failed_callbacks = all_callbacks.copy()
+    reporter = dos.Reporter()
+    start_time = time.time()
+
     def callback(sub, result, exception):
+      end_time = time.time()
+      latency = int((end_time - start_time) * 1000)
       if exception or result.status_code not in (200, 204):
         logging.warning('Could not deliver to target url %s: '
                         'Exception = %r, status_code = %s',
                         sub.callback, exception,
                         getattr(result, 'status_code', 'unknown'))
+        report_delivery(reporter, sub.callback, False, latency)
       else:
         failed_callbacks.remove(sub)
+        report_delivery(reporter, sub.callback, True, latency)
 
     def create_callback(sub):
       return lambda *args: callback(sub, *args)
 
     payload_utf8 = utf8encoded(work.payload)
-    for sub in subscription_list:
+    scores = DELIVERY_SCORER.filter(s.callback for s in all_callbacks)
+    for sub, (allowed, percent) in zip(all_callbacks, scores):
+      if not allowed:
+        logging.warning(
+            'Scoring prevented delivery of %s to %s with failure rate %.2f%%',
+            work.topic, sub.callback, 100 * percent)
+        # Remove it from the list of all callbacks and failured callbacks.
+        # When a callback domain is hurting, we do not further penalize it
+        # with more failures, but we leave its standing the same. So it's
+        # as if this callback was never even seen. At the beginning of
+        # the next scoring period this callback will be allowed again.
+        all_callbacks.remove(sub)
+        failed_callbacks.remove(sub)
+        continue
+
       headers = {
         # TODO(bslatkin): Remove the 'or' here once migration is done.
         'Content-Type': work.content_type or 'text/xml',
-        # XXX(bslatkin): add a better test for verify_token here.
+        # TODO(bslatkin): add a better test for verify_token here.
         'X-Hub-Signature': 'sha1=%s' % sha1_hmac(
             sub.secret or sub.verify_token or '', payload_utf8),
       }
@@ -2241,6 +2628,12 @@ class PushEventHandler(webapp.RequestHandler):
     except runtime.DeadlineExceededError:
       logging.error('Could not finish all callbacks due to deadline. '
                     'Remaining are: %r', [s.callback for s in failed_callbacks])
+    else:
+      # Only update stats if we're not dealing with a terminating request.
+      DELIVERY_SCORER.report(
+          [s.callback for s in (all_callbacks - failed_callbacks)],
+          [s.callback for s in failed_callbacks])
+      DELIVERY_SAMPLER.sample(reporter)
 
     work.update(more_subscribers, failed_callbacks)
 
@@ -2446,7 +2839,10 @@ class HubHandler(webapp.RequestHandler):
   """Handler to multiplex subscribe and publish events on the same URL."""
 
   def get(self):
-    self.response.out.write(open('./welcome.html').read())
+    context = {
+      'host': self.request.host,
+    }
+    self.response.out.write(template.render('welcome.html', context))
 
   def post(self):
     mode = self.request.get('hub.mode', '').lower()
@@ -2477,6 +2873,7 @@ class TopicDetailHandler(webapp.RequestHandler):
         'error': 'Could not find any record for topic URL: ' + topic_url,
       }
     else:
+      fetch_score = FETCH_SCORER.filter([topic_url])[0]
       context = {
         'topic_url': topic_url,
         'last_successful_fetch': feed.last_updated,
@@ -2484,7 +2881,22 @@ class TopicDetailHandler(webapp.RequestHandler):
         'last_etag': feed.etag,
         'last_modified': feed.last_modified,
         'last_header_footer': feed.header_footer,
+        'fetch_blocked': not fetch_score[0],
+        'fetch_errors': fetch_score[1] * 100,
+        'fetch_url_error': [
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE, topic_url),
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE, topic_url),
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR, topic_url),
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY, topic_url),
+        ],
+        'fetch_url_latency': [
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE_LATENCY, topic_url),
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE_LATENCY, topic_url),
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR_LATENCY, topic_url),
+            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY_LATENCY, topic_url),
+        ],
       }
+
       fetch = FeedToFetch.get_by_topic(topic_url)
       if fetch:
         context.update({
@@ -2505,10 +2917,12 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
     secret = normalize_iri(self.request.get('hub.secret'))
     subscription = Subscription.get_by_key_name(
         Subscription.create_key_name(callback_url, topic_url))
+    callback_domain = dos.get_url_domain(callback_url)
 
     context = {
       'topic_url': topic_url,
       'callback_url': callback_url,
+      'callback_domain': callback_domain,
     }
 
     if not subscription or (
@@ -2522,6 +2936,8 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
         .filter('failed_callbacks =', subscription.key())
         .order('-last_modified')
         .fetch(25))
+      delivery_score = DELIVERY_SCORER.filter([callback_url])[0]
+
       context.update({
         'created_time': subscription.created_time,
         'last_modified': subscription.last_modified,
@@ -2537,10 +2953,112 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
             'content_type': e.content_type,
             'payload_trunc': e.payload[:10000],
           }
-          for e in failed_events]
+          for e in failed_events],
+        'delivery_blocked': not delivery_score[0],
+        'delivery_errors': delivery_score[1] * 100,
+        'delivery_url_error': [
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE, callback_url),
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE, callback_url),
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR, callback_url),
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY, callback_url),
+        ],
+        'delivery_url_latency': [
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE_LATENCY,
+                                 callback_url),
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY,
+                                 callback_url),
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR_LATENCY,
+                                 callback_url),
+            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY_LATENCY,
+                                 callback_url),
+        ],
+        'delivery_domain_error': [
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE,
+                                 callback_domain),
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
+                                 callback_domain),
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR,
+                                 callback_domain),
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY,
+                                 callback_domain),
+        ],
+        'delivery_domain_latency': [
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
+                                 callback_domain),
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+                                 callback_domain),
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
+                                 callback_domain),
+            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY,
+                                 callback_domain),
+        ],
       })
 
     self.response.out.write(template.render('event_details.html', context))
+
+
+class StatsHandler(webapp.RequestHandler):
+  """Handler that serves DoS statistics information."""
+
+  def get(self):
+    context = {
+      'fetch_url_error': [
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE),
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE),
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR),
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY),
+      ],
+      'fetch_url_latency': [
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE_LATENCY),
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE_LATENCY),
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR_LATENCY),
+          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY_LATENCY),
+      ],
+      'fetch_domain_error': [
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_MINUTE),
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_30_MINUTE),
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_HOUR),
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_DAY),
+      ],
+      'fetch_domain_latency': [
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_MINUTE_LATENCY),
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_30_MINUTE_LATENCY),
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_HOUR_LATENCY),
+          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_DAY_LATENCY),
+      ],
+      'delivery_url_error': [
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE),
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE),
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR),
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY),
+      ],
+      'delivery_url_latency': [
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE_LATENCY),
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY),
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR_LATENCY),
+          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY_LATENCY),
+      ],
+      'delivery_domain_error': [
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE),
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE),
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR),
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY),
+      ],
+      'delivery_domain_latency': [
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY),
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY),
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY),
+          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY),
+      ],
+    }
+    all_configs = []
+    all_configs.extend(FETCH_SAMPLER.configs)
+    all_configs.extend(DELIVERY_SAMPLER.configs)
+    context.update({
+      'all_configs': all_configs,
+      'show_everything': True,
+    })
+    self.response.out.write(template.render('all_stats.html', context))
 
 ################################################################################
 # Hook system
@@ -2748,6 +3266,7 @@ def main():
       (r'/subscribe', SubscribeHandler),
       (r'/topic-details', TopicDetailHandler),
       (r'/subscription-details', SubscriptionDetailHandler),
+      (r'/stats', StatsHandler),
       # Low-latency workers
       (r'/work/subscriptions', SubscriptionConfirmHandler),
       (r'/work/pull_feeds', PullFeedHandler),

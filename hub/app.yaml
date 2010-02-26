@@ -43,6 +43,11 @@ handlers:
   script: main.py
   secure: always
 
+# Global stats are admin only.
+- url: /stats
+  script: main.py
+  login: admin
+
 - url: .*
   script: main.py
   secure: optional

@@ -1,0 +1,33 @@
+<div class="stats-table" id="{{result.title}}">
+<h3>{{result.title}}</h3>
+<div class="summary">
+  <span>Sample window: {{result.time_elapsed|floatformat:"0"}} seconds</span>
+  {% if show_everything %}
+  <span>Total samples: {{result.total_samples}}</span>
+  <span>Unique keys: {{result.unique_samples}}</span>
+  <span>Overall rate: {{result.overall_rate|floatformat:"-4"}}</span>
+  {% endif %}
+</div>
+{% if result.total_samples %}
+<table>
+  <tr align="center">
+    <th align="left">{{result.key_name}}</th>
+    <th>Samples</th>
+    <th>Frequency</th>
+    <th>Min</th>
+    <th>Max</th>
+    <th>Average</th>
+  </tr>
+  {% for sample in result.sample_objects|dictsortreversed:"frequency"|slice:":20" %}
+  <tr align="right">
+    <td align="left">{{sample.key|escape}}</td>
+    <td>{{sample.count}}</td>
+    <td>{{sample.frequency|floatformat:"-4"}}/sec</td>
+    <td>{{sample.min|floatformat:"-4"}}</td>
+    <td>{{sample.max|floatformat:"-4"}}</td>
+    <td>{{sample.average|floatformat:"-4"}} {{result.value_units}}</td>
+  </tr>
+  {% endfor %}
+</table>  
+{% endif %}
+</div>

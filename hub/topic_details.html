@@ -42,9 +42,33 @@
     <td>Last Modified:</td>
     <td>{{last_modified|escape}}</td>
   </tr>
+  <tr>
+    <td>Fetch from domain:</td>
+    <td>
+      {% if fetch_blocked %}
+        <span style="color: red">BLOCKED</span>
+      {% else %}
+        OK
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td>Fetch short-term:</td>
+    <td>{{fetch_errors|floatformat:"-2"}}% errors</td>
+  </tr>
 </table>
 
-<p>Last feed envelope retrieved:</p>
+<h2>Error rate statistics</h2>
+{% for result in fetch_url_error %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Latency statistics</h2>
+{% for result in fetch_url_latency %}
+  {% include "stats_table.html" %}
+{% endfor %}
+
+<h2>Last feed envelope retrieved:</h2>
 <pre>
 {{last_header_footer|escape}}
 </pre>

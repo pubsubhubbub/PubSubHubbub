@@ -1535,6 +1535,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
     self.assertEquals(self.topic, task['params']['topic'])
 
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testRssFailBack(self):
     """Tests when parsing as Atom fails and it uses RSS instead."""
     self.expected_exceptions.append(feed_diff.Error('whoops'))
@@ -1566,6 +1568,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(str(event_key), task['params']['event_key'])
     task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
     self.assertEquals(self.topic, task['params']['topic'])
+
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testAtomFailBack(self):
     """Tests when parsing as RSS fails and it uses Atom instead."""
@@ -1602,6 +1606,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
     self.assertEquals(self.topic, task['params']['topic'])
 
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testParseFailure(self):
     """Tests when the feed cannot be parsed as Atom or RSS."""
     self.expected_exceptions.append(feed_diff.Error('whoops'))
@@ -1619,6 +1625,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=0))
     self.assertEquals([self.topic], [t['params']['topic'] for t in tasks])
+
+    # Parsing errors do not count against the fetching scorer.
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testCacheHit(self):
     """Tests when the fetched feed matches the last cached version of it."""
@@ -1640,6 +1649,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(EventToDeliver.all().get() is None)
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testNoNewEntries(self):
     """Tests when there are no new entries."""
     FeedToFetch.insert([self.topic])
@@ -1657,6 +1668,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(self.last_modified, record.last_modified)
     self.assertEquals('application/atom+xml', record.content_type)
 
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testPullError(self):
     """Tests when URLFetch raises an exception."""
     FeedToFetch.insert([self.topic])
@@ -1669,6 +1682,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
     self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testPullBadStatusCode(self):
     """Tests when the response status is bad."""
@@ -1678,10 +1692,13 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('topic', self.topic))
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
+
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
     self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testApiProxyError(self):
     """Tests when the APIProxy raises an error."""
@@ -1691,10 +1708,13 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('topic', self.topic))
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
+
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
     self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testNoSubscribers(self):
     """Tests that when a feed has no subscribers we do not pull it."""
@@ -1715,6 +1735,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     # And there is no EventToDeliver or tasks.
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+
+    # And no scoring.
+    self.assertEquals([(0, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testRedirects(self):
     """Tests when redirects are encountered."""
@@ -1738,6 +1761,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(EventToDeliver.all().get() is not None)
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
 
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testTooManyRedirects(self):
     """Tests when too many redirects are encountered."""
     info = FeedRecord.get_or_create(self.topic)
@@ -1757,10 +1782,13 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     self.handle('post', ('topic', self.topic))
     self.assertTrue(EventToDeliver.all().get() is None)
+
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
     tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
     self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testRedirectToBadUrl(self):
     """Tests when the redirect URL is bad."""
@@ -1778,6 +1806,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('topic', self.topic))
     self.assertTrue(EventToDeliver.all().get() is None)
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testPutSplitting(self):
     """Tests that put() calls for feed records are split when too large."""
@@ -1829,6 +1859,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
     self.assertEquals(self.topic, task['params']['topic'])
 
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testPutSplittingFails(self):
     """Tests when splitting put() calls still doesn't help and we give up."""
     # Make the content way too big.
@@ -1871,6 +1903,9 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
+    # Put splitting failure does not count against the feed.
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
   def testFeedTooLarge(self):
     """Tests when the pulled feed's content size is too large."""
     FeedToFetch.insert([self.topic])
@@ -1882,6 +1917,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals([], list(FeedEntryRecord.all()))
     self.assertEquals(None, EventToDeliver.all().get())
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testTooManyNewEntries(self):
     """Tests when there are more new entries than we can handle at once."""
@@ -1928,6 +1965,35 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
     for task in tasks:
       self.assertEquals(self.topic, task['params']['topic'])
+
+      self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
+
+  def testNotAllowed(self):
+    """Tests when the URL fetch is blocked due to URL scoring."""
+    dos.DISABLE_FOR_TESTING = False
+    try:
+      main.FETCH_SCORER.blackhole([self.topic])
+      start_scores = main.FETCH_SCORER.get_scores([self.topic])
+
+      info = FeedRecord.get_or_create(self.topic)
+      info.update(self.headers)
+      info.put()
+      FeedToFetch.insert([self.topic])
+      self.handle('post', ('topic', self.topic))
+
+      # Verify that *no* feed entry records have been written.
+      self.assertEquals([], FeedEntryRecord.get_entries_for_topic(
+                                 self.topic, self.all_ids))
+
+      # And there is no EventToDeliver or tasks.
+      testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+      tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+
+      self.assertEquals(
+          start_scores,
+          main.FETCH_SCORER.get_scores([self.topic]))
+    finally:
+      dos.DISABLE_FOR_TESTING = True
 
 
 class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
@@ -2038,10 +2104,10 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     # Order of these URL fetches is determined by the ordering of the hashes
     # of the callback URLs, so we need random extra strings here to get
     # alphabetical hash order.
-    self.callback1 = 'http://example.com/hamster-callback1'
-    self.callback2 = 'http://example.com/hamster-callback2'
-    self.callback3 = 'http://example.com/hamster-callback3-12345'
-    self.callback4 = 'http://example.com/hamster-callback4-12345'
+    self.callback1 = 'http://example1.com/hamster-callback1-12'
+    self.callback2 = 'http://example2.com/hamster-callback2'
+    self.callback3 = 'http://example3.com/hamster-callback3-123456'
+    self.callback4 = 'http://example4.com/hamster-callback4-123'
     self.header_footer = '<feed>\n<stuff>blah</stuff>\n<xmldata/></feed>'
     self.test_payloads = [
         '<entry>article1</entry>',
@@ -2105,6 +2171,11 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('event_key', str(event.key())))
     self.assertEquals([], list(EventToDeliver.all()))
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+    self.assertEquals(
+        [(1, 0), (1, 0), (1, 0)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3]))
 
   def testHmacData(self):
     """Tests that the content is properly signed with an HMAC."""
@@ -2183,6 +2254,11 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.assertEquals(
+        [(1, 0), (1, 0), (0, 0)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3]))
+
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 204, '', request_payload=self.expected_payload)
     self.handle('post', ('event_key', event_key))
@@ -2192,6 +2268,11 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=2)
     self.assertEquals([event_key] * 2,
                       [t['params']['event_key'] for t in tasks])
+
+    self.assertEquals(
+        [(1, 0), (1, 0), (1, 0)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3]))
 
   def testBrokenCallbacks(self):
     """Tests that when callbacks return errors and are saved for later."""
@@ -2214,10 +2295,20 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.assertEquals(
+        [(0, 1), (0, 1), (0, 0)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3]))
+
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 500, '', request_payload=self.expected_payload)
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
+
+    self.assertEquals(
+        [(0, 1), (0, 1), (0, 1)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3]))
 
     work = EventToDeliver.all().get()
     sub_list = Subscription.get(work.failed_callbacks)
@@ -2259,6 +2350,13 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
 
       self.assertEquals(event_key, testutil.get_tasks(
           main.EVENT_QUEUE, index=0, expected_count=1)['params']['event_key'])
+
+      # In this case no reporting should happen, since we do not have
+      # any more time in the runtime to report stats.
+      self.assertEquals(
+          [(0, 0), (0, 0), (0, 0)],
+          main.DELIVERY_SCORER.get_scores(
+              [self.callback1, self.callback2, self.callback3]))
     finally:
       main.async_proxy = async_apiproxy.AsyncAPIProxy()
 
@@ -2292,10 +2390,20 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.assertEquals(
+        [(0, 1), (1, 0), (0, 1), (0, 0)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3, self.callback4]))
+
     urlfetch_test_stub.instance.expect(
         'post', self.callback4, 500, '', request_payload=self.expected_payload)
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
+
+    self.assertEquals(
+        [(0, 1), (1, 0), (0, 1), (0, 1)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3, self.callback4]))
 
     # Now the retries.
     urlfetch_test_stub.instance.expect(
@@ -2307,6 +2415,11 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.assertEquals(
+        [(0, 2), (1, 0), (0, 2), (0, 2)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3, self.callback4]))
+
     urlfetch_test_stub.instance.expect(
         'post', self.callback1, 204, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
@@ -2316,10 +2429,20 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
 
+    self.assertEquals(
+        [(1, 2), (1, 0), (0, 3), (1, 2)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3, self.callback4]))
+
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 204, '', request_payload=self.expected_payload)
     self.handle('post', ('event_key', event_key))
     urlfetch_test_stub.instance.verify_and_reset()
+
+    self.assertEquals(
+        [(1, 2), (1, 0), (1, 3), (1, 2)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2, self.callback3, self.callback4]))
 
     self.assertEquals([], list(EventToDeliver.all()))
     tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
@@ -2356,6 +2479,45 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(event_key, testutil.get_tasks(
         main.EVENT_RETRIES_QUEUE, index=0, expected_count=1)
         ['params']['event_key'])
+
+    self.assertEquals(
+        [(0, 1), (0, 1)],
+        main.DELIVERY_SCORER.get_scores(
+            [self.callback1, self.callback2]))
+
+  def testNotAllowed(self):
+    """Tests pushing events to a URL that's not allowed due to scoring."""
+    dos.DISABLE_FOR_TESTING = False
+    try:
+      main.DELIVERY_SCORER.blackhole([self.callback2])
+      start_scores = main.DELIVERY_SCORER.get_scores([self.callback2])
+
+      self.assertTrue(Subscription.insert(
+          self.callback1, self.topic, 'token', 'secret'))
+      self.assertTrue(Subscription.insert(
+          self.callback2, self.topic, 'token', 'secret'))
+      self.assertTrue(Subscription.insert(
+          self.callback3, self.topic, 'token', 'secret'))
+      main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
+      urlfetch_test_stub.instance.expect(
+          'post', self.callback1, 204, '',
+          request_payload=self.expected_payload)
+      urlfetch_test_stub.instance.expect(
+          'post', self.callback3, 204, '',
+          request_payload=self.expected_payload)
+      event = EventToDeliver.create_event_for_topic(
+          self.topic, main.ATOM, self.header_footer, self.test_payloads)
+      event.put()
+      self.handle('post', ('event_key', str(event.key())))
+      self.assertEquals([], list(EventToDeliver.all()))
+      testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+      self.assertEquals(
+          [(1, 0)] + start_scores + [(1, 0)],
+          main.DELIVERY_SCORER.get_scores(
+              [self.callback1, self.callback2, self.callback3]))
+    finally:
+      dos.DISABLE_FOR_TESTING = True
 
 
 class EventCleanupHandlerTest(testutil.HandlerTestBase):
