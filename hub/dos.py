@@ -182,23 +182,37 @@ def limit(param=None,
 # needed for domains like 'appspot.com' that are shared across totally
 # different developers.
 
-# Matches three groups: 1) an IP, 2) a domain, 3) other (eg, localhost)
+# Matches four groups:
+#   1) an IP, 2) a domain prefix, 3) a domain suffix, 4) other (eg, localhost)
 URL_DOMAIN_RE = re.compile(
     r'https?://(?:'
     r'([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)|'  # IP address
-    r'(?:(?:[a-zA-Z0-9-]+\.)*([a-zA-Z0-9-]+\.[a-zA-Z0-9-]+))|'  # Domain
+    r'(?:([a-zA-Z0-9-]+\.)*([a-zA-Z0-9-]+\.[a-zA-Z0-9-]+))|'  # Domain
     r'([^/]+)'  # Anyting else
     r')(?:/.*)?')  # The rest of the URL
+
+# Domains where the full domain should be used for any rate limiting or
+# statistics instead of just the suffix due to different developers being
+# present on different URLs.
+DOMAIN_EXCEPTIONS = frozenset([
+  'amazonaws.com',
+  'appspot.com',
+  'heroku.com',
+])
 
 
 def get_url_domain(url):
   """Returns the domain for a URL or 'bad_url if it's not a valid URL."""
   match = URL_DOMAIN_RE.match(url)
   if match:
-    groups = filter(bool, match.groups())
+    groups = list(match.groups())
+    if groups[1] and groups[2] in DOMAIN_EXCEPTIONS:
+      groups[2] = groups[1] + groups[2]
+    groups[1] = None
+    groups = filter(bool, groups)
   else:
-    groups = tuple()
-  return (groups + ('bad_url',))[0]
+    groups = []
+  return (groups + ['bad_url'])[0]
 
 ################################################################################
 

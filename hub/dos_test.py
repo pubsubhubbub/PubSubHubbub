@@ -495,6 +495,12 @@ class GetUrlDomainTest(unittest.TestCase):
         'example.com',
         dos.get_url_domain('http://www.example.com'))
 
+  def testDomainExceptions(self):
+    """Tests that some URLs may use more than the domain suffix."""
+    self.assertEquals(
+        'example.appspot.com',
+        dos.get_url_domain('http://example.appspot.com/this-is?some=test'))
+
   def testIP(self):
     """Tests IP addresses."""
     self.assertEquals(
