@@ -498,8 +498,8 @@ class GetUrlDomainTest(unittest.TestCase):
   def testDomainExceptions(self):
     """Tests that some URLs may use more than the domain suffix."""
     self.assertEquals(
-        'example.appspot.com',
-        dos.get_url_domain('http://example.appspot.com/this-is?some=test'))
+        'blogspot.com',
+        dos.get_url_domain('http://example.blogspot.com/this-is?some=test'))
 
   def testIP(self):
     """Tests IP addresses."""
@@ -1042,7 +1042,7 @@ class SamplerTest(unittest.TestCase):
   def testGetSingleKey(self):
     """Tests getting the stats for a single key."""
     config = dos.ReservoirConfig(
-        'always',
+        'single-sample',
         period=300,
         rate=1,
         samples=10000,
@@ -1053,23 +1053,27 @@ class SamplerTest(unittest.TestCase):
     reporter.set(self.url1, config)
     reporter.set(self.url2, config)
     reporter.set(self.url3, config)
+    reporter.set(self.url3 + '&okay=1', config)
+    reporter.set(self.url3 + '&okay=2', config)
+    reporter.set(self.url3 + '&okay=3', config)
+    reporter.set(self.url3 + '&okay=4', config)
     reporter.set(self.url4, config)
     reporter.set(self.url5, config)
     self.gettime_results.extend([0, 10, 10])
     sampler.sample(reporter)
     results = sampler.get(config)
-    self.assertEquals(5, results.total_samples)
-    self.assertEquals(5, results.unique_samples)
+    self.assertEquals(9, results.total_samples)
+    self.assertEquals(9, results.unique_samples)
     self.verify_sample(results, self.domainA, 1, 0.1)
-    self.verify_sample(results, self.domainB, 2, 0.2)
+    self.verify_sample(results, self.domainB, 6, 0.6)
     self.verify_sample(results, self.domainC, 1, 0.1)
     self.verify_sample(results, self.domainD, 1, 0.1)
 
-    results = sampler.get(config, self.domainA)
-    self.assertEquals(1, results.total_samples)
-    self.assertEquals(1, results.unique_samples)
-    self.verify_sample(results, self.domainA, 1, 0.1)
-    self.verify_no_sample(results, self.domainB)
+    results = sampler.get(config, self.domainB)
+    self.assertEquals(6, results.total_samples)
+    self.assertEquals(6, results.unique_samples)
+    self.verify_sample(results, self.domainB, 6, 0.6)
+    self.verify_no_sample(results, self.domainA)
     self.verify_no_sample(results, self.domainC)
     self.verify_no_sample(results, self.domainD)
 

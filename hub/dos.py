@@ -187,19 +187,29 @@ def limit(param=None,
 URL_DOMAIN_RE = re.compile(
     r'https?://(?:'
     r'([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)|'  # IP address
-    r'((?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+)|'  # Domain
+    r'(?:((?:[a-zA-Z0-9-]+\.)*)([a-zA-Z0-9-]+\.[a-zA-Z0-9-]+))|'  # Domain
     r'([^/]+)'  # Anyting else
     r')(?:/.*)?')  # The rest of the URL
+
+# Domains where only the suffix is important.
+DOMAIN_SUFFIX_EXCEPTIONS = frozenset([
+  'blogspot.com',
+  'livejournal.com',
+])
 
 
 def get_url_domain(url):
   """Returns the domain for a URL or 'bad_url if it's not a valid URL."""
   match = URL_DOMAIN_RE.match(url)
   if match:
-    groups = filter(bool, match.groups())
+    groups = list(match.groups())
+    if groups[1] and groups[2] and groups[2] not in DOMAIN_SUFFIX_EXCEPTIONS:
+      groups[2] = groups[1] + groups[2]
+    groups[1] = None
+    groups = filter(bool, groups)
   else:
-    groups = tuple()
-  return (groups + ('bad_url',))[0]
+    groups = []
+  return (groups + ['bad_url'])[0]
 
 ################################################################################
 
@@ -642,6 +652,14 @@ class SampleResult(object):
     """
     return self.sample_dict.get(key, [])
 
+  def set_single_sample(self, key):
+    """Sets that this result is for a single key.
+
+    Args:
+      key: The sampling key.
+    """
+    self.total_samples = self.get_count(key)
+
   def sample_objects(self):
     """Gets the contents of this result object for use in template rendering.
 
@@ -811,9 +829,6 @@ class MultiSampler(object):
       key, when_encoded, value_encoded = (
           combined_value.rsplit(':', 2) + ['', '', ''])[:3]
       if single_key is not None and single_key != key:
-        # Must decement the overall count in the result to prevent us from
-        # leaking the total number of samples made thus far.
-        results.total_samples -= 1
         continue
 
       if len(when_encoded) != 4:
@@ -827,6 +842,11 @@ class MultiSampler(object):
           < when <
           (start_time + config.period + config.tolerance)):
         results.add(key, when, value)
+
+    # For a single sample we need to set the counter to the number of unique
+    # samples so we don't leak the overall QPS being pushed for this event.
+    if single_key is not None:
+      results.set_single_sample(single_key)
 
     return results
 
