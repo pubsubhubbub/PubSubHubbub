@@ -484,15 +484,15 @@ class GetUrlDomainTest(unittest.TestCase):
         dos.get_url_domain('http://example.com/foo/bar?meep=stuff#asdf'))
     # One subdomain
     self.assertEquals(
-        'example.com',
+        'www.example.com',
         dos.get_url_domain('http://www.example.com/foo/bar?meep=stuff#asdf'))
     # Many subdomains
     self.assertEquals(
-        'example.com',
+        '1.2.3.many.sub.example.com',
         dos.get_url_domain('http://1.2.3.many.sub.example.com/'))
     # Domain with no trailing path
     self.assertEquals(
-        'example.com',
+        'www.example.com',
         dos.get_url_domain('http://www.example.com'))
 
   def testDomainExceptions(self):
@@ -633,10 +633,10 @@ class SamplerTest(unittest.TestCase):
     self.domainB = 'example.com'
     self.domainC = 'other.com'
     self.domainD = 'meep.com'
-    self.url1 = 'http://other.mydomain.com/stuff/meep'
-    self.url2 = 'http://foo.example.com/some-path?a=b'
-    self.url3 = 'http://bar.example.com'
-    self.url4 = 'http://www.other.com/relative'
+    self.url1 = 'http://mydomain.com/stuff/meep'
+    self.url2 = 'http://example.com/some-path?a=b'
+    self.url3 = 'http://example.com'
+    self.url4 = 'http://other.com/relative'
     self.url5 = 'http://meep.com/another-one'
     self.all_urls = [self.url1, self.url2, self.url3, self.url4, self.url5]
 
@@ -1346,10 +1346,10 @@ class UrlScorerTest(unittest.TestCase):
     self.domain1 = 'mydomain.com'
     self.domain2 = 'example.com'
     self.domain3 = 'other.com'
-    self.url1 = 'http://other.mydomain.com/stuff/meep'
-    self.url2 = 'http://foo.example.com/some-path?a=b'
-    self.url3 = 'http://bar.example.com'
-    self.url4 = 'http://www.other.com/relative'
+    self.url1 = 'http://mydomain.com/stuff/meep'
+    self.url2 = 'http://example.com/some-path?a=b'
+    self.url3 = 'http://example.com'
+    self.url4 = 'http://other.com/relative'
     self.scorer = dos.UrlScorer(
         period=60,
         min_requests=1,
