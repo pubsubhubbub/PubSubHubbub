@@ -1039,6 +1039,40 @@ class SamplerTest(unittest.TestCase):
                        expected_min=5,
                        expected_average=5)
 
+  def testGetSingleKey(self):
+    """Tests getting the stats for a single key."""
+    config = dos.ReservoirConfig(
+        'always',
+        period=300,
+        rate=1,
+        samples=10000,
+        by_domain=True)
+    sampler = dos.MultiSampler([config], gettime=self.fake_gettime)
+
+    reporter = dos.Reporter()
+    reporter.set(self.url1, config)
+    reporter.set(self.url2, config)
+    reporter.set(self.url3, config)
+    reporter.set(self.url4, config)
+    reporter.set(self.url5, config)
+    self.gettime_results.extend([0, 10, 10])
+    sampler.sample(reporter)
+    results = sampler.get(config)
+    self.assertEquals(5, results.total_samples)
+    self.assertEquals(5, results.unique_samples)
+    self.verify_sample(results, self.domainA, 1, 0.1)
+    self.verify_sample(results, self.domainB, 2, 0.2)
+    self.verify_sample(results, self.domainC, 1, 0.1)
+    self.verify_sample(results, self.domainD, 1, 0.1)
+
+    results = sampler.get(config, self.domainA)
+    self.assertEquals(1, results.total_samples)
+    self.assertEquals(1, results.unique_samples)
+    self.verify_sample(results, self.domainA, 1, 0.1)
+    self.verify_no_sample(results, self.domainB)
+    self.verify_no_sample(results, self.domainC)
+    self.verify_no_sample(results, self.domainD)
+
   def testCountLost(self):
     """Tests when the count variable disappears between samples."""
     config = dos.ReservoirConfig(

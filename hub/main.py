@@ -2926,7 +2926,9 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
     }
 
     if not subscription or (
-       subscription.secret and subscription.secret != secret):
+        not users.is_current_user_admin() and
+        subscription.secret and
+        subscription.secret != secret):
       context.update({
         'error': 'Could not find any subscription for '
                  'the given (callback, topic, secret) tuple'

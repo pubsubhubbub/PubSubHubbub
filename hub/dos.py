@@ -529,7 +529,6 @@ class SampleResult(object):
     self.title = config.title
     self.key_name = config.key_name
     self.value_units = config.value_units
-    self.overall_rate = 1.0 * self.total_samples / time_elapsed
 
     # Maps key -> [(when, value), ...]
     self.sample_dict = {}
@@ -547,6 +546,14 @@ class SampleResult(object):
       self.sample_dict[key] = samples = []
     samples.append((when, value))
     self.unique_samples += 1
+
+  def overall_rate(self):
+    """Gets the overall rate of events.
+
+    Returns:
+      Total events per second.
+    """
+    return 1.0 * self.total_samples / self.time_elapsed
 
   def get_min(self, key):
     """Gets the min value seen for a key.
@@ -804,7 +811,11 @@ class MultiSampler(object):
       key, when_encoded, value_encoded = (
           combined_value.rsplit(':', 2) + ['', '', ''])[:3]
       if single_key is not None and single_key != key:
+        # Must decement the overall count in the result to prevent us from
+        # leaking the total number of samples made thus far.
+        results.total_samples -= 1
         continue
+
       if len(when_encoded) != 4:
         continue
       when = struct.unpack('!l', when_encoded)[0]
