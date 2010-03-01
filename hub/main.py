@@ -3000,6 +3000,12 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
 class StatsHandler(webapp.RequestHandler):
   """Handler that serves DoS statistics information."""
 
+  def post(self):
+    if self.request.get('action').lower() == 'flush':
+      logging.critical('Flushing memcache!')
+      memcache.flush_all()
+    self.redirect('/stats')
+
   def get(self):
     context = {
       'fetch_url_error': [
