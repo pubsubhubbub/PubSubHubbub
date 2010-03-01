@@ -343,7 +343,7 @@ def report_fetch(reporter, url, success, latency):
     success: True if the fetch was successful, False otherwise.
     latency: End-to-end fetch latency in milliseconds.
   """
-  value = int(not success)
+  value = 100 * int(not success)
   reporter.set(url, FETCH_URL_SAMPLE_MINUTE, value)
   reporter.set(url, FETCH_URL_SAMPLE_30_MINUTE, value)
   reporter.set(url, FETCH_URL_SAMPLE_HOUR, value)
@@ -506,7 +506,7 @@ def report_delivery(reporter, url, success, latency):
     success: True if the delivery was successful, False otherwise.
     latency: End-to-end fetch latency in milliseconds.
   """
-  value = int(not success)
+  value = 100 * int(not success)
   reporter.set(url, DELIVERY_URL_SAMPLE_MINUTE, value)
   reporter.set(url, DELIVERY_URL_SAMPLE_30_MINUTE, value)
   reporter.set(url, DELIVERY_URL_SAMPLE_HOUR, value)
