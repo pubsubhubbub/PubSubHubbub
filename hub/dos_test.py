@@ -17,9 +17,12 @@
 
 """Tests for the dos module."""
 
+import cProfile
+import gc
 import logging
 logging.basicConfig(format='%(levelname)-8s %(filename)s] %(message)s')
 import os
+import random
 import sys
 import unittest
 
@@ -537,6 +540,29 @@ class GetUrlDomainTest(unittest.TestCase):
         dos.get_url_domain('192.168.0.1/foobar'))
     self.assertEquals('bad_url',
         dos.get_url_domain('192.168.0.1'))
+
+  def testCaching(self):
+    """Tests that cache eviction works properly."""
+    dos._DOMAIN_CACHE.clear()
+    old_size = dos.DOMAIN_CACHE_SIZE
+    try:
+      dos.DOMAIN_CACHE_SIZE = 2
+      dos._DOMAIN_CACHE['http://a.example.com/stuff'] = 'a.example.com'
+      dos._DOMAIN_CACHE['http://b.example.com/stuff'] = 'b.example.com'
+      dos._DOMAIN_CACHE['http://c.example.com/stuff'] = 'c.example.com'
+      self.assertEquals(3, len(dos._DOMAIN_CACHE))
+
+      # Old cache entries are hit:
+      self.assertEquals('c.example.com',
+                        dos.get_url_domain('http://c.example.com/stuff'))
+      self.assertEquals(3, len(dos._DOMAIN_CACHE))
+
+      # New cache entries clear the contents.
+      self.assertEquals('d.example.com',
+                        dos.get_url_domain('http://d.example.com/stuff'))
+      self.assertEquals(1, len(dos._DOMAIN_CACHE))
+    finally:
+      dos.DOMAIN_CACHE_SIZE = old_size
 
 ################################################################################
 
@@ -1069,7 +1095,7 @@ class SamplerTest(unittest.TestCase):
     self.verify_sample(results, self.domainC, 1, 0.1)
     self.verify_sample(results, self.domainD, 1, 0.1)
 
-    results = sampler.get(config, self.domainB)
+    results = sampler.get(config, self.url2)
     self.assertEquals(6, results.total_samples)
     self.assertEquals(6, results.unique_samples)
     self.verify_sample(results, self.domainB, 6, 0.6)
@@ -1254,6 +1280,74 @@ class SamplerTest(unittest.TestCase):
     self.verify_sample(results, self.domainC, 1, 0.25)
     self.verify_sample(results, self.domainD, 1, 0.25)
 
+  def testGetChain(self):
+    """Tests getting results from multiple configs in a single call."""
+    config1 = dos.ReservoirConfig(
+        'first',
+        period=300,
+        rate=1,
+        samples=10000,
+        by_domain=True)
+    config2 = dos.ReservoirConfig(
+        'second',
+        period=300,
+        rate=1,
+        samples=10000,
+        by_url=True)
+    sampler = dos.MultiSampler([config1, config2], gettime=self.fake_gettime)
+
+    reporter = dos.Reporter()
+    reporter.set(self.url1, config1)
+    reporter.set(self.url2, config1)
+    reporter.set(self.url3, config1)
+    reporter.set(self.url4, config1)
+    reporter.set(self.url5, config1)
+    reporter.set(self.url1, config2)
+    reporter.set(self.url2, config2)
+    reporter.set(self.url3, config2)
+    reporter.set(self.url4, config2)
+    reporter.set(self.url5, config2)
+    self.gettime_results.extend([0, 10, 10, 10, 10])
+    sampler.sample(reporter)
+    result_iter = sampler.get_chain(config1, config2)
+
+    # Results for config1
+    results = result_iter.next()
+    self.assertEquals(5, results.total_samples)
+    self.assertEquals(5, results.unique_samples)
+    self.verify_sample(results, self.domainA, 1, 0.1)
+    self.verify_sample(results, self.domainB, 2, 0.2)
+    self.verify_sample(results, self.domainC, 1, 0.1)
+    self.verify_sample(results, self.domainD, 1, 0.1)
+
+    # Results for config2
+    results = result_iter.next()
+    self.assertEquals(5, results.total_samples)
+    self.assertEquals(5, results.unique_samples)
+    self.verify_sample(results, self.url1, 1, 0.1)
+    self.verify_sample(results, self.url2, 1, 0.1)
+    self.verify_sample(results, self.url3, 1, 0.1)
+    self.verify_sample(results, self.url4, 1, 0.1)
+    self.verify_sample(results, self.url5, 1, 0.1)
+
+    # Single key test
+    result_iter = sampler.get_chain(
+        config1, config2,
+        single_key=self.url2)
+
+    # Results for config1
+    results = result_iter.next()
+    self.assertEquals(2, results.total_samples)
+    self.assertEquals(2, results.unique_samples)
+    self.verify_sample(results, self.domainB, 2, 0.2)
+
+    # Results for config2
+    results = result_iter.next()
+    self.assertEquals(1, results.total_samples)
+    self.assertEquals(1, results.unique_samples)
+    self.verify_sample(results, self.url2, 1, 0.1)
+
+
   def testConfig(self):
     """Tests config validation."""
     # Bad name.
@@ -1372,6 +1466,84 @@ class SamplerTest(unittest.TestCase):
         samples=10,
         tolerance='bad',
         by_domain=True)
+
+  def testSampleProfile(self):
+    """Profiles the sample method with lots of data."""
+    print 'Tracked objects start',len(gc.get_objects())
+    config = dos.ReservoirConfig(
+        'testing',
+        period=10,
+        rate=1,
+        samples=10000,
+        by_domain=True)
+    sampler = dos.MultiSampler([config])
+    reporter = dos.Reporter()
+    fake_urls = ['http://example-%s.com/meep' % i
+                 for i in xrange(100)]
+    for i in xrange(100000):
+      reporter.set(random.choice(fake_urls), config, random.randint(0, 10000))
+    del fake_urls
+    gc.collect()
+    dos._DOMAIN_CACHE.clear()
+
+    gc.disable()
+    gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
+    try:
+      # Swap the two following lines to profile memory vs. CPU
+      sampler.sample(reporter)
+      #cProfile.runctx('sampler.sample(reporter)', globals(), locals())
+      memcache.flush_all()  # Clear the string references
+      print 'Tracked objects before collection', len(gc.get_objects())
+      dos._DOMAIN_CACHE.clear()
+      del reporter
+      del sampler
+    finally:
+      print 'Unreachable', gc.collect()
+      print 'Tracked objects after collection', len(gc.get_objects())
+      gc.set_debug(0)
+      gc.enable()
+
+  def testGetProfile(self):
+    """Profiles the get method when there's lots of data."""
+    print 'Tracked objects start',len(gc.get_objects())
+    config = dos.ReservoirConfig(
+        'testing',
+        period=10,
+        rate=1,
+        samples=10000,
+        by_domain=True)
+    sampler = dos.MultiSampler([config])
+    reporter = dos.Reporter()
+    fake_urls = ['http://example-%s.com/meep' % i
+                 for i in xrange(100)]
+    for i in xrange(100000):
+      reporter.set(random.choice(fake_urls), config, random.randint(0, 10000))
+    del fake_urls
+    dos._DOMAIN_CACHE.clear()
+    gc.collect()
+    sampler.sample(reporter)
+
+    gc.disable()
+    gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
+    try:
+      # Swap the two following lines to profile memory vs. CPU
+      result = sampler.get(config)
+      #cProfile.runctx('result = sampler.get(config)', globals(), locals())
+      memcache.flush_all()  # Clear the string references
+      print 'Tracked objects before collection', len(gc.get_objects())
+      try:
+        del locals()['result']
+        del result
+      except:
+        pass
+      dos._DOMAIN_CACHE.clear()
+      del reporter
+      del sampler
+    finally:
+      print 'Unreachable', gc.collect()
+      print 'Tracked objects after collection', len(gc.get_objects())
+      gc.set_debug(0)
+      gc.enable()
 
 ################################################################################
 

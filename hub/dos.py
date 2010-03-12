@@ -17,6 +17,7 @@
 
 """Decorators and utilities for attack protection and statistics gathering."""
 
+import gc
 import logging
 import os
 import random
@@ -197,9 +198,21 @@ DOMAIN_SUFFIX_EXCEPTIONS = frozenset([
   'livejournal.com',
 ])
 
+# Maximum size of the cache of URLs to domains.
+DOMAIN_CACHE_SIZE = 100
+
+# Simple local cache used for per-request URL to domain mappings.
+_DOMAIN_CACHE = {}
+
 
 def get_url_domain(url):
   """Returns the domain for a URL or 'bad_url if it's not a valid URL."""
+  result = _DOMAIN_CACHE.get(url)
+  if result is not None:
+    return result
+  if len(_DOMAIN_CACHE) >= DOMAIN_CACHE_SIZE:
+    _DOMAIN_CACHE.clear()
+
   match = URL_DOMAIN_RE.match(url)
   if match:
     groups = list(match.groups())
@@ -209,7 +222,10 @@ def get_url_domain(url):
     groups = filter(bool, groups)
   else:
     groups = []
-  return (groups + ['bad_url'])[0]
+  result = (groups + ['bad_url'])[0]
+
+  _DOMAIN_CACHE[url] = result
+  return result
 
 ################################################################################
 
@@ -402,7 +418,11 @@ class ReservoirConfig(object):
       value = key
     else:
       value = get_url_domain(key)
-    return unicode(value[:self.max_value_length]).encode('utf-8')
+    if len(value) > self.max_value_length:
+      value = value[:self.max_value_length]
+    if isinstance(value, unicode):
+      value = unicode(value).encode('utf-8')
+    return value
 
   def should_sample(self, key, coin_flip):
     """Checks if the key should be sampled.
@@ -804,6 +824,10 @@ class MultiSampler(object):
     Returns:
       SampleResult object containing the result data.
     """
+    # Make sure the key is converted into the format expected by the config.
+    if single_key is not None:
+      single_key = config.adjust_value(single_key)
+
     keys = [config.start_key, config.counter_key]
     for i in xrange(config.samples):
       keys.append(config.position_key(i))
@@ -849,6 +873,29 @@ class MultiSampler(object):
       results.set_single_sample(single_key)
 
     return results
+
+  def get_chain(self, *configs, **kwargs):
+    """Gets statistics for a set of configs, optionally for a single key.
+
+    For retrieving multiple configs sequentially in a way that ensures that
+    the memory usage of the previous result is garbage collected before the
+    next one is returned.
+
+    Args:
+      *configs: Set of configs to retrieve.
+      **kwargs: Keyword arguments to pass to the 'get' method of this class.
+
+    Returns:
+      Generator that yields each SampleResult object for each config.
+    """
+    for config in configs:
+      result = self.get(config, **kwargs)
+      yield result
+      del result
+      # NOTE: This kinda sucks, but the result sets are really large so
+      # we need to make sure the garbage collector is doing its job so we
+      # don't run bloat memory over the course of a single stats request.
+      gc.collect()
 
 ################################################################################
 

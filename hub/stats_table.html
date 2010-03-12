@@ -5,7 +5,7 @@
   {% if show_everything %}
   <span>Total samples: {{result.total_samples}}</span>
   <span>Unique keys: {{result.unique_samples}}</span>
-  <span>Overall rate: {{result.overall_rate|floatformat:"-4"}}</span>
+  <span>Overall rate: {{result.overall_rate|floatformat:"-4"}}/sec</span>
   {% endif %}
 </div>
 {% if result.unique_samples %}

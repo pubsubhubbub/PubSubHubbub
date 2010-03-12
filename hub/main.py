@@ -2883,18 +2883,18 @@ class TopicDetailHandler(webapp.RequestHandler):
         'last_header_footer': feed.header_footer,
         'fetch_blocked': not fetch_score[0],
         'fetch_errors': fetch_score[1] * 100,
-        'fetch_url_error': [
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE, topic_url),
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE, topic_url),
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR, topic_url),
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY, topic_url),
-        ],
-        'fetch_url_latency': [
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE_LATENCY, topic_url),
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE_LATENCY, topic_url),
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR_LATENCY, topic_url),
-            FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY_LATENCY, topic_url),
-        ],
+        'fetch_url_error': FETCH_SAMPLER.get_chain(
+            FETCH_URL_SAMPLE_MINUTE,
+            FETCH_URL_SAMPLE_30_MINUTE,
+            FETCH_URL_SAMPLE_HOUR,
+            FETCH_URL_SAMPLE_DAY,
+            single_key=topic_url),
+        'fetch_url_latency': FETCH_SAMPLER.get_chain(
+            FETCH_URL_SAMPLE_MINUTE_LATENCY,
+            FETCH_URL_SAMPLE_30_MINUTE_LATENCY,
+            FETCH_URL_SAMPLE_HOUR_LATENCY,
+            FETCH_URL_SAMPLE_DAY_LATENCY,
+            single_key=topic_url),
       }
 
       fetch = FeedToFetch.get_by_topic(topic_url)
@@ -2958,42 +2958,30 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
           for e in failed_events],
         'delivery_blocked': not delivery_score[0],
         'delivery_errors': delivery_score[1] * 100,
-        'delivery_url_error': [
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE, callback_url),
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE, callback_url),
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR, callback_url),
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY, callback_url),
-        ],
-        'delivery_url_latency': [
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE_LATENCY,
-                                 callback_url),
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY,
-                                 callback_url),
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR_LATENCY,
-                                 callback_url),
-            DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY_LATENCY,
-                                 callback_url),
-        ],
-        'delivery_domain_error': [
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE,
-                                 callback_domain),
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
-                                 callback_domain),
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR,
-                                 callback_domain),
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY,
-                                 callback_domain),
-        ],
-        'delivery_domain_latency': [
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
-                                 callback_domain),
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
-                                 callback_domain),
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
-                                 callback_domain),
-            DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY,
-                                 callback_domain),
-        ],
+        'delivery_url_error': DELIVERY_SAMPLER.get_chain(
+            DELIVERY_URL_SAMPLE_MINUTE,
+            DELIVERY_URL_SAMPLE_30_MINUTE,
+            DELIVERY_URL_SAMPLE_HOUR,
+            DELIVERY_URL_SAMPLE_DAY,
+            single_key=callback_url),
+        'delivery_url_latency': DELIVERY_SAMPLER.get_chain(
+            DELIVERY_URL_SAMPLE_MINUTE_LATENCY,
+            DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY,
+            DELIVERY_URL_SAMPLE_HOUR_LATENCY,
+            DELIVERY_URL_SAMPLE_DAY_LATENCY,
+            single_key=callback_url),
+        'delivery_domain_error': DELIVERY_SAMPLER.get_chain(
+            DELIVERY_DOMAIN_SAMPLE_MINUTE,
+            DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
+            DELIVERY_DOMAIN_SAMPLE_HOUR,
+            DELIVERY_DOMAIN_SAMPLE_DAY,
+            single_key=callback_url),
+        'delivery_domain_latency': DELIVERY_SAMPLER.get_chain(
+            DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
+            DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+            DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
+            DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY,
+            single_key=callback_url),
       })
 
     self.response.out.write(template.render('event_details.html', context))
@@ -3010,54 +2998,46 @@ class StatsHandler(webapp.RequestHandler):
 
   def get(self):
     context = {
-      'fetch_url_error': [
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE),
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE),
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR),
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY),
-      ],
-      'fetch_url_latency': [
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_MINUTE_LATENCY),
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_30_MINUTE_LATENCY),
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_HOUR_LATENCY),
-          FETCH_SAMPLER.get(FETCH_URL_SAMPLE_DAY_LATENCY),
-      ],
-      'fetch_domain_error': [
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_MINUTE),
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_30_MINUTE),
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_HOUR),
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_DAY),
-      ],
-      'fetch_domain_latency': [
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_MINUTE_LATENCY),
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_30_MINUTE_LATENCY),
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_HOUR_LATENCY),
-          FETCH_SAMPLER.get(FETCH_DOMAIN_SAMPLE_DAY_LATENCY),
-      ],
-      'delivery_url_error': [
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE),
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE),
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR),
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY),
-      ],
-      'delivery_url_latency': [
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_MINUTE_LATENCY),
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY),
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_HOUR_LATENCY),
-          DELIVERY_SAMPLER.get(DELIVERY_URL_SAMPLE_DAY_LATENCY),
-      ],
-      'delivery_domain_error': [
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE),
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE),
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR),
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY),
-      ],
-      'delivery_domain_latency': [
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY),
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY),
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY),
-          DELIVERY_SAMPLER.get(DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY),
-      ],
+      'fetch_url_error': FETCH_SAMPLER.get_chain(
+          FETCH_URL_SAMPLE_MINUTE,
+          FETCH_URL_SAMPLE_30_MINUTE,
+          FETCH_URL_SAMPLE_HOUR,
+          FETCH_URL_SAMPLE_DAY),
+      'fetch_url_latency': FETCH_SAMPLER.get_chain(
+          FETCH_URL_SAMPLE_MINUTE_LATENCY,
+          FETCH_URL_SAMPLE_30_MINUTE_LATENCY,
+          FETCH_URL_SAMPLE_HOUR_LATENCY,
+          FETCH_URL_SAMPLE_DAY_LATENCY),
+      'fetch_domain_error': FETCH_SAMPLER.get_chain(
+          FETCH_DOMAIN_SAMPLE_MINUTE,
+          FETCH_DOMAIN_SAMPLE_30_MINUTE,
+          FETCH_DOMAIN_SAMPLE_HOUR,
+          FETCH_DOMAIN_SAMPLE_DAY),
+      'fetch_domain_latency': FETCH_SAMPLER.get_chain(
+          FETCH_DOMAIN_SAMPLE_MINUTE_LATENCY,
+          FETCH_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+          FETCH_DOMAIN_SAMPLE_HOUR_LATENCY,
+          FETCH_DOMAIN_SAMPLE_DAY_LATENCY),
+      'delivery_url_error': DELIVERY_SAMPLER.get_chain(
+          DELIVERY_URL_SAMPLE_MINUTE,
+          DELIVERY_URL_SAMPLE_30_MINUTE,
+          DELIVERY_URL_SAMPLE_HOUR,
+          DELIVERY_URL_SAMPLE_DAY),
+      'delivery_url_latency': DELIVERY_SAMPLER.get_chain(
+          DELIVERY_URL_SAMPLE_MINUTE_LATENCY,
+          DELIVERY_URL_SAMPLE_30_MINUTE_LATENCY,
+          DELIVERY_URL_SAMPLE_HOUR_LATENCY,
+          DELIVERY_URL_SAMPLE_DAY_LATENCY),
+      'delivery_domain_error': DELIVERY_SAMPLER.get_chain(
+          DELIVERY_DOMAIN_SAMPLE_MINUTE,
+          DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
+          DELIVERY_DOMAIN_SAMPLE_HOUR,
+          DELIVERY_DOMAIN_SAMPLE_DAY),
+      'delivery_domain_latency': DELIVERY_SAMPLER.get_chain(
+          DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
+          DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+          DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
+          DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY),
     }
     all_configs = []
     all_configs.extend(FETCH_SAMPLER.configs)
