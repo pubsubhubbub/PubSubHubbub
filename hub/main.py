@@ -2970,19 +2970,23 @@ class SubscriptionDetailHandler(webapp.RequestHandler):
             DELIVERY_URL_SAMPLE_HOUR_LATENCY,
             DELIVERY_URL_SAMPLE_DAY_LATENCY,
             single_key=callback_url),
-        'delivery_domain_error': DELIVERY_SAMPLER.get_chain(
-            DELIVERY_DOMAIN_SAMPLE_MINUTE,
-            DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
-            DELIVERY_DOMAIN_SAMPLE_HOUR,
-            DELIVERY_DOMAIN_SAMPLE_DAY,
-            single_key=callback_url),
-        'delivery_domain_latency': DELIVERY_SAMPLER.get_chain(
-            DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
-            DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
-            DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
-            DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY,
-            single_key=callback_url),
       })
+      # Only show the domain stats when the subscription had a secret.
+      if subscription.secret or users.is_current_user_admin():
+        context.update({
+          'delivery_domain_error': DELIVERY_SAMPLER.get_chain(
+              DELIVERY_DOMAIN_SAMPLE_MINUTE,
+              DELIVERY_DOMAIN_SAMPLE_30_MINUTE,
+              DELIVERY_DOMAIN_SAMPLE_HOUR,
+              DELIVERY_DOMAIN_SAMPLE_DAY,
+              single_key=callback_url),
+          'delivery_domain_latency': DELIVERY_SAMPLER.get_chain(
+              DELIVERY_DOMAIN_SAMPLE_MINUTE_LATENCY,
+              DELIVERY_DOMAIN_SAMPLE_30_MINUTE_LATENCY,
+              DELIVERY_DOMAIN_SAMPLE_HOUR_LATENCY,
+              DELIVERY_DOMAIN_SAMPLE_DAY_LATENCY,
+              single_key=callback_url),
+        })
 
     self.response.out.write(template.render('event_details.html', context))
 
