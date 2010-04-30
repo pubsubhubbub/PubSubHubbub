@@ -109,17 +109,6 @@ class UtilityFunctionTest(unittest.TestCase):
            u'/07256788297315478906/label/\u30d6\u30ed\u30b0\u8846')
     self.assertEquals(good_iri, main.normalize_iri(iri))
 
-  def testRetryDatastoreOp(self):
-    """Tests the retry_datastore_op function."""
-    tries = [0]
-    def my_func():
-      tries[0] += 1
-      raise db.Error('Doh')
-    self.assertRaises(db.Error,
-                      main.retry_datastore_op,
-                      my_func)
-    self.assertEquals(5, tries[0])
-
 ################################################################################
 
 class TestWorkQueueHandler(webapp.RequestHandler):
@@ -1130,11 +1119,14 @@ u"""<?xml version="1.0" encoding="utf-8"?>
   def testQueuePreserved(self):
     """Tests that enqueueing an EventToDeliver preserves the polling queue."""
     event, work_key, sub_list, sub_keys = self.insert_subscriptions()
-    event.enqueue()
+    def txn():
+      event.enqueue()
+    db.run_in_transaction(txn)
+
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
     os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
     try:
-      event.enqueue()
+      db.run_in_transaction(txn)
     finally:
       del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
