@@ -311,7 +311,7 @@ class KnownFeedIdentityTest(unittest.TestCase):
     KnownFeedIdentity.update(self.feed_id2, self.topic3)
     KnownFeedIdentity.update(self.feed_id2, self.topic4)
 
-    # topic5 -> KnownFeed missing; should not be expanded at all
+    # topic5 -> KnownFeed missing; default to simple mapping
     # topic6 -> KnownFeed where feed_id = None; default to simple mapping
     KnownFeed.create(self.topic6).put()
 
@@ -322,6 +322,7 @@ class KnownFeedIdentityTest(unittest.TestCase):
         self.topic2, self.topic3, self.topic4])
 
     expected = {
+      'http://example.com/woot5': set(['http://example.com/woot5']),
       'http://example.com/foobar1':
           set(['http://example.com/foobar1', 'http://example.com/meep2']),
       'http://example.com/meep2':
@@ -1183,15 +1184,6 @@ class PublishHandlerTest(testutil.HandlerTestBase):
     expected_topics = set([self.topic, self.topic2, self.topic3])
     inserted_topics = set(f.topic for f in FeedToFetch.all())
     self.assertEquals(expected_topics, inserted_topics)
-
-  def testIgnoreUnknownFeed(self):
-    self.handle('post',
-                ('hub.mode', 'PuBLisH'),
-                ('hub.url', self.topic),
-                ('hub.url', self.topic2),
-                ('hub.url', self.topic3))
-    self.assertEquals(204, self.response_code())
-    self.assertEquals([], list(FeedToFetch.all()))
 
   def testDuplicateUrls(self):
     db.put([KnownFeed.create(self.topic),
