@@ -34,7 +34,7 @@ def fetch(url, payload=None, method=urlfetch.GET, headers={},
     allow_truncated: if true, truncate large responses and return them without
       error. otherwise, ResponseTooLargeError will be thrown when a response is
       truncated.
-    follow_redirects: TODO
+    follow_redirects: Whether or not redirects should be followed.
     callback: Callable that takes (_URLFetchResult, URLFetchException).
       Exactly one of the two arguments is None. Required if async_proxy is
       not None.
