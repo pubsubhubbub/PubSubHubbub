@@ -22,7 +22,8 @@ from google.appengine.runtime import apiproxy_errors
 
 
 def fetch(url, payload=None, method=urlfetch.GET, headers={},
-          allow_truncated=False, callback=None, async_proxy=None,
+          allow_truncated=False, follow_redirects=True,
+          callback=None, async_proxy=None,
           deadline=5):
   """Fetches the given HTTP URL, blocking until the result is returned.
 
@@ -33,6 +34,7 @@ def fetch(url, payload=None, method=urlfetch.GET, headers={},
     allow_truncated: if true, truncate large responses and return them without
       error. otherwise, ResponseTooLargeError will be thrown when a response is
       truncated.
+    follow_redirects: TODO
     callback: Callable that takes (_URLFetchResult, URLFetchException).
       Exactly one of the two arguments is None. Required if async_proxy is
       not None.
@@ -73,6 +75,8 @@ def fetch(url, payload=None, method=urlfetch.GET, headers={},
     request.set_method(urlfetch_service_pb.URLFetchRequest.PUT)
   elif method == urlfetch.DELETE:
     request.set_method(urlfetch_service_pb.URLFetchRequest.DELETE)
+
+  request.set_followredirects(follow_redirects)
 
   if payload and (method == urlfetch.POST or method == urlfetch.PUT):
     request.set_payload(payload)

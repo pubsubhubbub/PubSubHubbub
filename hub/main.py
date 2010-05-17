@@ -116,6 +116,7 @@ import async_apiproxy
 import dos
 import feed_diff
 import feed_identifier
+import fork_join_queue
 import urlfetch_async
 
 async_proxy = async_apiproxy.AsyncAPIProxy()
@@ -1054,9 +1055,12 @@ class FeedToFetch(db.Model):
   totally_failed = db.BooleanProperty(default=False)
   source_keys = db.StringListProperty(indexed=False)
   source_values = db.StringListProperty(indexed=False)
+  work_index = db.IntegerProperty()
 
   # TODO(bslatkin): Add fetching failure reason (urlfetch, parsing, etc) and
   # surface it on the topic details page.
+
+  FORK_JOIN_QUEUE = None
 
   @classmethod
   def get_by_topic(cls, topic):
@@ -1089,14 +1093,23 @@ class FeedToFetch(db.Model):
     else:
       source_keys, source_values = [], []
 
-    feed_list = [
-        cls(key_name=get_hash_key_name(topic),
-            topic=topic,
-            source_keys=list(source_keys),
-            source_values=list(source_values))
-        for topic in set(topic_list)]
-    db.put(feed_list)
-    FeedToFetch._enqueue_tasks(feed_list)
+    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      cls.FORK_JOIN_QUEUE.queue_name = POLLING_QUEUE
+    else:
+      cls.FORK_JOIN_QUEUE.queue_name = FEED_QUEUE
+
+    work_index = cls.FORK_JOIN_QUEUE.next_index()
+    try:
+      feed_list = [
+          cls(key_name=get_hash_key_name(topic),
+              topic=topic,
+              source_keys=list(source_keys),
+              source_values=list(source_values),
+              work_index=work_index)
+          for topic in set(topic_list)]
+      db.put(feed_list)
+    finally:
+      cls.FORK_JOIN_QUEUE.add(work_index)
 
   def fetch_failed(self,
                    max_failures=MAX_FEED_PULL_FAILURES,
@@ -1121,7 +1134,7 @@ class FeedToFetch(db.Model):
         logging.warning('Fetching failed. Will retry in %s seconds', retry_delay)
         self.eta = now() + datetime.timedelta(seconds=retry_delay)
         self.fetching_failures += 1
-        FeedToFetch._enqueue_tasks([self])
+        self._enqueue_retry_task()
       self.put()
     db.run_in_transaction(txn)
 
@@ -1145,41 +1158,41 @@ class FeedToFetch(db.Model):
         return False
     return db.run_in_transaction(txn)
 
-  def _get_task(self):
-    """Creates a task that will fetch this feed."""
-    return taskqueue.Task(
-        url='/work/pull_feeds',
-        eta=self.eta,
-        params={'topic': self.topic})
-
-  @staticmethod
-  def _enqueue_tasks(feed_list, transactional=False):
-    """Enqueues a task to fetch the given feeds."""
-    task_dict = {}
-    for feed in feed_list:
-      if feed.fetching_failures > 0:
-        target_queue = FEED_RETRIES_QUEUE
-      elif os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
-        target_queue = POLLING_QUEUE
-      else:
-        target_queue = FEED_QUEUE
-      task_dict.setdefault(target_queue, []).append(feed)
-
+  def _enqueue_retry_task(self):
+    """Enqueues a task to retry fetching this feed."""
     RETRIES = 3
-    for queue_name, feed_list in task_dict.iteritems():
-      for i in xrange(RETRIES):
-        try:
-          taskqueue.Queue(queue_name).add(
-              [f._get_task() for f in feed_list],
-              transactional=transactional)
-        except (taskqueue.Error, apiproxy_errors.Error):
-          logging.exception('Could not insert tasks on queue = %r '
-                            'to fetch topics = %r',
-                            [f.topic for f in feed_list])
-          if i == (RETRIES - 1):
-            raise
-        else:
-          return
+
+    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+      queue_name = POLLING_QUEUE
+    else:
+      queue_name = FEED_RETRIES_QUEUE
+
+    for i in xrange(RETRIES):
+      try:
+        taskqueue.Task(
+            url='/work/pull_feeds',
+            eta=self.eta,
+            params={'topic': self.topic}).add(queue_name, transactional=True)
+      except (taskqueue.Error, apiproxy_errors.Error):
+        if i == (RETRIES - 1):
+          raise
+      else:
+        return
+
+
+FeedToFetch.FORK_JOIN_QUEUE = fork_join_queue.ShardedForkJoinQueue(
+    FeedToFetch,
+    FeedToFetch.work_index,
+    '/work/pull_feeds',
+    FEED_QUEUE,
+    batch_size=15,
+    batch_period_ms=500,
+    lock_timeout_ms=10000,
+    sync_timeout_ms=250,
+    stall_timeout_ms=30000,
+    acquire_timeout_ms=10,
+    acquire_attempts=50,
+    shard_count=1)
 
 
 class FeedRecord(db.Model):
@@ -1212,6 +1225,28 @@ class FeedRecord(db.Model):
       String containing the key name.
     """
     return get_hash_key_name(topic)
+
+  @classmethod
+  def get_or_create_all(cls, topic_list):
+    """Retrieves and/or creates FeedRecord entities for the supplied topics.
+
+    Args:
+      topic_list: List of topics to retrieve.
+
+    Returns:
+      The list of FeedRecords corresponding to the input topic list in the
+      same order they were supplied.
+    """
+    key_list = [db.Key.from_path(cls.kind(), cls.create_key_name(t))
+                for t in topic_list]
+    found_list = db.get(key_list)
+    results = []
+    for topic, key, found in zip(topic_list, key_list, found_list):
+      if found:
+        results.append(found)
+      else:
+        results.append(cls(key=key, topic=topic))
+    return results
 
   @classmethod
   def get_or_create(cls, topic):
@@ -2160,7 +2195,8 @@ class PublishHandlerBase(webapp.RequestHandler):
     # will skip any unused feeds.
     try:
       FeedToFetch.insert(urls, source_dict)
-    except (apiproxy_errors.Error, db.Error, runtime.DeadlineExceededError):
+    except (taskqueue.Error, apiproxy_errors.Error, db.Error,
+            runtime.DeadlineExceededError, fork_join_queue.Error):
       logging.exception('Failed to insert FeedToFetch records')
       self.response.headers['Retry-After'] = '120'
       self.response.set_status(503)
@@ -2285,6 +2321,40 @@ def pull_feed(feed_to_fetch, fetch_url, headers):
       follow_redirects=False,
       deadline=MAX_FETCH_SECONDS)
   return response.status_code, response.headers, response.content
+
+
+def pull_feed_async(feed_to_fetch, fetch_url, headers, async_proxy, callback):
+  """Pulls a feed asynchronously.
+
+  The callback's prototype is:
+    Args:
+      status_code: The response status code.
+      response_headers: Caseless dictionary of response headers.
+      content: The body of the response.
+      exception: apiproxy_errors.Error if any RPC errors are encountered.
+        urlfetch.Error if there are any fetching API errors. None if there
+        were no errors.
+
+  Args:
+    feed_to_fetch: FeedToFetch instance to pull.
+    fetch_url: The URL to fetch. Should be the same as the topic stored on
+      the FeedToFetch instance, but may be different due to redirects.
+    headers: Dictionary of headers to use for doing the feed fetch.
+    async_proxy: AsyncAPIProxy to use for fetching and waiting.
+    callback: Callback function to call after a response has been received.
+  """
+  def wrapper(response, exception):
+    callback(getattr(response, 'status_code', None),
+             getattr(response, 'headers', None),
+             getattr(response, 'content', None),
+             exception)
+
+  urlfetch_async.fetch(fetch_url,
+                       headers=headers,
+                       follow_redirects=False,
+                       async_proxy=async_proxy,
+                       callback=wrapper,
+                       deadline=MAX_FETCH_SECONDS)
 
 
 def inform_event(event_to_deliver):
@@ -2426,97 +2496,130 @@ def parse_feed(feed_record, headers, content):
 class PullFeedHandler(webapp.RequestHandler):
   """Background worker for pulling feeds."""
 
-  @work_queue_only
-  def post(self):
-    topic = self.request.get('topic')
-    work = FeedToFetch.get_by_topic(topic)
-    if not work:
-      logging.debug('No feeds to fetch for topic = %s', topic)
+  def _handle_fetches(self, feed_list):
+    """Handles a set of FeedToFetch records that need to be fetched."""
+    ready_feed_list = []
+    scorer_results = FETCH_SCORER.filter([f.topic for f in feed_list])
+    for to_fetch, (allow, percent) in zip(feed_list, scorer_results):
+      if not allow:
+        logging.warning('Scoring prevented fetch of %r '
+                        'with failure rate %.2f%%',
+                        to_fetch.topic, 100 * percent)
+        to_fetch.done()
+      elif not Subscription.has_subscribers(to_fetch.topic):
+        logging.debug('Ignoring event because there are no subscribers '
+                      'for topic %s', to_fetch.topic)
+        to_fetch.done()
+      else:
+        ready_feed_list.append(to_fetch)
+
+    if not ready_feed_list:
       return
 
-    if not Subscription.has_subscribers(work.topic):
-      logging.debug('Ignoring event because there are no subscribers '
-                    'for topic %s', work.topic)
-      # If there are no subscribers then we should also delete the record of
-      # this being a known feed. This will clean up after the periodic polling.
-      # TODO(bslatkin): Remove possibility of race-conditions here, where a
-      # user starts subscribing to a feed immediately at the same time we do
-      # this kind of pruning.
-      if work.done():
-        db.delete(KnownFeed.create_key(work.topic))
-      return
-
-    allow, percent = FETCH_SCORER.filter([work.topic])[0]
-    if not allow:
-      logging.warning('Scoring prevented fetch of %r with failure rate %.2f%%',
-                      work.topic, 100 * percent)
-      work.done()
-      return
-
-    feed_record = FeedRecord.get_or_create(work.topic)
-    fetch_url = work.topic
+    feed_record_list = FeedRecord.get_or_create_all(
+        [f.topic for f in ready_feed_list])
     start_time = time.time()
-    should_parse = False
-    fetch_success = False
-    for i in xrange(MAX_REDIRECTS):
-      logging.debug('Fetching feed at %s', fetch_url)
-      try:
-        status_code, headers, content = hooks.execute(pull_feed,
-            work, fetch_url, feed_record.get_request_headers())
-      except urlfetch.ResponseTooLargeError:
-        logging.critical('Feed response too large for topic %s at url %s; '
-                         'skipping', work.topic, fetch_url)
-        work.done() #success=False)
-      except urlfetch.InvalidURLError:
-        logging.critical('Invalid redirection for topic %s to url %s; '
-                         'skipping', work.topic, fetch_url)
-        work.done() #success=False)
-      except (apiproxy_errors.Error, urlfetch.Error):
-        error_traceback = traceback.format_exc()
-        logging.warning('Failed to fetch topic %s at url %s:\n%s',
-                        work.topic, fetch_url, error_traceback)
-        work.fetch_failed()
+    reporter = dos.Reporter()
+    successful_topics = []
+    failed_topics = []
+
+    def create_callback(feed_record, work, fetch_url, attempts):
+      return lambda *args: callback(
+          feed_record, work, fetch_url, attempts, *args)
+
+    def callback(feed_record, work, fetch_url, attempts,
+                 status_code, headers, content, exception):
+      should_parse = False
+      fetch_success = False
+      if exception:
+        if isinstance(exception, urlfetch.ResponseTooLargeError):
+          logging.critical('Feed response too large for topic %r at url %r; '
+                           'skipping', work.topic, fetch_url)
+          work.done()
+        elif isinstance(exception, urlfetch.InvalidURLError):
+          logging.critical('Invalid redirection for topic %r to url %r; '
+                           'skipping', work.topic, fetch_url)
+          work.done()
+        elif isinstance(exception, (apiproxy_errors.Error, urlfetch.Error)):
+          logging.warning('Failed to fetch topic %r at url %r. %s: %s',
+                          work.topic, fetch_url, exception.__class__, exception)
+          work.fetch_failed()
+        else:
+          logging.critical('Unexpected exception fetching topic %r. %s: %s',
+                           work.topic, exception.__class__, exception)
+          work.fetch_failed()
       else:
         if status_code == 200:
           should_parse = True
         elif status_code in (301, 302, 303, 307) and 'Location' in headers:
           fetch_url = headers['Location']
-          logging.debug('Feed publisher returned %d redirect to "%s"',
-                        status_code, fetch_url)
-          continue
+          logging.debug('Feed publisher for topic %r returned %d '
+                        'redirect to %r', work.topic, status_code, fetch_url)
+          if attempts >= MAX_REDIRECTS:
+            logging.warning('Too many redirects!')
+            work.fetch_failed()
+          else:
+            # Recurse to do the refetch.
+            hooks.execute(pull_feed_async,
+                work, fetch_url, feed_record.get_request_headers(), async_proxy,
+                create_callback(feed_record, work, fetch_url, attempts + 1))
+            return
         elif status_code == 304:
-          logging.debug('Feed publisher returned 304 response (cache hit)')
+          logging.debug('Feed publisher for topic %r returned '
+                        '304 response (cache hit)', work.topic)
           work.done()
           fetch_success = True
         else:
-          logging.warning('Received bad status_code = %s, response_headers = %r',
-                          status_code, headers)
+          logging.warning('Received bad response for topic = %r, '
+                          'status_code = %s, response_headers = %r',
+                          work.topic, status_code, headers)
           work.fetch_failed()
 
-      # Falling through to this point means we're done with any redirects.
-      break
-    else:
-      # This means we've done too many redirects and will fail this fetch.
-      logging.warning('Too many redirects!')
-      work.fetch_failed()
+      # Fetch is done one way or another.
+      end_time = time.time()
+      latency = int((end_time - start_time) * 1000)
+      if should_parse:
+        if parse_feed(feed_record, headers, content):
+          fetch_success = True
+          work.done()
+        else:
+          work.fetch_failed()
 
-    end_time = time.time()
-    latency = int((end_time - start_time) * 1000)
-    if should_parse:
-      if parse_feed(feed_record, headers, content):
-        fetch_success = True
-        work.done()
+      if fetch_success:
+        successful_topics.append(work.topic)
       else:
-        work.fetch_failed()
+        failed_topics.append(work.topic)
+      report_fetch(reporter, work.topic, fetch_success, latency)
+      # End callback
 
-    if fetch_success:
-      FETCH_SCORER.report([work.topic], [])
+    # Fire off a fetch for every work item and wait for all callbacks.
+    for work, feed_record in zip(ready_feed_list, feed_record_list):
+      hooks.execute(pull_feed_async,
+          work, work.topic, feed_record.get_request_headers(), async_proxy,
+          create_callback(feed_record, work, work.topic, 1))
+
+    try:
+      async_proxy.wait()
+    except runtime.DeadlineExceededError:
+      logging.error('Could not finish all fetches due to deadline.')
     else:
-      FETCH_SCORER.report([], [work.topic])
+      # Only update stats if we are not dealing with a deadlined request.
+      FETCH_SCORER.report(successful_topics, failed_topics)
+      FETCH_SAMPLER.sample(reporter)
 
-    reporter = dos.Reporter()
-    report_fetch(reporter, work.topic, fetch_success, latency)
-    FETCH_SAMPLER.sample(reporter)
+  @work_queue_only
+  def post(self):
+    topic = self.request.get('topic')
+    if topic:
+      # For compatibility with old tasks and retry tasks.
+      work = FeedToFetch.get_by_topic(topic)
+      if not work:
+        logging.debug('No feeds to fetch for topic = %s', topic)
+        return
+      self._handle_fetches([work])
+    else:
+      work_list = FeedToFetch.FORK_JOIN_QUEUE.pop(self.request)
+      self._handle_fetches(work_list)
 
 ################################################################################
 # Event delivery
@@ -2664,7 +2767,8 @@ def take_polling_action(topic_list, poll_type):
     else:
       FeedToFetch.insert(topic_list)
   except (taskqueue.Error, apiproxy_errors.Error,
-          db.Error, runtime.DeadlineExceededError):
+          db.Error, runtime.DeadlineExceededError,
+          fork_join_queue.Error):
     logging.exception('Could not take polling action '
                       'of type %r for topics: %s', poll_type, topic_list)
 
@@ -3270,6 +3374,7 @@ hooks.declare(inform_event)
 hooks.declare(modify_handlers)
 hooks.declare(preprocess_urls)
 hooks.declare(pull_feed)
+hooks.declare(pull_feed_async)
 hooks.declare(push_event)
 hooks.declare(take_polling_action)
 hooks.load()

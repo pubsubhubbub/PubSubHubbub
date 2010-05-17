@@ -50,8 +50,12 @@ def fix_path():
       return
 
 
-def setup_for_testing():
-  """Sets up the stubs for testing."""
+def setup_for_testing(require_indexes=True):
+  """Sets up the stubs for testing.
+
+  Args:
+    require_indexes: True if indexes should be required for all indexes.
+  """
   from google.appengine.api import apiproxy_stub_map
   from google.appengine.api import memcache
   from google.appengine.tools import dev_appserver
@@ -68,7 +72,7 @@ def setup_for_testing():
         datastore_path=tempfile.mktemp(suffix='datastore_stub'),
         history_path=tempfile.mktemp(suffix='datastore_history'),
         blobstore_path=tempfile.mktemp(suffix='blobstore_stub'),
-        require_indexes=True,
+        require_indexes=require_indexes,
         clear_datastore=False)
     dev_appserver_index.SetupIndexes(TEST_APP_ID, root_path)
     apiproxy_stub_map.apiproxy._APIProxyStubMap__stub_map['urlfetch'] = \
@@ -214,7 +218,7 @@ class HandlerTestBase(unittest.TestCase):
     return self.resp.headers
 
 
-def get_tasks(queue_name, index=None, expected_count=None):
+def get_tasks(queue_name, index=None, expected_count=None, usec_eta=False):
   """Retrieves Tasks from the supplied named queue.
 
   Args:
@@ -223,6 +227,8 @@ def get_tasks(queue_name, index=None, expected_count=None):
     expected_count: If not None, the number of tasks expected to be in the
       queue. This function will raise an AssertionError exception if there are
       more or fewer tasks.
+    usec_eta: If ETAs should be formatted as microseconds since the UNIX epoch.
+      When False, the ETA will be rendered as a string.
 
   Returns:
     List of dictionaries corresponding to each task, with the keys: 'name',
@@ -232,7 +238,20 @@ def get_tasks(queue_name, index=None, expected_count=None):
   """
   from google.appengine.api import apiproxy_stub_map
   stub = apiproxy_stub_map.apiproxy.GetStub('taskqueue')
-  tasks = stub.GetTasks(queue_name)
+
+  # Gross hack to modify the stub's module-level function to pass through ETAs.
+  if usec_eta:
+    stub_globals = stub.GetTasks.func_globals
+    old_format = stub_globals['_FormatEta']
+    # TODO: Taskqueue stub should have more resolution! This will only be
+    # accurate to the nearest whole second.
+    stub_globals['_FormatEta'] = lambda x: x
+  try:
+    tasks = stub.GetTasks(queue_name)
+  finally:
+    if usec_eta:
+      stub_globals['_FormatEta'] = old_format
+
   if expected_count is not None:
     assert len(tasks) == expected_count, 'found %s == %s' % (
         len(tasks), expected_count)
@@ -242,7 +261,7 @@ def get_tasks(queue_name, index=None, expected_count=None):
     # Convert headers list into a dictionary-- we don't care about repeats
     task['headers'] = dict(task['headers'])
     if ('application/x-www-form-urlencoded' in
-        task['headers'].get('content-type')):
+        task['headers'].get('content-type', '')):
       task['params'] = dict(cgi.parse_qsl(task['body'], True))
   if index is not None:
     return tasks[index]

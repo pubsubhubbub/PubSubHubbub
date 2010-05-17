@@ -726,16 +726,16 @@ class FeedToFetchTest(unittest.TestCase):
     """Tests inserting and getting work."""
     all_topics = [self.topic, self.topic2, self.topic3]
     FeedToFetch.insert(all_topics)
-    found_topics = set(FeedToFetch.get_by_topic(t).topic for t in all_topics)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=3)
-    task_topics = set(t['params']['topic'] for t in tasks)
-    self.assertEquals(found_topics, task_topics)
+    found_feeds = [FeedToFetch.get_by_topic(t) for t in all_topics]
+    found_topics = set(t.topic for t in found_feeds)
+    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
+    self.assertTrue(task['name'].endswith('%d-0' % found_feeds[0].work_index))
 
-    for topic in all_topics:
-      feed_to_fetch = FeedToFetch.get_by_topic(topic)
+    for topic, feed_to_fetch in zip(all_topics, found_feeds):
       self.assertEquals(topic, feed_to_fetch.topic)
       self.assertEquals([], feed_to_fetch.source_keys)
       self.assertEquals([], feed_to_fetch.source_values)
+      self.assertEquals(found_feeds[0].work_index, feed_to_fetch.work_index)
 
   def testEmpty(self):
     """Tests when the list of urls is empty."""
@@ -746,13 +746,14 @@ class FeedToFetchTest(unittest.TestCase):
     """Tests duplicate urls."""
     all_topics = [self.topic, self.topic, self.topic2, self.topic2]
     FeedToFetch.insert(all_topics)
-    found_topics = set(FeedToFetch.get_by_topic(t).topic for t in all_topics)
+    found_feeds = [FeedToFetch.get_by_topic(t) for t in all_topics]
+    found_topics = set(t.topic for t in found_feeds)
     self.assertEquals(set(all_topics), found_topics)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=2)
-    task_topics = set(t['params']['topic'] for t in tasks)
-    self.assertEquals(found_topics, task_topics)
+    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
+    self.assertTrue(task['name'].endswith('%d-0' % found_feeds[0].work_index))
 
   def testDone(self):
+    """Tests marking the feed as completed."""
     FeedToFetch.insert([self.topic])
     feed = FeedToFetch.get_by_topic(self.topic)
     self.assertTrue(feed.done())
@@ -767,6 +768,7 @@ class FeedToFetchTest(unittest.TestCase):
     self.assertTrue(FeedToFetch.get_by_topic(self.topic) is not None)
 
   def testFetchFailed(self):
+    """Tests when the fetch fails and should be retried."""
     start = datetime.datetime.utcnow()
     now = lambda: start
 
@@ -1524,8 +1526,6 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
     self.assertEquals(str(event_key), task['params']['event_key'])
-    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
-    self.assertEquals(self.topic, task['params']['topic'])
 
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
@@ -1558,8 +1558,6 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
     self.assertEquals(str(event_key), task['params']['event_key'])
-    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
-    self.assertEquals(self.topic, task['params']['topic'])
 
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
@@ -1595,8 +1593,6 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
     self.assertEquals(str(event_key), task['params']['event_key'])
-    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
-    self.assertEquals(self.topic, task['params']['topic'])
 
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
@@ -1614,9 +1610,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(feed is None)
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=0))
-    self.assertEquals([self.topic], [t['params']['topic'] for t in tasks])
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=0)
 
     # Parsing errors do not count against the fetching scorer.
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
@@ -1671,9 +1666,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertEquals(1, feed.fetching_failures)
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
-    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    task = testutil.get_tasks(main.FEED_RETRIES_QUEUE,
+                              index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
     self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testPullBadStatusCode(self):
@@ -1686,10 +1682,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(1, feed.fetching_failures)
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
-    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
-
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    task = testutil.get_tasks(main.FEED_RETRIES_QUEUE,
+                              index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
     self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testApiProxyError(self):
@@ -1702,10 +1698,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(1, feed.fetching_failures)
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
-    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
-
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    task = testutil.get_tasks(main.FEED_RETRIES_QUEUE,
+                              index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
     self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testNoSubscribers(self):
@@ -1720,9 +1716,6 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     # Verify that *no* feed entry records have been written.
     self.assertEquals([], FeedEntryRecord.get_entries_for_topic(
                                self.topic, self.all_ids))
-
-    # And any KnownFeeds were deleted.
-    self.assertTrue(db.get(KnownFeed.create_key(self.topic)) is None)
 
     # And there is no EventToDeliver or tasks.
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
@@ -1776,9 +1769,10 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(EventToDeliver.all().get() is None)
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
-    self.assertEquals([self.topic] * 2, [t['params']['topic'] for t in tasks])
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    task = testutil.get_tasks(main.FEED_RETRIES_QUEUE,
+                              index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
 
     self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
@@ -1848,9 +1842,8 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
     self.assertEquals(str(event_key), task['params']['event_key'])
-    task = testutil.get_tasks(main.FEED_QUEUE, index=0, expected_count=1)
-    self.assertEquals(self.topic, task['params']['topic'])
-
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=0)
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testPutSplittingFails(self):
@@ -1891,7 +1884,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(None, EventToDeliver.all().get())
 
     record = FeedRecord.all().get()
-    self.assertNotEquals(self.etag, record.etag)
+    self.assertEquals(None, record)
 
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
 
@@ -1953,12 +1946,11 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
     self.assertEquals(str(event_key), task['params']['event_key'])
-    tasks = testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
-    tasks.extend(testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=1))
-    for task in tasks:
-      self.assertEquals(self.topic, task['params']['topic'])
-
-      self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
+    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    task = testutil.get_tasks(main.FEED_RETRIES_QUEUE,
+                              index=0, expected_count=1)
+    self.assertEquals(self.topic, task['params']['topic'])
+    self.assertEquals([(0, 1)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testNotAllowed(self):
     """Tests when the URL fetch is blocked due to URL scoring."""
@@ -2080,6 +2072,48 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertTrue(feed is None)
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
+
+  def testMultipleFetch(self):
+    """Tests doing multiple fetches asynchronously in parallel."""
+    data = ('<?xml version="1.0" encoding="utf-8"?>\n<feed><my header="data"/>'
+            '<entry><id>1</id><updated>123</updated>wooh</entry></feed>')
+    topic_base = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    topic_list = [topic_base + '1', topic_base + '2', topic_base + '3']
+    FeedToFetch.insert(topic_list)
+    for topic in topic_list:
+      urlfetch_test_stub.instance.expect('get', topic, 200, data)
+      self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
+
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = testutil.get_tasks(
+        main.FEED_QUEUE, index=0, expected_count=1)['name']
+    try:
+      self.handle('post')
+    finally:
+      del os.environ['HTTP_X_APPENGINE_TASKNAME']
+
+    # Feed to fetch removed.
+    self.assertEquals([], list(FeedToFetch.all()))
+    self.assertEquals([(3, 0), (3, 0), (3, 0)],  # 3 because of shared domain
+                      main.FETCH_SCORER.get_scores(topic_list))
+
+    # All events written and correct.
+    all_events = list(EventToDeliver.all())
+    all_topics = [e.topic for e in all_events]
+    self.assertEquals(3, len(all_events))
+    self.assertEquals(set(topic_list), set(all_topics))
+    event_tasks = testutil.get_tasks(main.EVENT_QUEUE, expected_count=3)
+    self.assertEquals(set(str(e.key()) for e in all_events),
+                      set(task['params']['event_key'] for task in event_tasks))
+
+    # All feed records written.
+    all_records = list(FeedEntryRecord.all())
+    all_parents = set(db.Key.from_path(FeedRecord.kind(),
+                                       FeedRecord.create_key_name(topic))
+                      for topic in topic_list)
+    found_parents = set(r.parent().key() for r in all_records)
+    self.assertEquals(3, len(found_parents))
+    self.assertEquals(found_parents, all_parents)
 
 ################################################################################
 
@@ -3514,10 +3548,16 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     # Run this task twice; the second time should do nothing.
     self.handle('post', *task['params'].items())
     self.handle('post', *task['params'].items())
-    confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=5))
 
     # Last task will find no more work to do.
     task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=6)
+    if 'time_offset' not in task['params']:
+      logging.info("FAIL!")
+      task = testutil.get_tasks(main.POLLING_QUEUE, index=5)
+      confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=4))
+    else:
+      confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=5))
+
     self.handle('post', *task['params'].items())
     testutil.get_tasks(main.POLLING_QUEUE, expected_count=6)
 
@@ -3632,10 +3672,11 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     self.assertTrue(FeedToFetch.get_by_topic(topic3) is None)
 
     # Running this handler again will overwrite the FeedToFetch instances,
-    # add tasks for them, but it will not duplicate the polling queue Task in
-    # the chain of iterating through all KnownFeed entries.
+    # but it will not duplicate the polling queue Task in the chain of
+    # iterating through all KnownFeed entries or the fork-join queue task that
+    # will do the actual fetching.
     self.handle('post', *task['params'].items())
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=4)
+    task = testutil.get_tasks(main.POLLING_QUEUE, index=1, expected_count=3)
     self.assertEquals(sequence, task['params']['sequence'])
     self.assertEquals('bootstrap', task['params']['poll_type'])
     self.assertEquals(str(KnownFeed.create_key(topic2)),
@@ -3652,7 +3693,13 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
     # the continuation task to prevent doing any more work in the current cycle.
     self.handle('post', *task['params'].items())
 
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=6)
+    task_list = testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
+
+    # Deal with a stupid race condition
+    task = task_list[2]
+    if 'params' not in task:
+      task = task_list[3]
+
     self.assertEquals(sequence, task['params']['sequence'])
     self.assertEquals('bootstrap', task['params']['poll_type'])
     self.assertEquals(str(KnownFeed.create_key(topic3)),
@@ -3661,7 +3708,7 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
 
     # Starting the cycle again will do nothing.
     self.handle('get')
-    testutil.get_tasks(main.POLLING_QUEUE, expected_count=6)
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
 
     # Resetting the next start time to before the present time will
     # cause the iteration to start again.
@@ -3670,7 +3717,14 @@ class PollBootstrapHandlerTest(testutil.HandlerTestBase):
         datetime.datetime.utcnow() - datetime.timedelta(seconds=120)
     db.put(the_mark)
     self.handle('get')
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=6, expected_count=7)
+
+    task_list = testutil.get_tasks(main.POLLING_QUEUE, expected_count=5)
+    
+    # Deal with stupid race condition
+    task = task_list[4]
+    if 'params' not in task:
+      task = task_list[3]
+
     self.assertNotEquals(sequence, task['params']['sequence'])
 
   def testRecord(self):
