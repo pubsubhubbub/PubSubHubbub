@@ -2392,7 +2392,7 @@ def inform_event(event_to_deliver):
   pass
 
 
-def parse_feed(feed_record, headers, content):
+def parse_feed(feed_record, headers, content, true_on_bad_feed=True):
   """Parses a feed's content, determines changes, enqueues notifications.
 
   This function will only enqueue new notifications if the feed has changed.
@@ -2402,6 +2402,10 @@ def parse_feed(feed_record, headers, content):
     headers: Dictionary of response headers found during feed fetching (may
         be empty).
     content: The feed document possibly containing new entries.
+    true_on_bad_feed: When True, return True when the feed's format is
+      beyond hope and there's no chance of parsing it correctly. When
+      False the error will be propagated up to the caller with a False
+      response to this function.
 
   Returns:
     True if successfully parsed the feed content; False on error.
@@ -2437,13 +2441,13 @@ def parse_feed(feed_record, headers, content):
                       feed_record.topic, error_traceback)
       # Yes-- returning True here. This feed is beyond all hope because we just
       # don't support this character encoding presently.
-      return True
+      return true_on_bad_feed
 
   if parse_failures == len(order):
     logging.error('Could not parse feed; giving up:\n%s', error_traceback)
     # That's right, we return True. This will cause the fetch to be
     # abandoned on parse failures because the feed is beyond hope!
-    return True
+    return true_on_bad_feed
 
   # If we have more entities than we'd like to handle, only save a subset of
   # them and force this task to retry as if it failed. This will cause two
@@ -2500,16 +2504,24 @@ def parse_feed(feed_record, headers, content):
     if event_to_deliver:
       event_to_deliver.enqueue()
 
-  for i in xrange(PUT_SPLITTING_ATTEMPTS):
-    try:
-      db.run_in_transaction(txn)
-      break
-    except (db.BadRequestError, apiproxy_errors.RequestTooLargeError):
-      pass
-  else:
-    logging.critical('Insertion of event to delivery *still* failing due to '
-                     'request size; dropping event for %s', feed_record.topic)
-    return True
+  try:
+    for i in xrange(PUT_SPLITTING_ATTEMPTS):
+      try:
+        db.run_in_transaction(txn)
+        break
+      except (db.BadRequestError, apiproxy_errors.RequestTooLargeError):
+        pass
+    else:
+      logging.critical('Insertion of event to delivery *still* failing due to '
+                       'request size; dropping event for %s', feed_record.topic)
+      return true_on_bad_feed
+  except (db.TransactionFailedError, db.Timeout):
+    # Datastore failure will cause a refetch and reparse of the feed as if
+    # the fetch attempt failed, instead of relying on the task queue to do
+    # this retry for us. This ensures the queue throughputs stay consistent.
+    logging.exception('Could not submit transaction for topic %r',
+                      feed_record.topic)
+    return False
 
   # Inform any hooks that there will is a new event to deliver that has
   # been recorded and delivery has begun.
