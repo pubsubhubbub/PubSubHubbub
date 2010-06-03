@@ -50,6 +50,7 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     Args:
       parser: Instance of the xml.sax parser being used with this handler.
     """
+    self.enclosing_tag = ""
     self.parser = parser
     self.header_footer = ""
     self.entries_map = {}
@@ -87,6 +88,9 @@ class FeedContentHandler(xml.sax.handler.ContentHandler):
     self.stack_level += 1
     event = (self.stack_level, name)
     if DEBUG: logging.debug('Start stack level %r', event)
+    if self.stack_level == 1:
+      # Save the outermost tag for later.
+      self.enclosing_tag = name.lower()
 
     self.push()
     self.emit(['<', name])
@@ -149,14 +153,14 @@ class AtomFeedHandler(FeedContentHandler):
 
   def handleEvent(self, event, content):
     depth, tag = event[0], event[1].lower()
-    if event[0] == 1:
-      if tag != 'feed':
-        raise Error('Enclosing tag is not <feed></feed>')
+    if depth == 1:
+      if tag != 'feed' and not tag.endswith(':feed'):
+        raise Error('Enclosing tag is not <feed></feed>. Found: %r' % tag)
       else:
         self.header_footer = strip_whitespace(event[1], self.pop())
-    elif event == (2, 'entry'):
+    elif depth == 2 and (tag == 'entry' or tag.endswith(':entry')):
       self.entries_map[self.last_id] = ''.join(self.pop())
-    elif event == (3, 'id'):
+    elif depth == 3 and (tag == 'id' or tag.endswith(':id')):
       self.last_id = ''.join(content).strip()
       self.emit(self.pop())
     else:
@@ -168,27 +172,34 @@ class RssFeedHandler(FeedContentHandler):
 
   def handleEvent(self, event, content):
     depth, tag = event[0], event[1].lower()
-    if event[0] == 1:
-      if tag.lower() != 'rss' and 'rdf' not in tag:
-        raise Error('Enclosing tag is not <rss></rss> or <rdf></rdf>')
+    if depth == 1:
+      if (tag != 'rss' and not tag.endswith(':rss')
+          and tag != 'rdf' and not tag.endswith(':rdf')):
+        raise Error('Enclosing tag is not <rss></rss> or <rdf></rdf>. '
+                    'Found: %r' % tag)
       else:
         self.header_footer = strip_whitespace(event[1], self.pop())
-    elif event == (3, 'item'):
+    elif (tag == 'item' or tag.endswith(':item')) and (
+        depth == 3 or (depth == 2 and 'rdf' in self.enclosing_tag)):
       item_id = (self.last_id or self.last_link or
                  self.last_title or self.last_description)
       self.entries_map[item_id] = ''.join(self.pop())
       self.last_id, self.last_link, self.last_title, self.last_description = (
           '', '', '', '')
-    elif event == (4, 'guid'):
+    elif (tag == 'guid' or tag.endswith(':guid')) and (
+        depth == 4 or (depth == 3 and 'rdf' in self.enclosing_tag)):
       self.last_id = ''.join(content).strip()
       self.emit(self.pop())
-    elif event == (4, 'link'):
+    elif (tag == 'link' or tag.endswith(':link')) and (
+        depth == 4 or (depth == 3 and 'rdf' in self.enclosing_tag)):
       self.last_link = ''.join(content).strip()
       self.emit(self.pop())
-    elif event == (4, 'title'):
+    elif (tag == 'title' or tag.endswith(':title')) and (
+        depth == 4 or (depth == 3 and 'rdf' in self.enclosing_tag)):
       self.last_title = ''.join(content).strip()
       self.emit(self.pop())
-    elif event == (4, 'description'):
+    elif (tag == 'description' or tag.endswith(':description')) and (
+        depth == 4 or (depth == 3 and 'rdf' in self.enclosing_tag)):
       self.last_description = ''.join(content).strip()
       self.emit(self.pop())
     else:
@@ -225,6 +236,11 @@ def filter(data, format):
 
   parser.setContentHandler(handler)
   parser.setEntityResolver(TrivialEntityResolver())
+  # NOTE: Would like to enable these options, but expat (which is all App Engine
+  # gives us) cannot report the QName of namespace prefixes. Thus, we have to
+  # work around this to preserve the document's original namespacing.
+  # parser.setFeature(xml.sax.handler.feature_namespaces, 1)
+  # parser.setFeature(xml.sax.handler.feature_namespace_prefixes, 1)
   try:
     parser.parse(data_stream)
   except IOError, e:

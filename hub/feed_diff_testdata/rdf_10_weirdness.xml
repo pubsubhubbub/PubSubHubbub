@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:taxo="http://purl.org/rss/1.0/modules/taxonomy/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:syn="http://purl.org/rss/1.0/modules/syndication/" xmlns:admin="http://webns.net/mvcb/" xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0">
+
+<channel rdf:about="http://slashdot.org/">
+<title>Slashdot</title>
+<link>http://slashdot.org/</link>
+<description>News for nerds, stuff that matters</description>
+<dc:language>en-us</dc:language>
+<dc:rights>Copyright 1997-2009, Geeknet, Inc.  All Rights Reserved.</dc:rights>
+<dc:date>2010-06-03T21:20:16+00:00</dc:date>
+<dc:publisher>Geeknet, Inc.</dc:publisher>
+
+<dc:creator>help@slashdot.org</dc:creator>
+<dc:subject>Technology</dc:subject>
+<syn:updatePeriod>hourly</syn:updatePeriod>
+<syn:updateFrequency>1</syn:updateFrequency>
+<syn:updateBase>1970-01-01T00:00+00:00</syn:updateBase>
+<items>
+ <rdf:Seq>
+  <rdf:li rdf:resource="http://apple.slashdot.org/story/10/06/03/2017220/How-To-Get-Rejected-From-the-App-Store?from=rss" />
+  <rdf:li rdf:resource="http://linux.slashdot.org/story/10/06/03/196234/Frank-Zappas-Influence-On-Linux-and-FOSS-Development?from=rss" />
+
+  <rdf:li rdf:resource="http://tech.slashdot.org/story/10/06/03/1836232/Six-Major-3G-and-4G-Networks-Tested-Nationwide?from=rss" />
+  <rdf:li rdf:resource="http://hardware.slashdot.org/story/10/06/03/1740214/Mobile-Phones-vs-Supercomputers-of-the-Past?from=rss" />
+  <rdf:li rdf:resource="http://politics.slashdot.org/story/10/06/03/1730254/FTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business?from=rss" />
+  <rdf:li rdf:resource="http://yro.slashdot.org/story/10/06/03/162247/Yahoo-Treading-Carefully-Before-Exposing-More-Private-Data?from=rss" />
+  <rdf:li rdf:resource="http://yro.slashdot.org/story/10/06/03/1548225/Police-Officers-Seek-Right-Not-To-Be-Recorded?from=rss" />
+  <rdf:li rdf:resource="http://idle.slashdot.org/story/10/06/03/1422213/OH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids?from=rss" />
+  <rdf:li rdf:resource="http://hardware.slashdot.org/story/10/06/03/157205/Part-Human-Part-Machine-Transistor-Devised?from=rss" />
+  <rdf:li rdf:resource="http://news.slashdot.org/story/10/06/03/1333252/Why-Are-Indian-Kids-So-Good-At-Spelling?from=rss" />
+  <rdf:li rdf:resource="http://science.slashdot.org/story/10/06/03/1326248/Mars500-Mission-Begins?from=rss" />
+
+  <rdf:li rdf:resource="http://idle.slashdot.org/story/10/06/03/0256204/Military-Develops-Green-Cleaners-For-Terrorist-Attack-Sites?from=rss" />
+  <rdf:li rdf:resource="http://news.slashdot.org/story/10/06/03/038203/Bill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets?from=rss" />
+  <rdf:li rdf:resource="http://science.slashdot.org/story/10/06/03/006256/Iridium-Pushes-Ahead-Satellite-Project?from=rss" />
+  <rdf:li rdf:resource="http://science.slashdot.org/story/10/06/03/0118209/Doctor-Slams-Hospitals-Please-Policy?from=rss" />
+ </rdf:Seq>
+</items>
+<image rdf:resource="http://a.fsdn.com/sd/topics/topicslashdot.gif" />
+<textinput rdf:resource="http://slashdot.org/search.pl" />
+<atom10:link xmlns:atom10="http://www.w3.org/2005/Atom" rel="self" type="application/rdf+xml" href="http://rss.slashdot.org/Slashdot/slashdot" /><feedburner:info uri="slashdot/slashdot" /><atom10:link xmlns:atom10="http://www.w3.org/2005/Atom" rel="hub" href="http://pubsubhubbub.appspot.com/" /></channel>
+
+<image rdf:about="http://a.fsdn.com/sd/topics/topicslashdot.gif">
+<title>Slashdot</title>
+
+<url>http://a.fsdn.com/sd/topics/topicslashdot.gif</url>
+<link>http://slashdot.org/</link>
+</image>
+
+<item rdf:about="http://apple.slashdot.org/story/10/06/03/2017220/How-To-Get-Rejected-From-the-App-Store?from=rss">
+<title>How To Get Rejected From the App Store</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/tmmQTFyzGb8/How-To-Get-Rejected-From-the-App-Store</link>
+<description>snydeq writes "Fatal Exception's Neil McAllister catalogs 12 sure-fire ways to get your app rejected from Apple's notoriously fickle App Store. From executing interpreted code, to using Apple's APIs without permission, to designing your UI, each transgression has been abstracted from real-life rejections &amp;mdash; for the most part because Apple seems to be making up the rules as it goes along. 'It'd be nice for Apple to make conditions for rejection clear,' McAllister writes. 'Apple has been tinkering with the language of its iPhone SDK license agreement lately, but that hasn't done much to clarify the rules &amp;mdash; unless you're Adobe. For everyone else, the App Store's requirements seem as vague and capricious as ever.'"&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fapple.slashdot.org%2Fstory%2F10%2F06%2F03%2F2017220%2FHow-To-Get-Rejected-From-the-App-Store" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+
+   
+      &lt;a href="http://twitter.com/home?status=How+To+Get+Rejected+From+the+App+Store%3A+http%3A%2F%2Fbit.ly%2F9nfrph" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://apple.slashdot.org/story/10/06/03/2017220/How-To-Get-Rejected-From-the-App-Store?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674524&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/qnH42oYOpn-HJu8_ddYFIXVOYgo/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/qnH42oYOpn-HJu8_ddYFIXVOYgo/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/qnH42oYOpn-HJu8_ddYFIXVOYgo/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/qnH42oYOpn-HJu8_ddYFIXVOYgo/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/tmmQTFyzGb8" height="1" width="1"/&gt;</description>
+<dc:creator>timothy</dc:creator>
+<dc:date>2010-06-03T20:54:00+00:00</dc:date>
+
+<dc:subject>business</dc:subject>
+<slash:department>feature-the-steve-in-green-turtleneck</slash:department>
+<slash:section>apple</slash:section>
+<slash:comments>28</slash:comments>
+<slash:hit_parade>28,24,23,16,5,1,0</slash:hit_parade>
+<feedburner:origLink>http://apple.slashdot.org/story/10/06/03/2017220/How-To-Get-Rejected-From-the-App-Store?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://linux.slashdot.org/story/10/06/03/196234/Frank-Zappas-Influence-On-Linux-and-FOSS-Development?from=rss">
+<title>Frank Zappa's Influence On Linux and FOSS Development</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/cshWw102qTE/Frank-Zappas-Influence-On-Linux-and-FOSS-Development</link>
+
+<description>Roblimo writes "Zappa's 'Dinah-Moe Hummm' is totally about Linux, at least in spirit, while the song 'Montana,' with its talk of zirconium-encrusted tweezers and dental floss, 'is obviously about Mac users.' Not only that: In the early '70s Zappa wrote a song called 'Penguin in Bondage,' an obvious foretelling of the anti-Linux lawsuits and threats from SCO, Microsoft, and other evildoers. Zappa was also a heavy user of the Synclavier, an electronic music machine that was a precursor to today's 'studio on a computer' recording and sound editing software. According to an article on DevX, today Zappa would no doubt be using Linux and Ardour for most of his recording and composition."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Flinux.slashdot.org%2Fstory%2F10%2F06%2F03%2F196234%2FFrank-Zappas-Influence-On-Linux-and-FOSS-Development" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Frank+Zappa's+Influence+On+Linux+and+FOSS+Development%3A+http%3A%2F%2Fbit.ly%2F9s0FmS" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://linux.slashdot.org/story/10/06/03/196234/Frank-Zappas-Influence-On-Linux-and-FOSS-Development?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674468&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/pqPkV5zqIqnjjKi4JwhUaWaKvSs/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/pqPkV5zqIqnjjKi4JwhUaWaKvSs/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/pqPkV5zqIqnjjKi4JwhUaWaKvSs/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/pqPkV5zqIqnjjKi4JwhUaWaKvSs/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/cshWw102qTE" height="1" width="1"/&gt;</description>
+<dc:creator>timothy</dc:creator>
+<dc:date>2010-06-03T20:11:00+00:00</dc:date>
+
+<dc:subject>gnu</dc:subject>
+<slash:department>oh-yeah-try-to-disprove-it</slash:department>
+<slash:section>linux</slash:section>
+<slash:comments>85</slash:comments>
+<slash:hit_parade>85,82,62,48,7,3,3</slash:hit_parade>
+<feedburner:origLink>http://linux.slashdot.org/story/10/06/03/196234/Frank-Zappas-Influence-On-Linux-and-FOSS-Development?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://tech.slashdot.org/story/10/06/03/1836232/Six-Major-3G-and-4G-Networks-Tested-Nationwide?from=rss">
+<title>Six Major 3G and 4G Networks Tested Nationwide</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/ziiB2Fy7vGY/Six-Major-3G-and-4G-Networks-Tested-Nationwide</link>
+
+<description>adeelarshad82 writes "PCMag recently tested six 3G and 4G networks to determine which ones were the fastest (and slowest) in 18 different US cities. They focused on data, not calls, and used their own testing script and methodology, which combined various kinds of uploads and downloads. Using laptops, more than a dozen people ran more than 10,000 tests; they found AT&amp;amp;T is both the fastest national 3G network, and the least consistent. Sprint's 3G system was the slowest of the 'big four' carriers, but the most consistent. When the test results were broken down by regions, AT&amp;amp;T led on speed in the Southeast, Central, and West, but T-Mobile took the crown in the Northeast region. Sprint's 4G network was fast where it was available, but it was surprisingly slower than 3G in some cities. The fastest AT&amp;amp;T download seen, at 5.05 megabits/sec, was right behind Apple's headquarters at 1 Infinite Loop in Cupertino, CA. The fastest connection in any of the tests was a blazing 9.11 megabits down on Sprint 4G in the Midtown neighborhood of Atlanta, GA. The slowest city, on average, was Raleigh, with average 3G downloads of 880kbits/sec."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Ftech.slashdot.org%2Fstory%2F10%2F06%2F03%2F1836232%2FSix-Major-3G-and-4G-Networks-Tested-Nationwide" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Six+Major+3G+and+4G+Networks+Tested+Nationwide%3A+http%3A%2F%2Fbit.ly%2F9KEFzt" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://tech.slashdot.org/story/10/06/03/1836232/Six-Major-3G-and-4G-Networks-Tested-Nationwide?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674452&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/zEQ1VfCz-qeWOcC7iheee68Oneo/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/zEQ1VfCz-qeWOcC7iheee68Oneo/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/zEQ1VfCz-qeWOcC7iheee68Oneo/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/zEQ1VfCz-qeWOcC7iheee68Oneo/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/ziiB2Fy7vGY" height="1" width="1"/&gt;</description>
+<dc:creator>timothy</dc:creator>
+<dc:date>2010-06-03T19:32:00+00:00</dc:date>
+
+<dc:subject>internet</dc:subject>
+<slash:department>actually-tested-locally</slash:department>
+<slash:section>technology</slash:section>
+<slash:comments>65</slash:comments>
+<slash:hit_parade>65,63,52,39,11,8,4</slash:hit_parade>
+<feedburner:origLink>http://tech.slashdot.org/story/10/06/03/1836232/Six-Major-3G-and-4G-Networks-Tested-Nationwide?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://hardware.slashdot.org/story/10/06/03/1740214/Mobile-Phones-vs-Supercomputers-of-the-Past?from=rss">
+<title>Mobile Phones vs. Supercomputers of the Past</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/D7AUWrUlSys/Mobile-Phones-vs-Supercomputers-of-the-Past</link>
+
+<description>An anonymous reader writes "The recently published Top 500 list of the world's fastest supercomputers is based on the Linpack benchmark developed decades ago by Jack Dongarra. This same test has been ported to Android mobile phones, which means that we can compare the performance of our phones against that of the supercomputers of the past. For example, a tweaked Motorola Droid can hit 52 Mflop/s, which is more than 15 times faster than the CPUs used in the 1979 Cray-1." But even today's most powerful cellphones don't come with an integrated bench.&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fhardware.slashdot.org%2Fstory%2F10%2F06%2F03%2F1740214%2FMobile-Phones-vs-Supercomputers-of-the-Past" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Mobile+Phones+vs.+Supercomputers+of+the+Past%3A+http%3A%2F%2Fbit.ly%2FasUgMi" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://hardware.slashdot.org/story/10/06/03/1740214/Mobile-Phones-vs-Supercomputers-of-the-Past?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674396&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/Tj3131YW0lSjS0yDrJlqPDmeQXA/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/Tj3131YW0lSjS0yDrJlqPDmeQXA/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/Tj3131YW0lSjS0yDrJlqPDmeQXA/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/Tj3131YW0lSjS0yDrJlqPDmeQXA/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/D7AUWrUlSys" height="1" width="1"/&gt;</description>
+<dc:creator>timothy</dc:creator>
+<dc:date>2010-06-03T18:49:00+00:00</dc:date>
+
+<dc:subject>supercomputing</dc:subject>
+<slash:department>crays-are-pure-sculpture</slash:department>
+<slash:section>hardware</slash:section>
+<slash:comments>137</slash:comments>
+<slash:hit_parade>137,135,115,90,21,11,6</slash:hit_parade>
+<feedburner:origLink>http://hardware.slashdot.org/story/10/06/03/1740214/Mobile-Phones-vs-Supercomputers-of-the-Past?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://politics.slashdot.org/story/10/06/03/1730254/FTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business?from=rss">
+<title>FTC Staff Discuss a Tax on Electronics To Support the News Business</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/RWSAy1nVfYQ/FTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business</link>
+
+<description>dptalia links to this piece describing a staff discussion draft from the Federal Trade Commission, writing "The FTC is concerned about the death of the 'news.' Specifically newspapers. Rather than look to how old media models can be adapted to the Internet, they instead suggest taxing consumer electronics to support a huge newspaper bailout. Additionally, they suggest making facts 'proprietary' and allowing news organizations to copyright them."
+
+Note, though, "The good news in all this is that the FTC's bureaucrats try hard to recommend little. They just discuss. And much of what the agency staff ponders are political impossibilities."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fpolitics.slashdot.org%2Fstory%2F10%2F06%2F03%2F1730254%2FFTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=FTC+Staff+Discuss+a+Tax+on+Electronics+To+Support+the+News+Business%3A+http%3A%2F%2Fbit.ly%2FcWrHHx" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://politics.slashdot.org/story/10/06/03/1730254/FTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674376&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/6FyJ4q29U8zi6oajNj1WizX1GQQ/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/6FyJ4q29U8zi6oajNj1WizX1GQQ/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/6FyJ4q29U8zi6oajNj1WizX1GQQ/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/6FyJ4q29U8zi6oajNj1WizX1GQQ/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/RWSAy1nVfYQ" height="1" width="1"/&gt;</description>
+<dc:creator>timothy</dc:creator>
+<dc:date>2010-06-03T18:03:00+00:00</dc:date>
+
+<dc:subject>themedia</dc:subject>
+<slash:department>now-that's-what-I-call-top-down-management</slash:department>
+<slash:section>politics</slash:section>
+<slash:comments>270</slash:comments>
+<slash:hit_parade>270,270,225,175,37,16,11</slash:hit_parade>
+<feedburner:origLink>http://politics.slashdot.org/story/10/06/03/1730254/FTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://yro.slashdot.org/story/10/06/03/162247/Yahoo-Treading-Carefully-Before-Exposing-More-Private-Data?from=rss">
+<title>Yahoo Treading Carefully Before Exposing More Private Data</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/wYu2IZPqdzM/Yahoo-Treading-Carefully-Before-Exposing-More-Private-Data</link>
+
+<description>crimeandpunishment writes "Yahoo hopes to turn on a new sharing option without turning off its users. The company is trying to avoid the privacy backlash that has befallen Facebook and Google. It's advising its email account holders, all 280M of them, to review their privacy settings in advance of Yahoo's new features that will share users' online activities and interests with people in their address books, unless they take steps to prevent it."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fyro.slashdot.org%2Fstory%2F10%2F06%2F03%2F162247%2FYahoo-Treading-Carefully-Before-Exposing-More-Private-Data" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Yahoo+Treading+Carefully+Before+Exposing+More+Private+Data%3A+http%3A%2F%2Fbit.ly%2FakVpBO" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://yro.slashdot.org/story/10/06/03/162247/Yahoo-Treading-Carefully-Before-Exposing-More-Private-Data?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674294&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/ubm3QT0AQfS0J8kJ0Xde_GTSXuI/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/ubm3QT0AQfS0J8kJ0Xde_GTSXuI/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/ubm3QT0AQfS0J8kJ0Xde_GTSXuI/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/ubm3QT0AQfS0J8kJ0Xde_GTSXuI/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/wYu2IZPqdzM" height="1" width="1"/&gt;</description>
+<dc:creator>kdawson</dc:creator>
+<dc:date>2010-06-03T17:15:00+00:00</dc:date>
+
+<dc:subject>privacy</dc:subject>
+<slash:department>can-you-say-buzz</slash:department>
+<slash:section>yro</slash:section>
+<slash:comments>81</slash:comments>
+<slash:hit_parade>81,79,67,56,19,12,11</slash:hit_parade>
+<feedburner:origLink>http://yro.slashdot.org/story/10/06/03/162247/Yahoo-Treading-Carefully-Before-Exposing-More-Private-Data?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://yro.slashdot.org/story/10/06/03/1548225/Police-Officers-Seek-Right-Not-To-Be-Recorded?from=rss">
+<title>Police Officers Seek Right Not To Be Recorded</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/OsEit_oEJG8/Police-Officers-Seek-Right-Not-To-Be-Recorded</link>
+
+<description>linzeal writes "When the police act as though cameras were the equivalent of guns pointed at them, there is a sense in which they are correct. Cameras have become the most effective weapon that ordinary people have to protect against and to expose police abuse. And the police want it to stop. Judges, juries, and legislatures support the police overwhelmingly on this issue, with only a few cases where those accused of 'shooting' the cops being vindicated through the courts."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fyro.slashdot.org%2Fstory%2F10%2F06%2F03%2F1548225%2FPolice-Officers-Seek-Right-Not-To-Be-Recorded" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Police+Officers+Seek+Right+Not+To+Be+Recorded%3A+http%3A%2F%2Fbit.ly%2F9F5Zhn" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://yro.slashdot.org/story/10/06/03/1548225/Police-Officers-Seek-Right-Not-To-Be-Recorded?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674280&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/d0x5YGFOTmjEqB4lo79jBGiqlWo/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/d0x5YGFOTmjEqB4lo79jBGiqlWo/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/d0x5YGFOTmjEqB4lo79jBGiqlWo/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/d0x5YGFOTmjEqB4lo79jBGiqlWo/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/OsEit_oEJG8" height="1" width="1"/&gt;</description>
+<dc:creator>kdawson</dc:creator>
+<dc:date>2010-06-03T16:28:00+00:00</dc:date>
+
+<dc:subject>crime</dc:subject>
+<slash:department>ain't-nobody's-bidness-if-we-do</slash:department>
+<slash:section>yro</slash:section>
+<slash:comments>789</slash:comments>
+<slash:hit_parade>789,781,636,502,122,84,64</slash:hit_parade>
+<feedburner:origLink>http://yro.slashdot.org/story/10/06/03/1548225/Police-Officers-Seek-Right-Not-To-Be-Recorded?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://idle.slashdot.org/story/10/06/03/1422213/OH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids?from=rss">
+<title>OH Senate Passes Bill Banning Human-Animal Hybrids</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/qALRtOq3asc/OH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids</link>
+
+<description>An anonymous reader writes "The sci-fi movie Splice seems to have scared the Ohio's State Senator Steve Buehrer. The Ohio Senate has passed Sen. Buehrer's bill banning 'the creation, transportation, or receipt of a human-animal hybrid, the transfer of a nonhuman embryo into a human womb, and the transfer of a human embryo into a nonhuman womb.' So much for Teenage Mutant Ninja Turtles."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fidle.slashdot.org%2Fstory%2F10%2F06%2F03%2F1422213%2FOH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=OH+Senate+Passes+Bill+Banning+Human-Animal+Hybrids%3A+http%3A%2F%2Fbit.ly%2F9Rzi4u" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://idle.slashdot.org/story/10/06/03/1422213/OH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674156&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/O2YUM8RDSLbHWAZ7FYD8uGjf9Gk/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/O2YUM8RDSLbHWAZ7FYD8uGjf9Gk/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/O2YUM8RDSLbHWAZ7FYD8uGjf9Gk/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/O2YUM8RDSLbHWAZ7FYD8uGjf9Gk/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/qALRtOq3asc" height="1" width="1"/&gt;</description>
+<dc:creator>samzenpus</dc:creator>
+<dc:date>2010-06-03T16:10:00+00:00</dc:date>
+
+<dc:subject>biotech</dc:subject>
+<slash:department>no-centaurs-allowed</slash:department>
+<slash:section>idle</slash:section>
+<slash:comments>140</slash:comments>
+<slash:hit_parade>140,138,116,87,16,10,5</slash:hit_parade>
+<feedburner:origLink>http://idle.slashdot.org/story/10/06/03/1422213/OH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://hardware.slashdot.org/story/10/06/03/157205/Part-Human-Part-Machine-Transistor-Devised?from=rss">
+<title>Part-Human, Part-Machine Transistor Devised</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/sH47rA1Mhcs/Part-Human-Part-Machine-Transistor-Devised</link>
+
+<description>asukasoryu writes "Man and machine can now be linked more intimately than ever, according to a new article in the journal ACS Nano Letters. Scientists have embedded a nano-sized transistor inside a cell-like membrane and powered it using the cell's own fuel. To create the implanted circuit, the UC scientists combined a carbon nanotube transistor, lipid bilayer coating, ion pump, and ATP. The ion pump changes the electrical charge inside the cell, which then changes the electrical charge going through the transistor, which the scientists could measure and monitor."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fhardware.slashdot.org%2Fstory%2F10%2F06%2F03%2F157205%2FPart-Human-Part-Machine-Transistor-Devised" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Part-Human%2C+Part-Machine+Transistor+Devised%3A+http%3A%2F%2Fbit.ly%2FaaeR9U" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://hardware.slashdot.org/story/10/06/03/157205/Part-Human-Part-Machine-Transistor-Devised?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674234&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/Myrxz7xqD6ztwnzMUpnHiW0x7wU/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/Myrxz7xqD6ztwnzMUpnHiW0x7wU/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/Myrxz7xqD6ztwnzMUpnHiW0x7wU/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/Myrxz7xqD6ztwnzMUpnHiW0x7wU/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/sH47rA1Mhcs" height="1" width="1"/&gt;</description>
+<dc:creator>kdawson</dc:creator>
+<dc:date>2010-06-03T15:39:00+00:00</dc:date>
+
+<dc:subject>biotech</dc:subject>
+<slash:department>mitochondria-look-up</slash:department>
+<slash:section>hardware</slash:section>
+<slash:comments>57</slash:comments>
+<slash:hit_parade>57,54,46,33,15,10,6</slash:hit_parade>
+<feedburner:origLink>http://hardware.slashdot.org/story/10/06/03/157205/Part-Human-Part-Machine-Transistor-Devised?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://news.slashdot.org/story/10/06/03/1333252/Why-Are-Indian-Kids-So-Good-At-Spelling?from=rss">
+<title>Why Are Indian Kids So Good At Spelling?</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/lAWnaU6YgIs/Why-Are-Indian-Kids-So-Good-At-Spelling</link>
+
+<description>theodp writes "Slate's Ben Paynter looks into why Indian kids dominate the Scripps National Spelling Bee, and concludes it's because they have their own minor-league spelling bee circuit (having the discipline to spell 7,000 to 8,000 words a day probably helps too!). Indian-Americans make up about 1% of the US population, notes Paynter, but this year an estimated 11% of the competitors at Scripps will hail from regional contests run by the North South Foundation. The NSF competitions function as a kind of nerd Olympiad for Indian-Americans &amp;mdash; there are separate divisions for math, science, vocabulary, geography, essay writing, and even public speaking &amp;mdash; and a way to raise money for college scholarships for underprivileged students in India. BTW, Strollerderby has the scoop on Whatever Happened to the Spellbound Kids? (RIP, Ted Brigham)."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fnews.slashdot.org%2Fstory%2F10%2F06%2F03%2F1333252%2FWhy-Are-Indian-Kids-So-Good-At-Spelling" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Why+Are+Indian+Kids+So+Good+At+Spelling%3F%3A+http%3A%2F%2Fbit.ly%2F9p6g5Z" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://news.slashdot.org/story/10/06/03/1333252/Why-Are-Indian-Kids-So-Good-At-Spelling?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674088&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/ZByOTHGO1peZ7CsinQ_HpRRAXMA/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/ZByOTHGO1peZ7CsinQ_HpRRAXMA/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/ZByOTHGO1peZ7CsinQ_HpRRAXMA/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/ZByOTHGO1peZ7CsinQ_HpRRAXMA/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/lAWnaU6YgIs" height="1" width="1"/&gt;</description>
+<dc:creator>StoneLion</dc:creator>
+<dc:date>2010-06-03T14:48:00+00:00</dc:date>
+
+<dc:subject>education</dc:subject>
+<slash:department>i-n-t-e-l-l-i-g-e-n-t</slash:department>
+<slash:section>news</slash:section>
+<slash:comments>386</slash:comments>
+<slash:hit_parade>386,384,288,235,59,31,13</slash:hit_parade>
+<feedburner:origLink>http://news.slashdot.org/story/10/06/03/1333252/Why-Are-Indian-Kids-So-Good-At-Spelling?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://science.slashdot.org/story/10/06/03/1326248/Mars500-Mission-Begins?from=rss">
+<title>Mars500 Mission Begins</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/JcnvobAj0DE/Mars500-Mission-Begins</link>
+
+<description>krou writes "The six participants in the Mars500 project have entered their sealed facility. The project, which lasts for 18 months, is designed to try and simulate a mission to Mars, completely isolated and cut off from the outside world, with a '20-minute, one-way time-delay in communications to mirror the real lag in sending messages over the vast distance between Mars and Earth.' They also have limited consumables, with everything required being loaded onboard from the start. You can follow developments via the blog, or the Twitter feed of Diego Urbina, one of the would-be cosmonauts."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fscience.slashdot.org%2Fstory%2F10%2F06%2F03%2F1326248%2FMars500-Mission-Begins" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Mars500+Mission+Begins%3A+http%3A%2F%2Fbit.ly%2F8X46k9" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://science.slashdot.org/story/10/06/03/1326248/Mars500-Mission-Begins?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1674074&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/0m5VIgNdNIn3qTvqkeUm7Bm_5Ss/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/0m5VIgNdNIn3qTvqkeUm7Bm_5Ss/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/0m5VIgNdNIn3qTvqkeUm7Bm_5Ss/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/0m5VIgNdNIn3qTvqkeUm7Bm_5Ss/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/JcnvobAj0DE" height="1" width="1"/&gt;</description>
+<dc:creator>samzenpus</dc:creator>
+<dc:date>2010-06-03T14:00:00+00:00</dc:date>
+
+<dc:subject>mars</dc:subject>
+<slash:department>I-think-I-saw-this-movie</slash:department>
+<slash:section>science</slash:section>
+<slash:comments>194</slash:comments>
+<slash:hit_parade>194,186,158,129,39,16,8</slash:hit_parade>
+<feedburner:origLink>http://science.slashdot.org/story/10/06/03/1326248/Mars500-Mission-Begins?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://idle.slashdot.org/story/10/06/03/0256204/Military-Develops-Green-Cleaners-For-Terrorist-Attack-Sites?from=rss">
+<title>Military Develops "Green" Cleaners For Terrorist Attack Sites</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/WQA5Xo_6cwA/Military-Develops-Green-Cleaners-For-Terrorist-Attack-Sites</link>
+
+<description>An anonymous reader writes "Chemists with the U.S. military have developed a set of ultra-strength cleaners to be used in the aftermath of a terrorist attack. The formulas are reportedly tough enough to get rid of nerve gas, mustard gas, radioactive isotopes, and anthrax. But they are also non-toxic, based on ingredients found in foods, cosmetics, and other consumer products."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fidle.slashdot.org%2Fstory%2F10%2F06%2F03%2F0256204%2FMilitary-Develops-Green-Cleaners-For-Terrorist-Attack-Sites" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Military+Develops+%22Green%22+Cleaners+For+Terrorist+Attack+Sites%3A+http%3A%2F%2Fbit.ly%2Fd5B0na" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://idle.slashdot.org/story/10/06/03/0256204/Military-Develops-Green-Cleaners-For-Terrorist-Attack-Sites?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1673468&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/PDXSpTgm3sywZaYwq6gq_hqte1s/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/PDXSpTgm3sywZaYwq6gq_hqte1s/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/PDXSpTgm3sywZaYwq6gq_hqte1s/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/PDXSpTgm3sywZaYwq6gq_hqte1s/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/WQA5Xo_6cwA" height="1" width="1"/&gt;</description>
+<dc:creator>samzenpus</dc:creator>
+<dc:date>2010-06-03T13:10:00+00:00</dc:date>
+
+<dc:subject>military</dc:subject>
+<slash:department>ultra-concentrated</slash:department>
+<slash:section>idle</slash:section>
+<slash:comments>81</slash:comments>
+<slash:hit_parade>81,76,71,54,20,12,3</slash:hit_parade>
+<feedburner:origLink>http://idle.slashdot.org/story/10/06/03/0256204/Military-Develops-Green-Cleaners-For-Terrorist-Attack-Sites?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://news.slashdot.org/story/10/06/03/038203/Bill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets?from=rss">
+<title>Bill Gives Feds "Emergency" Powers To Secure Civilian Nets</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/iW74en1N7Ro/Bill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets</link>
+
+<description>ziani writes "Joe Lieberman wants to give the federal government the power to take over civilian networks' security if there's an 'imminent cyber threat.' From the article: 'Lieberman and Collins' solution is one of the more far-reaching proposals. In the Senators' draft bill, "the President may issue a declaration of an imminent cyber threat to covered critical infrastructure." Once such a declaration is made, the director of a DHS National Center for Cybersecurity and Communications is supposed to "develop and coordinate emergency measures or actions necessary to preserve the reliable operation, and mitigate or remediate the consequences of the potential disruption, of covered critical infrastructure."'"&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fnews.slashdot.org%2Fstory%2F10%2F06%2F03%2F038203%2FBill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Bill+Gives+Feds+%22Emergency%22+Powers+To+Secure+Civilian+Nets%3A+http%3A%2F%2Fbit.ly%2FbPhuuU" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://news.slashdot.org/story/10/06/03/038203/Bill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1673478&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/rWboIySEo5PuQp4g7XzQ7ObY6BI/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/rWboIySEo5PuQp4g7XzQ7ObY6BI/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/rWboIySEo5PuQp4g7XzQ7ObY6BI/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/rWboIySEo5PuQp4g7XzQ7ObY6BI/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/iW74en1N7Ro" height="1" width="1"/&gt;</description>
+<dc:creator>samzenpus</dc:creator>
+<dc:date>2010-06-03T11:57:00+00:00</dc:date>
+
+<dc:subject>usa</dc:subject>
+<slash:department>all-your-nets-are-belong-to-us</slash:department>
+<slash:section>news</slash:section>
+<slash:comments>444</slash:comments>
+<slash:hit_parade>444,439,343,268,62,42,25</slash:hit_parade>
+<feedburner:origLink>http://news.slashdot.org/story/10/06/03/038203/Bill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://science.slashdot.org/story/10/06/03/006256/Iridium-Pushes-Ahead-Satellite-Project?from=rss">
+<title>Iridium Pushes Ahead Satellite Project</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/-gWGIAF-QGY/Iridium-Pushes-Ahead-Satellite-Project</link>
+
+<description>oxide7 writes "Iridium (IRDM) continues its push into the market for satellite data and telemetry services, as it announced the company that would build its second generation of satellites. Iridium's old network of 66 satellites was designed for voice calls; the new satellites will also be able to handle data more efficiently, and include cameras as well. The company also plans to share the satellite platforms with some scientists for use in studying the Earth."&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fscience.slashdot.org%2Fstory%2F10%2F06%2F03%2F006256%2FIridium-Pushes-Ahead-Satellite-Project" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Iridium+Pushes+Ahead+Satellite+Project%3A+http%3A%2F%2Fbit.ly%2FconYqH" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://science.slashdot.org/story/10/06/03/006256/Iridium-Pushes-Ahead-Satellite-Project?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1673374&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/_4xqZu9UTaB0_CeYB0dLBjj7YDo/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/_4xqZu9UTaB0_CeYB0dLBjj7YDo/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/_4xqZu9UTaB0_CeYB0dLBjj7YDo/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/_4xqZu9UTaB0_CeYB0dLBjj7YDo/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/-gWGIAF-QGY" height="1" width="1"/&gt;</description>
+<dc:creator>samzenpus</dc:creator>
+<dc:date>2010-06-03T06:55:00+00:00</dc:date>
+
+<dc:subject>space</dc:subject>
+<slash:department>space-business</slash:department>
+<slash:section>science</slash:section>
+<slash:comments>75</slash:comments>
+<slash:hit_parade>75,74,65,58,29,16,11</slash:hit_parade>
+<feedburner:origLink>http://science.slashdot.org/story/10/06/03/006256/Iridium-Pushes-Ahead-Satellite-Project?from=rss</feedburner:origLink></item>
+
+<item rdf:about="http://science.slashdot.org/story/10/06/03/0118209/Doctor-Slams-Hospitals-Please-Policy?from=rss">
+<title>Doctor Slams Hospital's "Please" Policy</title>
+<link>http://rss.slashdot.org/~r/Slashdot/slashdot/~3/Fyn4QmQHquA/Doctor-Slams-Hospitals-Please-Policy</link>
+
+<description>Administrators at England's Worthing Hospital are insisting that doctors say the magic word when writing orders for blood tests on weekends. If a doctor refuses to write "please" on the order, the test will be refused. From the article: "However, a doctor at the hospital said on condition of anonymity that he sees the policy as a money-saving measure that could prove dangerous for patients. 'I was shocked to come in on Sunday and find none of my bloods had been done from the night before because I'd not written "please,"' the doctor said. 'I had no results to guide treatment of patients. Myself and a senior nurse had to take the bloods ourselves, which added hours to our 12-hour shifts. This system puts patients' lives at risk. Doctors are wasting time doing the job of the technicians.'"&lt;p&gt;&lt;a href="http://www.facebook.com/sharer.php?u=http%3A%2F%2Fscience.slashdot.org%2Fstory%2F10%2F06%2F03%2F0118209%2FDoctor-Slams-Hospitals-Please-Policy" target="_blank" title="Share on Facebook"&gt;&lt;img src="http://a.fsdn.com/sd/facebook_icon_large.png"&gt;&lt;/a&gt;
+   
+      &lt;a href="http://twitter.com/home?status=Doctor+Slams+Hospital's+%22Please%22+Policy%3A+http%3A%2F%2Fbit.ly%2FcEKPgY" target="_blank" title="Share on Twitter"&gt;&lt;img src="http://a.fsdn.com/sd/twitter_icon_large.png"&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="http://science.slashdot.org/story/10/06/03/0118209/Doctor-Slams-Hospitals-Please-Policy?from=rss"&gt;Read more of this story&lt;/a&gt; at Slashdot.&lt;/p&gt;&lt;iframe src="http://slashdot.org/slashdot-it.pl?op=discuss&amp;amp;id=1673418&amp;amp;smallembed=1" style="height: 300px; width: 100%; border: none;"&gt;&lt;/iframe&gt;
+
+&lt;p&gt;&lt;a href="http://feedads.g.doubleclick.net/~at/zun8Y5ECDPrhhF4bOJhnZhw9wb0/0/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/zun8Y5ECDPrhhF4bOJhnZhw9wb0/0/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;br/&gt;
+&lt;a href="http://feedads.g.doubleclick.net/~at/zun8Y5ECDPrhhF4bOJhnZhw9wb0/1/da"&gt;&lt;img src="http://feedads.g.doubleclick.net/~at/zun8Y5ECDPrhhF4bOJhnZhw9wb0/1/di" border="0" ismap="true"&gt;&lt;/img&gt;&lt;/a&gt;&lt;/p&gt;&lt;img src="http://feeds.feedburner.com/~r/Slashdot/slashdot/~4/Fyn4QmQHquA" height="1" width="1"/&gt;</description>
+<dc:creator>samzenpus</dc:creator>
+<dc:date>2010-06-03T05:07:00+00:00</dc:date>
+
+<dc:subject>medicine</dc:subject>
+<slash:department>paging-doctor-manners</slash:department>
+<slash:section>science</slash:section>
+<slash:comments>500</slash:comments>
+<slash:hit_parade>500,495,378,303,97,50,26</slash:hit_parade>
+<feedburner:origLink>http://science.slashdot.org/story/10/06/03/0118209/Doctor-Slams-Hospitals-Please-Policy?from=rss</feedburner:origLink></item>
+
+<textinput rdf:about="http://slashdot.org/search.pl">
+<title>Search Slashdot</title>
+<description>Search Slashdot stories</description>
+
+<name>query</name>
+<link>http://slashdot.org/search.pl</link>
+</textinput>
+
+</rdf:RDF>

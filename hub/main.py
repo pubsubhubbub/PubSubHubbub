@@ -1208,8 +1208,9 @@ class FeedRecord(db.Model):
   topic = db.TextProperty(required=True)
   header_footer = db.TextProperty()  # Save this for debugging.
   last_updated = db.DateTimeProperty(auto_now=True)  # The last polling time.
+  format = db.TextProperty()  # 'atom' or 'rss'
 
-  # Content-related headers.
+  # Content-related headers served by the feed' host.
   content_type = db.TextProperty()
   last_modified = db.TextProperty()
   etag = db.TextProperty()
@@ -1261,7 +1262,7 @@ class FeedRecord(db.Model):
     """
     return cls.get_or_insert(FeedRecord.create_key_name(topic), topic=topic)
 
-  def update(self, headers, header_footer=None):
+  def update(self, headers, header_footer=None, format=None):
     """Updates the polling record of this feed.
 
     This method will *not* insert this instance into the Datastore.
@@ -1271,12 +1272,16 @@ class FeedRecord(db.Model):
         to determine how to poll the feed in the future.
       header_footer: Contents of the feed's XML document minus the entry data;
         if not supplied, the old value will remain.
+      format: The last parsing format that worked correctly for this feed.
+        Should be 'rss' or 'atom'.
     """
     self.content_type = headers.get('Content-Type', '').lower()
     self.last_modified = headers.get('Last-Modified')
     self.etag = headers.get('ETag')
     if header_footer is not None:
       self.header_footer = header_footer
+    if format is not None:
+      self.format = format
 
   def get_request_headers(self):
     """Returns the request headers that should be used to pull this feed.
@@ -1414,17 +1419,22 @@ class EventToDeliver(db.Model):
     Returns:
       A new EventToDeliver instance that has not been stored.
     """
-    if format == ATOM:
-      close_tag = '</feed>'
-      content_type = 'application/atom+xml'
-    elif format == RSS:
-      close_tag = '</channel>'
+    close_index = header_footer.rfind('</')
+    assert close_index != -1, 'Could not find "</" in feed envelope'
+    end_tag = header_footer[close_index:]
+    if 'rss' in end_tag:
+      # RSS needs special handling, since it actually closes with
+      # a combination of </channel></rss> we need to traverse one
+      # level higher.
+      close_index = header_footer[:close_index].rfind('</')
+      assert close_index != -1, 'Could not find "</channel>" in feed envelope'
+      end_tag = header_footer[close_index:]
       content_type = 'application/rss+xml'
-    else:
-      assert False, 'Invalid format "%s"' % format
+    elif 'feed' in end_tag:
+      content_type = 'application/atom+xml'
+    elif 'rdf' in end_tag:
+      content_type = 'application/rdf+xml'
 
-    close_index = header_footer.rfind(close_tag)
-    assert close_index != -1, 'Could not find %s in feed envelope' % close_tag
     payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
                     header_footer[:close_index]]
     payload_list.extend(entry_payloads)
@@ -2388,9 +2398,10 @@ def parse_feed(feed_record, headers, content):
   # content-type. Using a regex search for "<rss" could work, but an RE is
   # just another thing to maintain. Instead, try to parse the content twice
   # and use any hints from the content-type as best we can. This has
-  # a bias towards Atom content (let's cross our fingers!).
-  # TODO(bslatkin): Do something more efficient.
-  if 'rss' in (feed_record.content_type or ''):
+  # a bias towards Atom content (let's cross our fingers!). We save the format
+  # of the last successful parse in the feed_record instance to speed this up
+  # for the next time through.
+  if 'rss' in (feed_record.format or feed_record.content_type or ''):
     order = (RSS, ATOM)
   else:
     order = (ATOM, RSS)
@@ -2433,7 +2444,7 @@ def parse_feed(feed_record, headers, content):
     entry_payloads = entry_payloads[:MAX_NEW_FEED_ENTRY_RECORDS]
     parse_successful = False
   else:
-    feed_record.update(headers, header_footer)
+    feed_record.update(headers, header_footer, format)
     parse_successful = True
 
   if not entities_to_save:

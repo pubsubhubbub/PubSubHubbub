@@ -2029,6 +2029,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertTrue(feed is None)
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
+    self.assertEquals('application/atom+xml', event.content_type)
 
   def testPullGoodRss(self):
     """Tests when the RSS XML can parse just fine."""
@@ -2046,14 +2047,15 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertTrue(feed is None)
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
+    self.assertEquals('application/rss+xml', event.content_type)
 
   def testPullGoodRdf(self):
     """Tests when the RDF (RSS 1.0) XML can parse just fine."""
     data = ('<?xml version="1.0" encoding="utf-8"?>\n'
             '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
-            '<channel><my header="data"/>'
+            '<channel><my header="data"/></channel>'
             '<item><guid>1</guid><updated>123</updated>wooh</item>'
-            '</channel></rdf:RDF>')
+            '</rdf:RDF>')
     topic = 'http://example.com/my-topic'
     callback = 'http://example.com/my-subscriber'
     self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
@@ -2064,6 +2066,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertTrue(feed is None)
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
+    self.assertEquals('application/rdf+xml', event.content_type)
 
   def testMultipleFetch(self):
     """Tests doing multiple fetches asynchronously in parallel."""

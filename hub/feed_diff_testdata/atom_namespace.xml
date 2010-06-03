@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<atom:feed
+    xmlns:atom="http://www.w3.org/2005/Atom"
+    xmlns:gml="http://opengis.net/gml"
+    xmlns:have="urn:oasis:names:tc:emergency:EDXL:HAVE:1.0"
+    xmlns:status="http://schemas.google.com/2010/status"
+    xmlns:xnl="urn:oasis:names:tc:ciq:xnl:3">
+  <atom:id>http://example.com/feeds/delta</atom:id>
+  <atom:entry>
+    <atom:author>
+      <atom:email>foo@example.com</atom:email>
+    </atom:author>
+    <atom:id>http://example.com/feeds/delta/125</atom:id>
+    <atom:title></atom:title>
+    <atom:updated>2010-03-16T09:13:48.224281Z</atom:updated>
+    <status:subject>paho.org/HealthC_ID/1115006</status:subject>
+    <status:observed>2010-03-12T12:12:12Z</status:observed>
+    <status:report type="{urn:oasis:names:tc:emergency:EDXL:HAVE:1.0}Hospital">
+      <have:Hospital>
+        <have:OrganizationInformation>
+          <xnl:OrganisationName>
+            <xnl:NameElement>Foo Hospital</xnl:NameElement>
+          </xnl:OrganisationName>
+        </have:OrganizationInformation>
+        <have:OrganizationGeoLocation>
+          <gml:Point>
+            <gml:pos>45.256 -71.92</gml:pos>
+          </gml:Point>
+        </have:OrganizationGeoLocation>
+        <have:LastUpdateTime>2010-03-12T12:12:12Z</have:LastUpdateTime>
+      </have:Hospital>
+    </status:report>
+  </atom:entry>
+  <atom:entry>
+    <atom:author>
+      <atom:email>bar@example.com</atom:email>
+    </atom:author>
+    <atom:id>http://example.com/feeds/delta/124</atom:id>
+    <atom:title></atom:title>
+    <atom:updated>2010-03-16T09:13:20.073577Z</atom:updated>
+    <status:subject>paho.org/HealthC_ID/1115006</status:subject>
+    <status:observed>2010-03-01T01:02:03Z</status:observed>
+    <status:report type="{urn:oasis:names:tc:emergency:EDXL:HAVE:1.0}Hospital">
+      <have:Hospital>
+        <have:OrganizationInformation>
+          <xnl:OrganisationName>
+            <xnl:NameElement>Foo Hospital</xnl:NameElement>
+          </xnl:OrganisationName>
+        </have:OrganizationInformation>
+        <have:ServiceCoverageStatus>
+          <have:CardiologyIndicator>
+            <have:Cardiology>true</have:Cardiology>
+          </have:CardiologyIndicator>
+          <have:Dialysis>false</have:Dialysis>
+        </have:ServiceCoverageStatus>
+        <have:LastUpdateTime>2010-03-15T23:43:52.183786Z</have:LastUpdateTime>
+      </have:Hospital>
+    </status:report>
+  </atom:entry>
+</atom:feed>

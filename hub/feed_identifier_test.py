@@ -62,6 +62,10 @@ class AtomTest(TestBase):
                       self.load('bad_feed.xml'),
                       'atom')
 
+  def testFullNamespace(self):
+    feed_id = feed_identifier.identify(self.load('atom_namespace.xml'), 'atom')
+    self.assertEquals('http://example.com/feeds/delta', feed_id)
+
 
 class RssTest(TestBase):
   """Tests for identifying RSS-formatted feeds."""

@@ -41,9 +41,12 @@ class TestBase(unittest.TestCase):
   def verify_entries(self, expected_list, entries):
     found_entries = sorted(entries.items())
     self.assertEqual(len(expected_list), len(found_entries))
-    for expected_key, found in zip(expected_list, found_entries):
+    for index, (expected_key, found) in enumerate(
+        zip(expected_list, found_entries)):
       found_key, found_content = found
-      self.assertEqual(expected_key, found_key)
+      self.assertEqual(expected_key, found_key,
+          "Fail on index %d: Expected %r, found %r" % (
+          index, expected_key, found_key))
       self.assertTrue(found_content.startswith(self.entry_open))
       self.assertTrue(found_content.endswith(self.entry_close))
 
@@ -148,6 +151,24 @@ class AtomFeedDiffTest(TestBase):
       self.fail()
 
 
+class AtomNamespacedFeedDiffTest(TestBase):
+
+  format = 'atom'
+  feed_open = '<atom:feed'
+  feed_close = '</atom:feed>'
+  entry_open = '<atom:entry>'
+  entry_close = '</atom:entry>'
+
+  def testFullNamespacing(self):
+    """Tests when the whole XML payload uses atom: namespace prefixes."""
+    header_footer, entries = self.load_feed('atom_namespace.xml')
+    self.assertTrue(header_footer.endswith('</atom:feed>'))
+    expected_list = [
+      u'http://example.com/feeds/delta/124',
+      u'http://example.com/feeds/delta/125'
+    ]
+    self.verify_entries(expected_list, entries)
+
 
 class RssFeedDiffTest(TestBase):
 
@@ -246,6 +267,29 @@ class RssRdfFeedDiffTest(TestBase):
         u'http://writetheweb.com/read.php?item=23',
         u'http://writetheweb.com/read.php?item=24',
     ]
+    self.verify_entries(expected_list, entries)
+
+  def testItemsOutsideChannel(self):
+    """Tests when the RDF items are listed outside the channel element."""
+    header_footer, entries = self.load_feed('rdf_10_weirdness.xml')
+    expected_list = [
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/-gWGIAF-QGY/Iridium-Pushes-Ahead-Satellite-Project', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/D7AUWrUlSys/Mobile-Phones-vs-Supercomputers-of-the-Past', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/Fyn4QmQHquA/Doctor-Slams-Hospitals-Please-Policy', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/JcnvobAj0DE/Mars500-Mission-Begins', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/OsEit_oEJG8/Police-Officers-Seek-Right-Not-To-Be-Recorded', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/RWSAy1nVfYQ/FTC-Staff-Discuss-a-Tax-on-Electronics-To-Support-the-News-Business', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/WQA5Xo_6cwA/Military-Develops-Green-Cleaners-For-Terrorist-Attack-Sites', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/cshWw102qTE/Frank-Zappas-Influence-On-Linux-and-FOSS-Development', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/iW74en1N7Ro/Bill-Gives-Feds-Emergency-Powers-To-Secure-Civilian-Nets', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/lAWnaU6YgIs/Why-Are-Indian-Kids-So-Good-At-Spelling', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/qALRtOq3asc/OH-Senate-Passes-Bill-Banning-Human-Animal-Hybrids', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/sH47rA1Mhcs/Part-Human-Part-Machine-Transistor-Devised', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/tmmQTFyzGb8/How-To-Get-Rejected-From-the-App-Store', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/wYu2IZPqdzM/Yahoo-Treading-Carefully-Before-Exposing-More-Private-Data', 
+      u'http://rss.slashdot.org/~r/Slashdot/slashdot/~3/ziiB2Fy7vGY/Six-Major-3G-and-4G-Networks-Tested-Nationwide'
+    ]
+    self.assertTrue(header_footer.endswith('</rdf:RDF>'))
     self.verify_entries(expected_list, entries)
 
 

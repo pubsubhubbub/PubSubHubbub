@@ -89,7 +89,10 @@ class FeedIdentifier(xml.sax.handler.ContentHandler):
 class AtomFeedIdentifier(FeedIdentifier):
   """SAX content handler for identifying Atom feeds."""
 
-  target_tag_stack = [re.compile(k).match for k in ('feed', 'id')]
+  target_tag_stack = [
+      re.compile(k).match for k in (
+      '([^:]+:)?feed$',
+      '([^:]+:)?id$')]
 
 
 class RssFeedIdentifier(FeedIdentifier):
