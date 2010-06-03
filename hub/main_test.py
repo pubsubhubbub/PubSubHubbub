@@ -2208,11 +2208,11 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         self.callback3, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     urlfetch_test_stub.instance.expect(
-        'post', self.callback1, 204, '', request_payload=self.expected_payload)
+        'post', self.callback1, 200, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
-        'post', self.callback2, 200, '', request_payload=self.expected_payload)
+        'post', self.callback2, 204, '', request_payload=self.expected_payload)
     urlfetch_test_stub.instance.expect(
-        'post', self.callback3, 204, '', request_payload=self.expected_payload)
+        'post', self.callback3, 299, '', request_payload=self.expected_payload)
     event = EventToDeliver.create_event_for_topic(
         self.topic, main.ATOM, self.header_footer, self.test_payloads)
     event.put()

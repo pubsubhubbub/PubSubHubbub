@@ -2711,7 +2711,7 @@ class PushEventHandler(webapp.RequestHandler):
     def callback(sub, result, exception):
       end_time = time.time()
       latency = int((end_time - start_time) * 1000)
-      if exception or result.status_code not in (200, 204):
+      if exception or not (200 <= result.status_code <= 299):
         logging.warning('Could not deliver to target url %s: '
                         'Exception = %r, status_code = %s',
                         sub.callback, exception,
