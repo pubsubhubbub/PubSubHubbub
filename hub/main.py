@@ -1275,9 +1275,21 @@ class FeedRecord(db.Model):
       format: The last parsing format that worked correctly for this feed.
         Should be 'rss' or 'atom'.
     """
-    self.content_type = headers.get('Content-Type', '').lower()
-    self.last_modified = headers.get('Last-Modified')
-    self.etag = headers.get('ETag')
+    try:
+      self.content_type = headers.get('Content-Type', '').lower()
+    except UnicodeDecodeError:
+      logging.exception('Content-Type header had bad encoding')
+
+    try:
+      self.last_modified = headers.get('Last-Modified')
+    except UnicodeDecodeError:
+      logging.exception('Last-Modified header had bad encoding')
+
+    try:
+      self.etag = headers.get('ETag')
+    except UnicodeDecodeError:
+      logging.exception('ETag header had bad encoding')
+
     if header_footer is not None:
       self.header_footer = header_footer
     if format is not None:

@@ -2031,6 +2031,33 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
     self.assertEquals('application/atom+xml', event.content_type)
 
+  def testPullWithUnicodeEtag(self):
+    """Tests when the ETag header has a unicode value.
+
+    The ETag value should be ignored because non-ascii ETag values are invalid.
+    """
+    data = ('<?xml version="1.0" encoding="utf-8"?>\n<feed><my header="data"/>'
+            '<entry><id>1</id><updated>123</updated>wooh</entry></feed>')
+    topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect('get', topic, 200, data,
+      response_headers={
+        'ETag': '\xe3\x83\x96\xe3\x83\xad\xe3\x82\xb0\xe8\xa1\x86',
+        'Content-Type': 'application/atom+xml',
+    })
+    self.handle('post', ('topic', topic))
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
+    self.assertTrue(feed is None)
+    event = EventToDeliver.all().get()
+    self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
+    self.assertEquals('application/atom+xml', event.content_type)
+    self.assertEquals(
+        {'Connection': 'cache-control',
+         'Cache-Control': 'no-cache no-store max-age=1'},
+        FeedRecord.all().get().get_request_headers())
+
   def testPullGoodRss(self):
     """Tests when the RSS XML can parse just fine."""
     data = ('<?xml version="1.0" encoding="utf-8"?>\n'
