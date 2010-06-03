@@ -1934,8 +1934,8 @@ class SubscribeHandler(webapp.RequestHandler):
     verify_type_list = [s.lower() for s in self.request.get_all('hub.verify')]
     verify_token = unicode(self.request.get('hub.verify_token', ''))
     secret = unicode(self.request.get('hub.secret', '')) or None
-    lease_seconds = self.request.get('hub.lease_seconds',
-                                     str(DEFAULT_LEASE_SECONDS))
+    lease_seconds = (
+       self.request.get('hub.lease_seconds', '') or str(DEFAULT_LEASE_SECONDS))
     mode = self.request.get('hub.mode', '').lower()
 
     error_message = None

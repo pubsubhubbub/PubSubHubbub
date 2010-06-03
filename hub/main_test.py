@@ -2885,6 +2885,34 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.verify_record_task(self.topic)
 
+  def testDefaultLeaseSeconds(self):
+    """Tests when the lease_seconds parameter is ommitted."""
+    sub_key = Subscription.create_key_name(self.callback, self.topic)
+    self.assertTrue(Subscription.get_by_key_name(sub_key) is None)
+
+    self.verify_callback_querystring_template = (
+        self.callback +
+        '?hub.verify_token=the_token'
+        '&hub.challenge=this_is_my_fake_challenge_string'
+        '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
+        '&hub.mode=%s'
+        '&hub.lease_seconds=2592000')
+    urlfetch_test_stub.instance.expect(
+        'get', self.verify_callback_querystring_template % 'subscribe', 200,
+        self.challenge)
+    self.handle('post',
+        ('hub.callback', self.callback),
+        ('hub.topic', self.topic),
+        ('hub.mode', 'subscribe'),
+        ('hub.verify', 'sync'),
+        ('hub.verify_token', self.verify_token),
+        ('hub.lease_seconds', ''))
+    self.assertEquals(204, self.response_code())
+    sub = Subscription.get_by_key_name(sub_key)
+    self.assertTrue(sub is not None)
+    self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
+    self.verify_record_task(self.topic)
+
   def testInvalidChallenge(self):
     """Tests when the returned challenge is bad."""
     sub_key = Subscription.create_key_name(self.callback, self.topic)
