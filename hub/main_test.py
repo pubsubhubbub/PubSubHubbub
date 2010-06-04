@@ -2030,6 +2030,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
     self.assertEquals('application/atom+xml', event.content_type)
+    self.assertEquals('atom', FeedRecord.all().get().format)
 
   def testPullWithUnicodeEtag(self):
     """Tests when the ETag header has a unicode value.
@@ -2075,6 +2076,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
     self.assertEquals('application/rss+xml', event.content_type)
+    self.assertEquals('rss', FeedRecord.all().get().format)
 
   def testPullGoodRdf(self):
     """Tests when the RDF (RSS 1.0) XML can parse just fine."""
@@ -2094,6 +2096,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     event = EventToDeliver.all().get()
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
     self.assertEquals('application/rdf+xml', event.content_type)
+    self.assertEquals('rss', FeedRecord.all().get().format)
 
   def testMultipleFetch(self):
     """Tests doing multiple fetches asynchronously in parallel."""
