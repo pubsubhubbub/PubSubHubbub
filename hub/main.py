@@ -1815,16 +1815,16 @@ class KnownFeedIdentity(db.Model):
       Dictionary mapping input topic URLs to their full set of aliases,
       including the input topic URL.
     """
-    input_topics = set(topics)
+    topics = set(topics)
     output_dict = {}
-    known_feeds = KnownFeed.get([KnownFeed.create_key(t) for t in input_topics])
+    known_feeds = KnownFeed.get([KnownFeed.create_key(t) for t in topics])
 
     topics = []
     feed_ids = []
-    for topic, feed in zip(input_topics, known_feeds):
+    for feed in known_feeds:
       if feed is None:
-        # For the case where the KnownFeed hasn't been written yet!
-        output_dict[topic] = set([topic])
+        # In case the KnownFeed hasn't been written yet, don't deliver an event;
+        # we need the KnownFeed cache to make subscription checking fast.
         continue
 
       fix_feed_id = feed.feed_id
