@@ -1362,12 +1362,12 @@ class FindFeedUpdatesTest(unittest.TestCase):
   @staticmethod
   def get_entry(entry_id, entry_list):
     """Finds the entry with the given ID in the list of entries."""
-    return [e for e in entry_list if e.entry_id_hash == sha1_hash(entry_id)][0]
+    return [e for e in entry_list if e.id_hash == sha1_hash(entry_id)][0]
 
   def testAllNewContent(self):
     """Tests when al pulled feed content is new."""
     entry_list, entry_payloads = self.run_test()
-    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    entry_id_hash_set = set(f.id_hash for f in entry_list)
     self.assertEquals(set(sha1_hash(k) for k in self.entries_map.keys()),
                       entry_id_hash_set)
     self.assertEquals(self.entries_map.values(), entry_payloads)
@@ -1380,7 +1380,7 @@ class FindFeedUpdatesTest(unittest.TestCase):
         self.topic, 'id2', sha1_hash('content2')).put()
 
     entry_list, entry_payloads = self.run_test()
-    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    entry_id_hash_set = set(f.id_hash for f in entry_list)
     self.assertEquals(set(sha1_hash(k) for k in ['id3']), entry_id_hash_set)
     self.assertEquals(['content3'], entry_payloads)
 
@@ -1393,7 +1393,7 @@ class FindFeedUpdatesTest(unittest.TestCase):
     self.entries_map['id1'] = 'newcontent1'
 
     entry_list, entry_payloads = self.run_test()
-    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    entry_id_hash_set = set(f.id_hash for f in entry_list)
     self.assertEquals(set(sha1_hash(k) for k in ['id1', 'id3']),
                       entry_id_hash_set)
 
@@ -1406,7 +1406,7 @@ class FindFeedUpdatesTest(unittest.TestCase):
     """Tests when the content contains unicode characters."""
     self.entries_map['id2'] = u'\u2019 asdf'
     entry_list, entry_payloads = self.run_test()
-    entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+    entry_id_hash_set = set(f.id_hash for f in entry_list)
     self.assertEquals(set(sha1_hash(k) for k in self.entries_map.keys()),
                       entry_id_hash_set)
 
@@ -1424,7 +1424,7 @@ class FindFeedUpdatesTest(unittest.TestCase):
     main.MAX_FEED_ENTRY_RECORD_LOOKUPS = 1
     try:
       entry_list, entry_payloads = self.run_test()
-      entry_id_hash_set = set(f.entry_id_hash for f in entry_list)
+      entry_id_hash_set = set(f.id_hash for f in entry_list)
       self.assertEquals(set(sha1_hash(k) for k in self.entries_map.keys()),
                         entry_id_hash_set)
       self.assertEquals(self.entries_map.values(), entry_payloads)
@@ -1502,7 +1502,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         self.topic, self.all_ids)
     self.assertEquals(
         [sha1_hash(k) for k in self.all_ids],
-        [e.entry_id_hash for e in feed_entries])
+        [e.id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1537,7 +1537,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         self.topic, self.all_ids)
     self.assertEquals(
         [sha1_hash(k) for k in self.all_ids],
-        [e.entry_id_hash for e in feed_entries])
+        [e.id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1572,7 +1572,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
         self.topic, self.all_ids)
     self.assertEquals(
         [sha1_hash(k) for k in self.all_ids],
-        [e.entry_id_hash for e in feed_entries])
+        [e.id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1818,7 +1818,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     feed_entries = list(FeedEntryRecord.all())
     self.assertEquals(
         set(sha1_hash(k) for k in self.all_ids),
-        set(e.entry_id_hash for e in feed_entries))
+        set(e.id_hash for e in feed_entries))
 
     work = EventToDeliver.all().get()
     event_key = work.key()
@@ -1923,7 +1923,7 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     expected_records = main.MAX_NEW_FEED_ENTRY_RECORDS
     self.assertEquals(
         [sha1_hash(k) for k in self.all_ids[:expected_records]],
-        [e.entry_id_hash for e in feed_entries])
+        [e.id_hash for e in feed_entries])
 
     work = EventToDeliver.all().get()
     event_key = work.key()

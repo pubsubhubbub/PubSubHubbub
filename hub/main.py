@@ -1315,12 +1315,15 @@ class FeedRecord(db.Model):
 class FeedEntryRecord(db.Expando):
   """Represents a feed entry that has been seen.
 
-  The key name of this entity is a get_hash_key_name() hash of the combination
-  of the topic URL and the entry_id.
+  The key name of this entity is a get_hash_key_name() hash of the entry_id.
   """
-  entry_id_hash = db.StringProperty(required=True, indexed=False)
   entry_content_hash = db.StringProperty(indexed=False)
-  update_time = db.DateTimeProperty(auto_now=True)
+  update_time = db.DateTimeProperty(auto_now=True, indexed=False)
+
+  @property
+  def id_hash(self):
+    """Returns the sha1 hash of the entry ID."""
+    return self.key().name()[len('hash_'):]
 
   @classmethod
   def create_key(cls, topic, entry_id):
@@ -1374,10 +1377,7 @@ class FeedEntryRecord(db.Expando):
       A new FeedEntryRecord that should be inserted into the Datastore.
     """
     key = cls.create_key(topic, entry_id)
-    return cls(key_name=key.name(),
-               parent=key.parent(),
-               entry_id_hash=sha1_hash(entry_id),
-               entry_content_hash=content_hash)
+    return cls(key=key, entry_content_hash=content_hash)
 
 
 class EventToDeliver(db.Model):
@@ -2295,7 +2295,7 @@ def find_feed_updates(topic, format, feed_content,
     existing_entries.extend(FeedEntryRecord.get_entries_for_topic(
         topic, key_set))
 
-  existing_dict = dict((e.entry_id_hash, e.entry_content_hash)
+  existing_dict = dict((e.id_hash, e.entry_content_hash)
                        for e in existing_entries if e)
   logging.debug('Retrieved %d feed entries, %d of which have been seen before',
                 len(entries_map), len(existing_dict))
