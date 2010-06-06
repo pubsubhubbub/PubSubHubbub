@@ -48,6 +48,11 @@ handlers:
   script: main.py
   login: admin
 
+# Mapreduce for running offline jobs.
+- url: /mapreduce(/.*)?
+  script: mapreduce/main.py
+  login: admin
+
 - url: .*
   script: main.py
   secure: optional

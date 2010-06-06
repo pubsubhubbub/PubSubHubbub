@@ -1,0 +1,26 @@
+mapreduce:
+- name: Remove old properties from FeedEntryRecords
+  mapper:
+    input_reader: mapreduce.input_readers.DatastoreInputReader
+    handler: offline_jobs.RemoveOldFeedEntryRecordPropertiesMapper
+    params:
+    - name: entity_kind
+      default: main.FeedEntryRecord
+    - name: shard_count
+      default: 32
+    - name: processing_rate
+      default: 100000
+- name: Cleanup old EventToDeliver instances
+  mapper:
+    input_reader: mapreduce.input_readers.DatastoreInputReader
+    handler: offline_jobs.CleanupOldEventToDeliver.run
+    params:
+    - name: entity_kind
+      default: main.EventToDeliver
+    - name: shard_count
+      default: 32
+    - name: processing_rate
+      default: 100000
+    - name: age_days
+      default: 14
+    params_validator: offline_jobs.CleanupOldEventToDeliver.validate_params
