@@ -2397,18 +2397,24 @@ def pull_feed_async(feed_to_fetch, fetch_url, headers, async_proxy, callback):
                        deadline=MAX_FETCH_SECONDS)
 
 
-def inform_event(event_to_deliver):
+def inform_event(event_to_deliver, alternate_topics):
   """Helper hook informs the Hub of new notifications.
 
   This can be used to take an action on every notification processed.
 
   Args:
-    event_to_deliver: The new event to deliver.
+    event_to_deliver: The new event to deliver, already submitted.
+    alternate_topics: A list of alternative Feed topics that this event
+      should be delievered for in addition to the 'event_to_deliver's topic.
   """
   pass
 
 
-def parse_feed(feed_record, headers, content, true_on_bad_feed=True):
+def parse_feed(feed_record,
+               headers,
+               content,
+               true_on_bad_feed=True,
+               alternate_topics=None):
   """Parses a feed's content, determines changes, enqueues notifications.
 
   This function will only enqueue new notifications if the feed has changed.
@@ -2422,6 +2428,8 @@ def parse_feed(feed_record, headers, content, true_on_bad_feed=True):
       beyond hope and there's no chance of parsing it correctly. When
       False the error will be propagated up to the caller with a False
       response to this function.
+    alternate_topics: A list of alternative Feed topics that this parsed event
+      should be delievered for in addition to the main FeedRecord's topic.
 
   Returns:
     True if successfully parsed the feed content; False on error.
@@ -2541,7 +2549,7 @@ def parse_feed(feed_record, headers, content, true_on_bad_feed=True):
 
   # Inform any hooks that there will is a new event to deliver that has
   # been recorded and delivery has begun.
-  hooks.execute(inform_event, event_to_deliver)
+  hooks.execute(inform_event, event_to_deliver, alternate_topics)
 
   return parse_successful
 
