@@ -88,6 +88,7 @@ import os
 import random
 import time
 
+from google.net.proto import ProtocolBuffer
 from google.appengine.api import memcache
 from google.appengine.api.labs import taskqueue
 from google.appengine.ext import db
@@ -121,6 +122,9 @@ class CannotGetIndexError(Error):
 class TaskConflictError(Error):
   """The added task has already ran, meaning the work index is invalid."""
 
+class MemcacheError(Error):
+  """Enqueuing the work item in memcache failed."""
+
 
 class ForkJoinQueue(object):
   """A fork-join queue for App Engine."""
@@ -133,13 +137,13 @@ class ForkJoinQueue(object):
                index_property,
                task_path,
                queue_name,
-               batch_size,
-               batch_period_ms,
-               lock_timeout_ms,
-               sync_timeout_ms,
-               stall_timeout_ms,
-               acquire_timeout_ms,
-               acquire_attempts):
+               batch_size=None,
+               batch_period_ms=None,
+               lock_timeout_ms=None,
+               sync_timeout_ms=None,
+               stall_timeout_ms=None,
+               acquire_timeout_ms=None,
+               acquire_attempts=None):
     """Initializer.
 
     Args:
@@ -190,7 +194,14 @@ class ForkJoinQueue(object):
                  memget=memcache.get,
                  memincr=memcache.incr,
                  memdecr=memcache.decr):
-    """Returns the next work index, incrementing the writer lock."""
+    """Reserves the next work index.
+
+    Args:
+      memget, memincr, memdecr: Used for testing.
+
+    Returns:
+      The next work index to use for work.
+    """
     for i in xrange(self.acquire_attempts):
       next_index = memget(self.index_name)
       if next_index is None:
@@ -256,19 +267,23 @@ class ForkJoinQueue(object):
       True if all writers were definitely finished; False if the reader/writer
       lock timed out and we are proceeding anyways.
     """
+    # Increment the batch index counter so incoming jobs will use a new index.
+    # Don't bother setting an initial value here because next_index() will
+    # do this when it notices no current index is present. Do this *before*
+    # closing the reader/writer lock below to decrease active writers on the
+    # current index.
+    memcache.incr(self.index_name)
+
     # Prevent new writers by making the counter extremely negative. If the
     # decrement fails here we can't recover anyways, so just let the worker go.
     add_counter = self.add_counter_template % last_index
     memcache.decr(add_counter, self.LOCK_OFFSET)
 
-    # Increment the batch index counter so incoming jobs will use a new index.
-    # Don't bother setting an initial value here because next_index() will
-    # do this when it notices no current index is present.
-    memcache.incr(self.index_name)
-
     for i in xrange(self.sync_attempts):
       counter = memcache.get(add_counter)
-      if counter is None or int(counter) == self.LOCK_OFFSET:
+      # Less than or equal LOCK_OFFSET here in case a writer decrements twice
+      # due to rerunning failure tasks.
+      if counter is None or int(counter) <= self.LOCK_OFFSET:
         # Worst-case the counter will be gone due to memcache eviction, which
         # means the worker can procede with without waiting for writers
         # and just process whatever it can find. This may drop some work.
@@ -279,8 +294,19 @@ class ForkJoinQueue(object):
 
     return False
 
-  def pop(self, request):
-    """Pops work to be done based on a task payload.
+  def _query_work(self, index, cursor):
+    """TODO
+    """
+    query = (self.model_class.all()
+        .filter('%s =' % self.index_property.name, index)
+        .order('__key__'))
+    if cursor:
+      query.with_cursor(cursor)
+    result_list = query.fetch(self.batch_size)
+    return result_list, query.cursor()
+
+  def pop_request(self, request):
+    """Pops work to be done based on a task queue request.
 
     Args:
       request: webapp.Request with the task payload.
@@ -288,8 +314,19 @@ class ForkJoinQueue(object):
     Returns:
       A list of work items, if any.
     """
-    cursor = request.get('cursor')
-    task_name = os.environ['HTTP_X_APPENGINE_TASKNAME']
+    return self.pop(os.environ['HTTP_X_APPENGINE_TASKNAME'],
+                    request.get('cursor'))
+
+  def pop(self, task_name, cursor=None):
+    """Pops work to be done based on just the task name.
+
+    Args:
+      task_name: The name of the task.
+      cursor: The value of the cursor for this task (optional).
+
+    Returns:
+      A list of work items, if any.
+    """
     rest, index, generation = task_name.rsplit('-', 2)
     index, generation = int(index), int(generation)
 
@@ -298,19 +335,15 @@ class ForkJoinQueue(object):
       # tasks can start processing immediately.
       self._increment_index(index)
 
-    query = (self.model_class.all()
-        .filter('%s =' % self.index_property.name, index)
-        .order('__key__'))
-    if cursor:
-      query.with_cursor(cursor)
-    result_list = query.fetch(self.batch_size)
+    result_list, cursor = self._query_work(index, cursor)
+
     if len(result_list) == self.batch_size:
       try:
         taskqueue.Task(
           method='POST',
           name='%s-%d-%d' % (rest, index, generation + 1),
           url=self.task_path,
-          params={'cursor': query.cursor()}
+          params={'cursor': cursor}
         ).add(self.get_queue_name(index))
       except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
         # This means the continuation chain already started and this root
@@ -335,3 +368,92 @@ class ShardedForkJoinQueue(ForkJoinQueue):
 
   def get_queue_name(self, index):
     return self.queue_name % {'shard': 1 + (index % self.shard_count)}
+
+
+class MemcacheForkJoinQueue(ShardedForkJoinQueue):
+  """A fork-join queue that only stores work items in memcache.
+
+  To use, call next_index() to get the work index then call the put() method,
+  passing one or more model instances to enqueued in memcache.
+
+  Also a sharded queue for maximum throughput.
+  """
+
+  def __init__(self, *args, **kwargs):
+    """Initializer.
+
+    Args:
+      *args, **kwargs: Passed to ShardedForkJoinQueue.
+      expiration_seconds: How long items inserted into memcache should remain
+        until they are evicted due to timeout. Default is 0, meaning they
+        will never be evicted.
+    """
+    if 'expiration_seconds' in kwargs:
+      self.expiration_seconds = kwargs.pop('expiration_seconds')
+    else:
+      self.expiration_seconds = 0
+    ShardedForkJoinQueue.__init__(self, *args, **kwargs)
+
+  def _create_length_key(self, index):
+    """Creates a length memecache key for the length of the in-memory queue."""
+    return '%s:length:%d' % (self.name, index)
+
+  def _create_index_key(self, index, number):
+    """Creates an index memcache key for the given in-memory queue location."""
+    return '%s:index:%d-%d' % (self.name, index, number)
+
+  def put(self,
+          index,
+          entity_list,
+          memincr=memcache.incr,
+          memset=memcache.set_multi):
+    """Enqueue a model instance on this queue.
+
+    Does not write to the Datastore.
+
+    Args:
+      index: The work index for this entity.
+      entity_list: List of work entities to insert into the in-memory queue.
+      memincr, memset: Used for testing.
+
+    Raises:
+      MemcacheError if the entities were not successfully added.
+    """
+    length_key = self._create_length_key(index)
+    end = memincr(length_key, len(entity_list), initial_value=0)
+    if end is None:
+      raise MemcacheError('Could not increment length key %r' % length_key)
+
+    start = end - len(entity_list)
+    key_map = {}
+    for number, entity in zip(xrange(start, end), entity_list):
+      key_map[self._create_index_key(index, number)] = db.model_to_protobuf(
+          entity)
+
+    result = memset(key_map, time=self.expiration_seconds)
+    if result:
+      raise MemcacheError('Could not set memcache keys %r' % result)
+
+  def _query_work(self, index, cursor):
+    """Queries for work in memcache."""
+    if cursor:
+      cursor = int(cursor)
+    else:
+      cursor = 0
+
+    key_list = [self._create_index_key(index, n)
+                for n in xrange(cursor, cursor + self.batch_size)]
+    results = memcache.get_multi(key_list)
+
+    result_list = []
+    for key in key_list:
+      proto = results.get(key)
+      if not proto:
+        continue
+      try:
+        result_list.append(db.model_from_protobuf(proto))
+      except ProtocolBuffer.ProtocolBufferDecodeError:
+        logging.exception('Could not decode EntityPb at memcache key %r: %r',
+                          key, proto)
+
+    return result_list, cursor + self.batch_size

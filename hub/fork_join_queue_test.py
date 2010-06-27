@@ -71,6 +71,21 @@ SHARDED_QUEUE = fork_join_queue.ShardedForkJoinQueue(
     shard_count=4)
 
 
+MEMCACHE_QUEUE = fork_join_queue.MemcacheForkJoinQueue(
+    TestModel,
+    TestModel.work_index,
+    '/path/to/my/task',
+    'default',
+    batch_size=3,
+    batch_period_ms=200,
+    lock_timeout_ms=1000,
+    sync_timeout_ms=250,
+    stall_timeout_ms=30000,
+    acquire_timeout_ms=50,
+    acquire_attempts=20,
+    shard_count=4)
+
+
 class ForkJoinQueueTest(unittest.TestCase):
   """Tests for the ForkJoinQueue class."""
 
@@ -226,7 +241,7 @@ class ForkJoinQueueTest(unittest.TestCase):
     request = testutil.create_test_request('POST', None)
     os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
         self.expect_task(t1.work_index)['name']
-    result = TEST_QUEUE.pop(request)
+    result = TEST_QUEUE.pop_request(request)
 
     self.assertEquals(1, len(result))
     self.assertEquals(t1.key(), result[0].key())
@@ -250,7 +265,7 @@ class ForkJoinQueueTest(unittest.TestCase):
     request = testutil.create_test_request('POST', None)
     os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
         self.expect_task(work_index)['name']
-    result_list = TEST_QUEUE.pop(request)
+    result_list = TEST_QUEUE.pop_request(request)
 
     self.assertEquals(3, len(result_list))
     for i, result in enumerate(result_list):
@@ -268,7 +283,7 @@ class ForkJoinQueueTest(unittest.TestCase):
     request = testutil.create_test_request('POST', None,
                                            *next_task['params'].items())
     os.environ['HTTP_X_APPENGINE_TASKNAME'] = next_task['name']
-    result_list = TEST_QUEUE.pop(request)
+    result_list = TEST_QUEUE.pop_request(request)
     self.assertEquals(3, len(result_list))
     for i, result in enumerate(result_list):
       self.assertEquals(work_index, result.work_index)
@@ -286,7 +301,7 @@ class ForkJoinQueueTest(unittest.TestCase):
     request = testutil.create_test_request('POST', None,
                                            *next_task['params'].items())
     os.environ['HTTP_X_APPENGINE_TASKNAME'] = next_task['name']
-    result_list = TEST_QUEUE.pop(request)
+    result_list = TEST_QUEUE.pop_request(request)
     self.assertEquals([], result_list)
     testutil.get_tasks('default', expected_count=3, usec_eta=True)
 
@@ -304,10 +319,10 @@ class ForkJoinQueueTest(unittest.TestCase):
     os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
         self.expect_task(work_index)['name']
 
-    result_list = TEST_QUEUE.pop(request)
+    result_list = TEST_QUEUE.pop_request(request)
     testutil.get_tasks('default', expected_count=2)
 
-    result_list = TEST_QUEUE.pop(request)
+    result_list = TEST_QUEUE.pop_request(request)
     testutil.get_tasks('default', expected_count=2)
 
   def testIncrementIndexFail(self):
@@ -341,7 +356,7 @@ class ForkJoinQueueTest(unittest.TestCase):
       request = testutil.create_test_request('POST', None)
       os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
           self.expect_task(work_index)['name']
-      result_list = SHARDED_QUEUE.pop(request)
+      result_list = SHARDED_QUEUE.pop_request(request)
 
       self.assertEquals(3, len(result_list))
       for i, result in enumerate(result_list):
@@ -356,6 +371,105 @@ class ForkJoinQueueTest(unittest.TestCase):
       self.assertTrue(next_task['name'].endswith('-1'))
     finally:
       stub._IsValidQueue = old_valid
+
+  def testMemcacheQueue(self):
+    """Tests adding and popping from an in-memory queue with continuation."""
+    work_index = MEMCACHE_QUEUE.next_index()
+    work_items = [TestModel(key=db.Key.from_path(TestModel.kind(), i),
+                            work_index=work_index, number=i)
+                  for i in xrange(1, 6)]
+    MEMCACHE_QUEUE.put(work_index, work_items)
+    MEMCACHE_QUEUE.add(work_index, gettime=self.gettime1)
+    testutil.get_tasks('default', expected_count=1)
+
+    # First pop request.
+    request = testutil.create_test_request('POST', None)
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
+        self.expect_task(work_index)['name']
+    result_list = MEMCACHE_QUEUE.pop_request(request)
+
+    self.assertEquals(3, len(result_list))
+    for i, result in enumerate(result_list):
+      self.assertEquals(work_index, result.work_index)
+      self.assertEquals(i + 1, result.number)
+
+    # Continuation task enqueued.
+    next_task = testutil.get_tasks('default',
+                                   expected_count=2,
+                                   index=1)
+    self.assertEquals(3, int(next_task['params']['cursor']))
+    self.assertTrue(next_task['name'].endswith('-1'))
+
+    # Second pop request.
+    request = testutil.create_test_request(
+        'POST', None, *next_task['params'].items())
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = next_task['name']
+    result_list = MEMCACHE_QUEUE.pop_request(request)
+
+    self.assertEquals(2, len(result_list))
+    for i, result in enumerate(result_list):
+      self.assertEquals(work_index, result.work_index)
+      self.assertEquals(i + 4, result.number)
+
+  def testMemcacheQueue_IncrError(self):
+    """Tests calling put() when memcache increment fails."""
+    work_index = MEMCACHE_QUEUE.next_index()
+    entity = TestModel(work_index=work_index, number=0)
+    self.assertRaises(fork_join_queue.MemcacheError,
+                      MEMCACHE_QUEUE.put,
+                      work_index, [entity],
+                      memincr=lambda *a, **k: None)
+
+  def testMemcacheQueue_PutSetError(self):
+    """Tests calling put() when memcache set fails."""
+    work_index = MEMCACHE_QUEUE.next_index()
+    entity = TestModel(work_index=work_index, number=0)
+    self.assertRaises(fork_join_queue.MemcacheError,
+                      MEMCACHE_QUEUE.put,
+                      work_index, [entity],
+                      memset=lambda *a, **k: ['blah'])
+
+  def testMemcacheQueue_PopError(self):
+    """Tests calling pop() when memcache is down."""
+    work_index = MEMCACHE_QUEUE.next_index()
+    entity = TestModel(work_index=work_index, number=0)
+    MEMCACHE_QUEUE.put(work_index, [entity])
+    memcache.flush_all()
+
+    request = testutil.create_test_request('POST', None)
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
+        self.expect_task(work_index)['name']
+    result_list = MEMCACHE_QUEUE.pop_request(request)
+    self.assertEquals([], result_list)
+
+  def testMemcacheQueue_PopHoles(self):
+    """Tests when there are holes in the memcache array."""
+    work_index = MEMCACHE_QUEUE.next_index()
+    work_items = [TestModel(key=db.Key.from_path(TestModel.kind(), i),
+                            work_index=work_index, number=i)
+                  for i in xrange(1, 6)]
+    MEMCACHE_QUEUE.put(work_index, work_items)
+    memcache.delete(MEMCACHE_QUEUE._create_index_key(work_index, 1))
+
+    request = testutil.create_test_request('POST', None)
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
+        self.expect_task(work_index)['name']
+    result_list = MEMCACHE_QUEUE.pop_request(request)
+    self.assertEquals([1, 3], [r.number for r in result_list])
+
+  def testMemcacheQueue_PopDecodeError(self):
+    """Tests when proto decoding fails on the pop() call."""
+    work_index = MEMCACHE_QUEUE.next_index()
+    work_items = [TestModel(key=db.Key.from_path(TestModel.kind(), i),
+                            work_index=work_index, number=i)
+                  for i in xrange(1, 6)]
+    MEMCACHE_QUEUE.put(work_index, work_items)
+
+    memcache.set(MEMCACHE_QUEUE._create_index_key(work_index, 1), 'bad data')
+    request = testutil.create_test_request('POST', None)
+    os.environ['HTTP_X_APPENGINE_TASKNAME'] = \
+        self.expect_task(work_index)['name']
+    result_list = MEMCACHE_QUEUE.pop_request(request)
 
 ################################################################################
 

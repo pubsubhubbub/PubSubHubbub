@@ -1075,7 +1075,7 @@ class FeedToFetch(db.Model):
     return cls.get_by_key_name(get_hash_key_name(topic))
 
   @classmethod
-  def insert(cls, topic_list, source_dict=None):
+  def insert(cls, topic_list, source_dict=None, memory_only=True):
     """Inserts a set of FeedToFetch entities for a set of topics.
 
     Overwrites any existing entities that are already there.
@@ -1084,6 +1084,10 @@ class FeedToFetch(db.Model):
       topic_list: List of the topic URLs of feeds that need to be fetched.
       source_dict: Dictionary of sources for the feed. Defaults to an empty
         dictionary.
+      memory_only: Only save FeedToFetch records to memory, not to disk.
+
+    Returns:
+      The list of FeedToFetch records that was created.
     """
     if not topic_list:
       return
@@ -1098,18 +1102,27 @@ class FeedToFetch(db.Model):
     else:
       cls.FORK_JOIN_QUEUE.queue_name = FEED_QUEUE
 
-    work_index = cls.FORK_JOIN_QUEUE.next_index()
+    if memory_only:
+      work_index = cls.FORK_JOIN_QUEUE.next_index()
+    else:
+      work_index = None
     try:
       feed_list = [
-          cls(key_name=get_hash_key_name(topic),
+          cls(key=db.Key.from_path(cls.kind(), get_hash_key_name(topic)),
               topic=topic,
               source_keys=list(source_keys),
               source_values=list(source_values),
               work_index=work_index)
           for topic in set(topic_list)]
-      db.put(feed_list)
+      if memory_only:
+        cls.FORK_JOIN_QUEUE.put(work_index, feed_list)
+      else:
+        db.put(feed_list)
     finally:
-      cls.FORK_JOIN_QUEUE.add(work_index)
+      if memory_only:
+        cls.FORK_JOIN_QUEUE.add(work_index)
+
+    return feed_list
 
   def fetch_failed(self,
                    max_failures=MAX_FEED_PULL_FAILURES,
@@ -1147,7 +1160,9 @@ class FeedToFetch(db.Model):
     take care of this FeedToFetch and we should leave the entry.
 
     Returns:
-      True if the entity was deleted, False otherwise.
+      True if the entity was deleted, False otherwise. In the case the
+      FeedToFetch record never made it into the Datastore (because it only
+      ever lived in the in-memory cache), this function will return False.
     """
     def txn():
       other = db.get(self.key())
@@ -1180,7 +1195,7 @@ class FeedToFetch(db.Model):
         return
 
 
-FeedToFetch.FORK_JOIN_QUEUE = fork_join_queue.ShardedForkJoinQueue(
+FeedToFetch.FORK_JOIN_QUEUE = fork_join_queue.MemcacheForkJoinQueue(
     FeedToFetch,
     FeedToFetch.work_index,
     '/work/pull_feeds',
@@ -1192,7 +1207,8 @@ FeedToFetch.FORK_JOIN_QUEUE = fork_join_queue.ShardedForkJoinQueue(
     stall_timeout_ms=30000,
     acquire_timeout_ms=10,
     acquire_attempts=50,
-    shard_count=1)
+    shard_count=1,
+    expiration_seconds=600)  # Give up on fetches after 10 minutes.
 
 
 class FeedRecord(db.Model):
@@ -2655,7 +2671,7 @@ class PullFeedHandler(webapp.RequestHandler):
         return
       self._handle_fetches([work])
     else:
-      work_list = FeedToFetch.FORK_JOIN_QUEUE.pop(self.request)
+      work_list = FeedToFetch.FORK_JOIN_QUEUE.pop_request(self.request)
       self._handle_fetches(work_list)
 
 ################################################################################
@@ -2802,7 +2818,9 @@ def take_polling_action(topic_list, poll_type):
       for topic in topic_list:
         KnownFeed.record(topic)
     else:
-      FeedToFetch.insert(topic_list)
+      # Force these FeedToFetch records to be written to disk so we ensure
+      # that we will eventually polll the feeds.
+      FeedToFetch.insert(topic_list, memory_only=False)
   except (taskqueue.Error, apiproxy_errors.Error,
           db.Error, runtime.DeadlineExceededError,
           fork_join_queue.Error):
