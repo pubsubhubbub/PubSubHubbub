@@ -74,7 +74,7 @@ class AsyncAPIProxy(object):
                    lambda: self.end_call(done_callback),
                    deadline=deadline)
     setattr(rpc, 'user_callback', user_callback)
-    setattr(rpc, 'pbresponse', user_callback)
+    setattr(rpc, 'pbresponse', pbresponse)
 
     self.enqueued.append(rpc)
     show_request = '...'
@@ -131,6 +131,5 @@ class AsyncAPIProxy(object):
       # come back during any outbound API call.
       self._run_callbacks()
       self._wait_one()
-      self._run_callbacks()
     # Run them one last time after waiting to pick up the final callback!
     self._run_callbacks()
