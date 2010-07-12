@@ -303,6 +303,9 @@ class FilterTest(TestBase):
       self.load_feed('xhtml_entities.xml')
       self.fail('Should have raised an exception')
     except feed_diff.Error, e:
+      # TODO(bslatkin): Fix this datafile in head.
+      # This ensures that hte failure is because of bad entities, not a
+      # missing test data file.
       self.assertFalse('IOError' in str(e))
 
 

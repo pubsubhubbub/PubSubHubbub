@@ -48,7 +48,21 @@ TEST_QUEUE = fork_join_queue.ForkJoinQueue(
     '/path/to/my/task',
     'default',
     batch_size=3,
-    batch_period_ms=200,
+    batch_period_ms=2200,
+    lock_timeout_ms=1000,
+    sync_timeout_ms=250,
+    stall_timeout_ms=30000,
+    acquire_timeout_ms=50,
+    acquire_attempts=20)
+
+
+TEST_QUEUE_ZERO_BATCH_TIME = fork_join_queue.ForkJoinQueue(
+    TestModel,
+    TestModel.work_index,
+    '/path/to/my/task',
+    'default',
+    batch_size=3,
+    batch_period_ms=0,
     lock_timeout_ms=1000,
     sync_timeout_ms=250,
     stall_timeout_ms=30000,
@@ -62,7 +76,7 @@ SHARDED_QUEUE = fork_join_queue.ShardedForkJoinQueue(
     '/path/to/my/task',
     'default-%(shard)s',
     batch_size=3,
-    batch_period_ms=200,
+    batch_period_ms=2200,
     lock_timeout_ms=1000,
     sync_timeout_ms=250,
     stall_timeout_ms=30000,
@@ -77,7 +91,7 @@ MEMCACHE_QUEUE = fork_join_queue.MemcacheForkJoinQueue(
     '/path/to/my/task',
     'default',
     batch_size=3,
-    batch_period_ms=200,
+    batch_period_ms=2200,
     lock_timeout_ms=1000,
     sync_timeout_ms=250,
     stall_timeout_ms=30000,
@@ -96,17 +110,26 @@ class ForkJoinQueueTest(unittest.TestCase):
     self.now2 = 1274078097.79072
     self.gettime1 = lambda: self.now1
     self.gettime2 = lambda: self.now2
+    os.environ['CURRENT_VERSION_ID'] = 'myversion.1234'
     if 'HTTP_X_APPENGINE_TASKNAME' in os.environ:
       del os.environ['HTTP_X_APPENGINE_TASKNAME']
 
-  def expect_task(self, index, generation=0, now_time=None, cursor=None):
+  def expect_task(self,
+                  index,
+                  generation=0,
+                  now_time=None,
+                  cursor=None,
+                  batch_period_ms=2200000):
     """Creates an expected task dictionary."""
     if now_time is None:
       now_time = self.now1
     gap_number = int(now_time / 30.0)
+    import math
     work_item = {
-      'name': 'fjq-TestModel-%d-%d-%d' % (gap_number, index, generation),
-      'eta': int(10**6 * now_time) + 500000,
+      'name': 'fjq-TestModel-myversion-%d-%d-%d' % (
+          gap_number, index, generation),
+      # Working around weird rounding behavior of task queue stub.
+      'eta': (10**6 * now_time) + batch_period_ms,
     }
     if cursor is not None:
       work_item['cursor'] = cursor
@@ -117,7 +140,10 @@ class ForkJoinQueueTest(unittest.TestCase):
     found_tasks.sort(key=lambda t: t['eta'])
     for expected, found in zip(expected_tasks, found_tasks):
       self.assertEquals(expected['name'], found['name'])
-      self.assertEquals(int(expected['eta'] / 10**6), int(found['eta'] / 10**6))
+      # Round these task ETAs to integers because the taskqueue stub does
+      # not support floating-point ETAs.
+      self.assertEquals(round(expected['eta'] / 10**6),
+                        round(found['eta'] / 10**6))
       self.assertEquals(expected.get('cursor'),
                         found.get('params', {}).get('cursor'))
       self.assertEquals('POST', found['method'])
@@ -223,10 +249,18 @@ class ForkJoinQueueTest(unittest.TestCase):
 
   def testNextIndexBusyWaitFail(self):
     """Tests when busy waiting for a new index fails."""
+    seen_keys = []
+    def fake_incr(key, *args, **kwargs):
+      seen_keys.append(key)
+      return 100
     self.assertRaises(
         fork_join_queue.WriterLockError,
         TEST_QUEUE.next_index,
-        memincr=lambda *a, **k: 100)
+        memincr=fake_incr)
+    self.assertEquals(
+        (['fjq-TestModel-add-lock:2654435761'] * 20) +
+        ['fjq-TestModel-index'],
+        seen_keys)
 
   def testPopOne(self):
     """Tests popping a single entity from the queue."""
@@ -335,6 +369,16 @@ class ForkJoinQueueTest(unittest.TestCase):
     """Tests busy waiting for the writer lock."""
     work_index = TEST_QUEUE.next_index()
     self.assertFalse(TEST_QUEUE._increment_index(work_index))
+
+  def testZeroBatchTime(self):
+    """Tests that zero batch time results in no task ETA."""
+    work_index = TEST_QUEUE_ZERO_BATCH_TIME.next_index()
+    task = TestModel(work_index=work_index, number=1)
+    db.put(task)
+    TEST_QUEUE_ZERO_BATCH_TIME.add(work_index, gettime=self.gettime1)
+    self.assertTasksEqual(
+      [self.expect_task(work_index, batch_period_ms=0)],
+      testutil.get_tasks('default', usec_eta=True))
 
   def testShardedQueue(self):
     """Tests adding and popping from a sharded queue with continuation."""

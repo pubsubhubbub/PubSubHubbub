@@ -1135,6 +1135,30 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=1)
     testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
 
+  def testMaxFailuresOverride(self):
+    """Tests the max_failures override value."""
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+    self.assertEquals(None, event.max_failures)
+
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ATOM, self.header_footer, self.test_payloads,
+        max_failures=1)
+    self.assertEquals(1, event.max_failures)
+
+    Subscription.insert(
+        self.callback, self.topic, self.token, self.secret)
+    subscription_list = list(Subscription.all())
+
+    event.put()
+    event.update(False, subscription_list)
+    event2 = db.get(event.key())
+    self.assertFalse(event2.totally_failed)
+
+    event2.update(False, [])
+    event3 = db.get(event.key())
+    self.assertTrue(event3.totally_failed)
+
 ################################################################################
 
 class PublishHandlerTest(testutil.HandlerTestBase):

@@ -1117,6 +1117,8 @@ class FeedToFetch(db.Model):
       if memory_only:
         cls.FORK_JOIN_QUEUE.put(work_index, feed_list)
       else:
+        # TODO(bslatkin): Insert fetching tasks here to fix the polling
+        # mode for this codebase.
         db.put(feed_list)
     finally:
       if memory_only:
@@ -1424,14 +1426,21 @@ class EventToDeliver(db.Model):
   last_callback = db.TextProperty(default='')  # For paging Subscriptions
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
   delivery_mode = db.StringProperty(default=NORMAL, choices=DELIVERY_MODES)
-  retry_attempts = db.IntegerProperty(default=0)
+  retry_attempts = db.IntegerProperty(default=0, indexed=False)
   last_modified = db.DateTimeProperty(required=True)
   totally_failed = db.BooleanProperty(default=False)
   content_type = db.TextProperty(default='')
+  max_failures = db.IntegerProperty(indexed=False, indexed=False)
 
   @classmethod
-  def create_event_for_topic(cls, topic, format, header_footer, entry_payloads,
-                             now=datetime.datetime.utcnow):
+  def create_event_for_topic(cls,
+                             topic,
+                             format,
+                             header_footer,
+                             entry_payloads,
+                             now=datetime.datetime.utcnow,
+                             set_parent=True,
+                             max_failures=None):
     """Creates an event to deliver for a topic and set of published entries.
 
     Args:
@@ -1443,6 +1452,12 @@ class EventToDeliver(db.Model):
         XML data for each entry, including surrounding tags) in order of newest
         to oldest.
       now: Returns the current time as a UTC datetime. Used in tests.
+      set_parent: Set the parent to the FeedRecord for the given topic. This is
+        necessary for the parse_feed flow's transaction. Default is True. Set
+        to False if this EventToDeliver will be written outside of the
+        FeedRecord transaction.
+      max_failures: Maximum number of failures to allow for this event. When
+        None (the default) it will use the MAX_DELIVERY_FAILURES constant.
 
     Returns:
       A new EventToDeliver instance that has not been stored.
@@ -1469,14 +1484,20 @@ class EventToDeliver(db.Model):
     payload_list.append(header_footer[close_index:])
     payload = '\n'.join(payload_list)
 
+    if set_parent:
+      parent = db.Key.from_path(
+          FeedRecord.kind(), FeedRecord.create_key_name(topic))
+    else:
+      parent = None
+
     return cls(
-        parent=db.Key.from_path(
-            FeedRecord.kind(), FeedRecord.create_key_name(topic)),
+        parent=parent,
         topic=topic,
         topic_hash=sha1_hash(topic),
         payload=payload,
         last_modified=now(),
-        content_type=content_type)
+        content_type=content_type,
+        max_failures=max_failures)
 
   def get_next_subscribers(self, chunk_size=None):
     """Retrieve the next set of subscribers to attempt delivery for this event.
@@ -1577,6 +1598,8 @@ class EventToDeliver(db.Model):
       retry_delay = retry_period * (2 ** self.retry_attempts)
       self.last_modified += datetime.timedelta(seconds=retry_delay)
       self.retry_attempts += 1
+      if self.max_failures is not None:
+        max_failures = self.max_failures
       if self.retry_attempts > max_failures:
         self.totally_failed = True
 

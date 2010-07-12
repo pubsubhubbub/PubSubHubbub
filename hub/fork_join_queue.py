@@ -180,15 +180,26 @@ class ForkJoinQueue(object):
     self.stall_timeout = stall_timeout_ms / 1000.0
     self.acquire_timeout = acquire_timeout_ms / 1000.0
     self.acquire_attempts = acquire_attempts
-
-    self.lock_name = self.name + '-lock'
-    self.add_counter_template = self.name + '-add-lock:%d'
-    self.index_name = self.name + '-index'
     self.batch_delta = datetime.timedelta(microseconds=batch_period_ms * 1000)
 
   def get_queue_name(self, index):
     """Returns the name of the queue to use based on the given work index."""
     return self.queue_name
+
+  @property
+  def lock_name(self):
+    """Returns the lock key prefix for the current prefix name."""
+    return self.name + '-lock'
+
+  @property
+  def add_counter_template(self):
+    """Returns the add counter prefix template for the current prefix name."""
+    return self.name + '-add-lock:%d'
+
+  @property
+  def index_name(self):
+    """Returns the index key prefix for the current prefix name."""
+    return self.name + '-index'
 
   def next_index(self,
                  memget=memcache.get,
@@ -226,6 +237,10 @@ class ForkJoinQueue(object):
         return next_index
       time.sleep(self.acquire_timeout)
     else:
+      # Force the index forward; here we're stuck in a loop where the memcache
+      # index was evicted and all new lock acqusitions are reusing old locks
+      # that were already closed off to new writers.
+      memincr(self.index_name)
       raise WriterLockError('Task adder could not increment writer lock.')
 
   def add(self, index, gettime=time.time):
@@ -235,23 +250,37 @@ class ForkJoinQueue(object):
     # memcache is evicted. This prevents new task names from overlapping with
     # old ones.
     nearest_gap = int(now_stamp / self.stall_timeout)
+    # Include major version in the task name to ensure that test tasks
+    # enqueued from a non-default major version will run in the new context
+    # instead of the default major version.
+    major_version, minor_version = os.environ['CURRENT_VERSION_ID'].split('.')
+    task_name = '%s-%s-%d-%d-%d' % (
+        self.name, major_version, nearest_gap, index, 0)
+
+    # When the batch_delta is zero, then there should be no ETA, the task
+    # should run immediately and the reader will busy wait for all writers.
+    if self.batch_delta == 0:
+      eta = None
+    else:
+      eta = datetime_from_stamp(now_stamp) + self.batch_delta
+
     try:
       taskqueue.Task(
         method='POST',
-        name='%s-%d-%d-%d' % (self.name, nearest_gap, index, 0),
+        name=task_name,
         url=self.task_path,
-        eta=datetime_from_stamp(now_stamp) + self.batch_delta
+        eta=eta
       ).add(self.get_queue_name(index))
     except taskqueue.TaskAlreadyExistsError:
       # This is okay. It means the task has already been inserted by another
       # add() call for this same batch. We're holding the lock at this point
       # so we know that job won't start yet.
       pass
-    except taskqueue.TombstonedTaskError:
+    except taskqueue.TombstonedTaskError, e:
       # This is bad. This means 1) the lock we held expired and the task already
       # ran, 2) this task name somehow overlaps with an old task. Return the
       # error to the caller so they can try again.
-      raise TaskConflictError('Task named "%s" tombstoned' % task.name)
+      raise TaskConflictError('Task named tombstoned: %s' % e)
     finally:
       # Don't bother checking the decr status; worst-case the worker job
       # will time out after some number of seconds and proceed anyways.
@@ -295,8 +324,7 @@ class ForkJoinQueue(object):
     return False
 
   def _query_work(self, index, cursor):
-    """TODO
-    """
+    """Queries for work in the Datastore."""
     query = (self.model_class.all()
         .filter('%s =' % self.index_property.name, index)
         .order('__key__'))
@@ -314,6 +342,7 @@ class ForkJoinQueue(object):
     Returns:
       A list of work items, if any.
     """
+    # TODO: Use request.headers['X-AppEngine-TaskName'] instead of environ.
     return self.pop(os.environ['HTTP_X_APPENGINE_TASKNAME'],
                     request.get('cursor'))
 
@@ -338,17 +367,22 @@ class ForkJoinQueue(object):
     result_list, cursor = self._query_work(index, cursor)
 
     if len(result_list) == self.batch_size:
-      try:
-        taskqueue.Task(
-          method='POST',
-          name='%s-%d-%d' % (rest, index, generation + 1),
-          url=self.task_path,
-          params={'cursor': cursor}
-        ).add(self.get_queue_name(index))
-      except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
-        # This means the continuation chain already started and this root
-        # task failed for some reason; no problem.
-        pass
+      for i in xrange(3):
+        try:
+          taskqueue.Task(
+            method='POST',
+            name='%s-%d-%d' % (rest, index, generation + 1),
+            url=self.task_path,
+            params={'cursor': cursor}
+          ).add(self.get_queue_name(index))
+        except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
+          # This means the continuation chain already started and this root
+          # task failed for some reason; no problem.
+          break
+        except (taskqueue.TransientError, taskqueue.InternalError):
+          # Ignore transient taskqueue errors.
+          if i == 2:
+            raise
 
     return result_list
 

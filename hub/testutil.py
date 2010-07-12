@@ -29,10 +29,12 @@ import urllib
 
 
 TEST_APP_ID = 'my-app-id'
+TEST_VERSION_ID = 'my-version.1234'
 
 # Assign the application ID up front here so we can create db.Key instances
 # before doing any other test setup.
 os.environ['APPLICATION_ID'] = TEST_APP_ID
+os.environ['CURRENT_VERSION_ID'] = TEST_VERSION_ID
 
 
 def fix_path():
