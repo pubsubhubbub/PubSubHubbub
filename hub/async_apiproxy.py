@@ -66,11 +66,16 @@ class AsyncAPIProxy(object):
     if not callable(user_callback):
       raise TypeError('%r not callable' % user_callback)
 
+    # Do not actually supply the callback to the async call function because
+    # when it runs it could interfere with global state (like Datastore
+    # transactions). The callback will be run from the wait_one() function.
     done_callback = lambda: user_callback(pbresponse, None)
     rpc = AsyncRPC(package, call, pbrequest, pbresponse,
                    lambda: self.end_call(done_callback),
                    deadline=deadline)
     setattr(rpc, 'user_callback', user_callback)
+    setattr(rpc, 'pbresponse', user_callback)
+
     self.enqueued.append(rpc)
     show_request = '...'
     if rpc.package == 'urlfetch':
@@ -122,8 +127,10 @@ class AsyncAPIProxy(object):
   def wait(self):
     """Wait for RPCs to finish. Returns True if any were processed."""
     while self.enqueued:
+      # Run the callbacks before even waiting, because a response could have
+      # come back during any outbound API call.
+      self._run_callbacks()
       self._wait_one()
       self._run_callbacks()
-    else:
-      return False
-    return True
+    # Run them one last time after waiting to pick up the final callback!
+    self._run_callbacks()

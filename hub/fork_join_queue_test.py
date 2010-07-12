@@ -135,15 +135,17 @@ class ForkJoinQueueTest(unittest.TestCase):
       work_item['cursor'] = cursor
     return work_item
 
-  def assertTasksEqual(self, expected_tasks, found_tasks):
+  def assertTasksEqual(self, expected_tasks, found_tasks,
+                       check_eta=True):
     """Asserts two lists of tasks are equal."""
     found_tasks.sort(key=lambda t: t['eta'])
     for expected, found in zip(expected_tasks, found_tasks):
       self.assertEquals(expected['name'], found['name'])
-      # Round these task ETAs to integers because the taskqueue stub does
-      # not support floating-point ETAs.
-      self.assertEquals(round(expected['eta'] / 10**6),
-                        round(found['eta'] / 10**6))
+      if check_eta:
+        # Round these task ETAs to integers because the taskqueue stub does
+        # not support floating-point ETAs.
+        self.assertEquals(round(expected['eta'] / 10**6),
+                          round(found['eta'] / 10**6))
       self.assertEquals(expected.get('cursor'),
                         found.get('params', {}).get('cursor'))
       self.assertEquals('POST', found['method'])
@@ -375,10 +377,21 @@ class ForkJoinQueueTest(unittest.TestCase):
     work_index = TEST_QUEUE_ZERO_BATCH_TIME.next_index()
     task = TestModel(work_index=work_index, number=1)
     db.put(task)
+
+    before_index = memcache.get(TEST_QUEUE_ZERO_BATCH_TIME.index_name)
+    self.assertEquals(
+        work_index, fork_join_queue.knuth_hash(before_index))
     TEST_QUEUE_ZERO_BATCH_TIME.add(work_index, gettime=self.gettime1)
+
+    # This confirms the behavior that batch_period_ms of zero will cause
+    # immediate increment after adding the tasks.
+    after_index = memcache.get(TEST_QUEUE_ZERO_BATCH_TIME.index_name)
+    self.assertEquals(before_index + 1, after_index)
+
     self.assertTasksEqual(
-      [self.expect_task(work_index, batch_period_ms=0)],
-      testutil.get_tasks('default', usec_eta=True))
+      [self.expect_task(work_index)],
+      testutil.get_tasks('default', usec_eta=True),
+      check_eta=False)
 
   def testShardedQueue(self):
     """Tests adding and popping from a sharded queue with continuation."""

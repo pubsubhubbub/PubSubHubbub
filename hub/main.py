@@ -1430,7 +1430,7 @@ class EventToDeliver(db.Model):
   last_modified = db.DateTimeProperty(required=True)
   totally_failed = db.BooleanProperty(default=False)
   content_type = db.TextProperty(default='')
-  max_failures = db.IntegerProperty(indexed=False, indexed=False)
+  max_failures = db.IntegerProperty(indexed=False)
 
   @classmethod
   def create_event_for_topic(cls,

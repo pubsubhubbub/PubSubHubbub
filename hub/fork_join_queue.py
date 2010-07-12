@@ -180,7 +180,10 @@ class ForkJoinQueue(object):
     self.stall_timeout = stall_timeout_ms / 1000.0
     self.acquire_timeout = acquire_timeout_ms / 1000.0
     self.acquire_attempts = acquire_attempts
-    self.batch_delta = datetime.timedelta(microseconds=batch_period_ms * 1000)
+    if batch_period_ms == 0:
+      self.batch_delta = None
+    else:
+      self.batch_delta = datetime.timedelta(microseconds=batch_period_ms * 1000)
 
   def get_queue_name(self, index):
     """Returns the name of the queue to use based on the given work index."""
@@ -257,9 +260,9 @@ class ForkJoinQueue(object):
     task_name = '%s-%s-%d-%d-%d' % (
         self.name, major_version, nearest_gap, index, 0)
 
-    # When the batch_delta is zero, then there should be no ETA, the task
+    # When the batch_period_ms is zero, then there should be no ETA, the task
     # should run immediately and the reader will busy wait for all writers.
-    if self.batch_delta == 0:
+    if self.batch_delta is None:
       eta = None
     else:
       eta = datetime_from_stamp(now_stamp) + self.batch_delta
@@ -271,6 +274,12 @@ class ForkJoinQueue(object):
         url=self.task_path,
         eta=eta
       ).add(self.get_queue_name(index))
+      if self.batch_delta is None:
+        # When the batch_period_ms is zero, we want to immediately move the
+        # index to the next position as soon as the current batch finishes
+        # writing its task. This will only run for the first successful task
+        # inserter.
+        memcache.incr(self.index_name)
     except taskqueue.TaskAlreadyExistsError:
       # This is okay. It means the task has already been inserted by another
       # add() call for this same batch. We're holding the lock at this point
@@ -301,6 +310,9 @@ class ForkJoinQueue(object):
     # do this when it notices no current index is present. Do this *before*
     # closing the reader/writer lock below to decrease active writers on the
     # current index.
+    # We do this even in the case that batch_period_ms was zero, just in case
+    # that memcache operation failed for some reason, we'd rather have more
+    # batches then have the work index pipeline stall.
     memcache.incr(self.index_name)
 
     # Prevent new writers by making the counter extremely negative. If the
@@ -375,6 +387,7 @@ class ForkJoinQueue(object):
             url=self.task_path,
             params={'cursor': cursor}
           ).add(self.get_queue_name(index))
+          break
         except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
           # This means the continuation chain already started and this root
           # task failed for some reason; no problem.
@@ -471,7 +484,12 @@ class MemcacheForkJoinQueue(ShardedForkJoinQueue):
   def _query_work(self, index, cursor):
     """Queries for work in memcache."""
     if cursor:
-      cursor = int(cursor)
+      try:
+        cursor = int(cursor)
+      except ValueError:
+        # This is an old style task that resides in the Datastore, not
+        # memcache. Use the parent implementation instead.
+        return super(MemcacheForkJoinQueue, self)._query_work(index, cursor)
     else:
       cursor = 0
 
