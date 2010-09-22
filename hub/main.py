@@ -119,6 +119,9 @@ import feed_identifier
 import fork_join_queue
 import urlfetch_async
 
+import mapreduce.control
+import mapreduce.model
+
 async_proxy = async_apiproxy.AsyncAPIProxy()
 
 ################################################################################
@@ -168,17 +171,17 @@ SUBSCRIPTION_CLEANUP_CHUNK_SIZE = 100
 # How far before expiration to refresh subscriptions.
 SUBSCRIPTION_CHECK_BUFFER_SECONDS = (24 * 60 * 60)  # 24 hours
 
-# How many subscriber checking tasks to scheudle at a time.
-SUBSCRIPTION_CHECK_CHUNK_SIZE = 200
+# How many mapper shards to use for reconfirming subscriptions.
+SUBSCRIPTION_RECONFIRM_SHARD_COUNT = 4
 
 # How often to poll feeds.
 POLLING_BOOTSTRAP_PERIOD = 10800  # in seconds; 3 hours
 
 # Default expiration time of a lease.
-DEFAULT_LEASE_SECONDS = (30 * 24 * 60 * 60)  # 30 days
+DEFAULT_LEASE_SECONDS = (5 * 24 * 60 * 60)  # 5 days
 
 # Maximum expiration time of a lease.
-MAX_LEASE_SECONDS = DEFAULT_LEASE_SECONDS * 3  # 90 days
+MAX_LEASE_SECONDS = (10 * 24 * 60 * 60)  # 10 days
 
 # Maximum number of redirects to follow when feed fetching.
 MAX_REDIRECTS = 7
@@ -2111,62 +2114,41 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
 class SubscriptionReconfirmHandler(webapp.RequestHandler):
   """Periodic handler causes reconfirmation for almost expired subscriptions."""
 
-  def __init__(self, now=time.time):
+  def __init__(self, now=time.time, start_map=mapreduce.control.start_map):
     """Initializer."""
     webapp.RequestHandler.__init__(self)
     self.now = now
+    self.start_map = start_map
 
   @work_queue_only
   def get(self):
-    threshold_timestamp = str(
-        int(self.now() - SUBSCRIPTION_CHECK_BUFFER_SECONDS))
-    # NOTE: See PollBootstrapHandler as to why we need a named task here for
-    # the first insertion and the rest of the sequence.
-    name = 'reconfirm-' + threshold_timestamp
+    # Use the name, such that only one of these tasks runs per calendar day.
+    name = 'reconfirm-%s' % time.strftime('%Y-%m-%d' , time.gmtime(self.now()))
     try:
       taskqueue.Task(
           url='/work/reconfirm_subscriptions',
-          name=name,
-          params=dict(time_offset=threshold_timestamp)
+          name=name
       ).add(POLLING_QUEUE)
     except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
-      logging.exception('Could not enqueue FIRST reconfirmation task')
+      logging.exception('Could not enqueue FIRST reconfirmation task; '
+                        'must have already run today.')
 
   @work_queue_only
   def post(self):
-    time_offset = self.request.get('time_offset')
-    datetime_offset = datetime.datetime.utcfromtimestamp(int(time_offset))
-    key_offset = self.request.get('key_offset')
-    logging.info('Handling reconfirmations for time_offset = %s, '
-                 'current_key = %s', datetime_offset, key_offset)
-
-    query = (Subscription.all()
-             .filter('subscription_state =', Subscription.STATE_VERIFIED)
-             .order('__key__'))
-    if key_offset:
-      query.filter('__key__ >', db.Key(key_offset))
-
-    subscriptions = query.fetch(SUBSCRIPTION_CHECK_CHUNK_SIZE)
-    if not subscriptions:
-      logging.info('All done with periodic subscription reconfirmations')
-      return
-
-    next_key = str(subscriptions[-1].key())
-    try:
-      taskqueue.Task(
-          url='/work/reconfirm_subscriptions',
-          name='reconfirm-%s-%s' % (time_offset, sha1_hash(next_key)),
-          params=dict(time_offset=time_offset,
-                      key_offset=next_key)).add(POLLING_QUEUE)
-    except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
-      logging.exception('Continued polling task already present; '
-                        'this work has already been done')
-      return
-
-    for sub in subscriptions:
-      if sub.expiration_time < datetime_offset:
-        sub.request_insert(sub.callback, sub.topic, sub.verify_token,
-                           sub.secret, auto_reconfirm=True)
+    self.start_map(
+        name='Reconfirm expiring subscriptions',
+        handler_spec='offline_jobs.SubscriptionReconfirmMapper.run',
+        reader_spec='mapreduce.input_readers.DatastoreInputReader',
+        reader_parameters=dict(
+            processing_rate=100000,
+            entity_kind='main.Subscription'),
+        shard_count=SUBSCRIPTION_RECONFIRM_SHARD_COUNT,
+        queue_name=POLLING_QUEUE,
+        mapreduce_parameters=dict(
+          threshold_timestamp=int(
+              self.now() + SUBSCRIPTION_CHECK_BUFFER_SECONDS),
+          done_callback='/work/cleanup_mapper',
+          done_callback_queue=POLLING_QUEUE))
 
 
 class SubscriptionCleanupHandler(webapp.RequestHandler):
@@ -2183,6 +2165,19 @@ class SubscriptionCleanupHandler(webapp.RequestHandler):
         db.delete(subscriptions)
       except (db.Error, apiproxy_errors.Error, runtime.DeadlineExceededError):
         logging.exception('Could not clean-up Subscription instances')
+
+
+class CleanupMapperHandler(webapp.RequestHandler):
+  """Cleans up all data from a Mapper job run."""
+
+  @work_queue_only
+  def post(self):
+    mapreduce_id = self.request.headers.get('mapreduce-id')
+    # TODO: Use Mapper Cleanup API once available.
+    db.delete(mapreduce.model.MapreduceControl.get_key_by_job_id(mapreduce_id))
+    shards = mapreduce.model.ShardState.find_by_mapreduce_id(mapreduce_id)
+    db.delete(shards)
+    db.delete(mapreduce.model.MapreduceState.get_key_by_job_id(mapreduce_id))
 
 ################################################################################
 # Publishing handlers
@@ -2411,7 +2406,6 @@ def pull_feed_async(feed_to_fetch, fetch_url, headers, async_proxy, callback):
              getattr(response, 'headers', None),
              getattr(response, 'content', None),
              exception)
-
   urlfetch_async.fetch(fetch_url,
                        headers=headers,
                        follow_redirects=False,
@@ -3445,7 +3439,8 @@ def main():
       (r'/work/poll_bootstrap', PollBootstrapHandler),
       (r'/work/event_cleanup', EventCleanupHandler),
       (r'/work/subscription_cleanup', SubscriptionCleanupHandler),
-      (r'/work/reconfirm_subscriptions', SubscriptionReconfirmHandler)
+      (r'/work/reconfirm_subscriptions', SubscriptionReconfirmHandler),
+      (r'/work/cleanup_mapper', CleanupMapperHandler),
     ])
   application = webapp.WSGIApplication(HANDLERS, debug=DEBUG)
   wsgiref.handlers.CGIHandler().run(application)

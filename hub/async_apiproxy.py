@@ -126,10 +126,8 @@ class AsyncAPIProxy(object):
 
   def wait(self):
     """Wait for RPCs to finish. Returns True if any were processed."""
-    while self.enqueued:
+    while self.enqueued or self.complete:
       # Run the callbacks before even waiting, because a response could have
       # come back during any outbound API call.
       self._run_callbacks()
       self._wait_one()
-    # Run them one last time after waiting to pick up the final callback!
-    self._run_callbacks()

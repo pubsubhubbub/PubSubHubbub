@@ -24,3 +24,15 @@ mapreduce:
     - name: age_days
       default: 14
     params_validator: offline_jobs.CleanupOldEventToDeliver.validate_params
+- name: Reconfirm expiring subscriptions
+  mapper:
+    input_reader: mapreduce.input_readers.DatastoreInputReader
+    handler: offline_jobs.SubscriptionReconfirmMapper.run
+    params:
+    - name: entity_kind
+      default: main.Subscription
+    - name: shard_count
+      default: 32
+    - name: processing_rate
+      default: 100000
+    params_validator: offline_jobs.SubscriptionReconfirmMapper.validate_params

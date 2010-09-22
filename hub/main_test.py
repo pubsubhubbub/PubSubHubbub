@@ -45,6 +45,9 @@ import feed_diff
 import main
 import urlfetch_test_stub
 
+import mapreduce.control
+import mapreduce.model
+
 ################################################################################
 # For convenience
 
@@ -2719,7 +2722,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         '&hub.challenge=this_is_my_fake_challenge_string'
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
 
   def tearDown(self):
     """Tears down the test harness."""
@@ -2986,7 +2989,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         '&hub.challenge=this_is_my_fake_challenge_string'
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
         '&hub.mode=%s'
-        '&hub.lease_seconds=7776000')
+        '&hub.lease_seconds=864000')
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -3014,7 +3017,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         '&hub.challenge=this_is_my_fake_challenge_string'
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -3147,7 +3150,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         '&hub.challenge=this_is_my_fake_challenge_string'
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic%%2FCaSeSeNsItIvE'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -3180,7 +3183,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
           '%%2F%%7Eone%%3Atwo%%2F%%26%%3D'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -3220,7 +3223,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
             'blah%%2F%%25E3%%2583%%2596%%25E3%%2583%%25AD'
             '%%25E3%%2582%%25B0%%25E8%%25A1%%2586'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -3267,7 +3270,7 @@ class SubscribeHandlerTest(testutil.HandlerTestBase):
             'blah%%2F%%25E3%%2583%%2596%%25E3%%2583%%25AD'
             '%%25E3%%2582%%25B0%%25E8%%25A1%%2586'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
         self.challenge)
@@ -3314,7 +3317,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
         '&hub.challenge=this_is_my_fake_challenge_string'
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
 
   def tearDown(self):
     """Verify that all URL fetches occurred."""
@@ -3413,7 +3416,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
         '&hub.challenge=this_is_my_fake_challenge_string'
         '&hub.topic=http%%3A%%2F%%2Fexample.com%%2Fthe-topic'
         '&hub.mode=%s'
-        '&hub.lease_seconds=2592000')
+        '&hub.lease_seconds=432000')
 
     urlfetch_test_stub.instance.expect(
         'get', self.verify_callback_querystring_template % 'subscribe', 200,
@@ -3620,95 +3623,45 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
 class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
   """Tests for the periodic subscription reconfirming worker."""
 
-  def setUp(self):
-    """Sets up the test harness."""
-    self.now = time.time()
-    self.now_datetime = datetime.datetime.utcfromtimestamp(self.now)
-    self.confirm_time = self.now - main.SUBSCRIPTION_CHECK_BUFFER_SECONDS
-    def create_handler():
-      return main.SubscriptionReconfirmHandler(now=lambda: self.now)
-    self.handler_class = create_handler
-    testutil.HandlerTestBase.setUp(self)
-    self.original_chunk_size = main.SUBSCRIPTION_CHECK_CHUNK_SIZE
-    main.SUBSCRIPTION_CHECK_CHUNK_SIZE = 2
-    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
-
-  def tearDown(self):
-    """Tears down the test harness."""
-    testutil.HandlerTestBase.tearDown(self)
-    main.SUBSCRIPTION_CHECK_CHUNK_SIZE = self.original_chunk_size
-    del os.environ['HTTP_X_APPENGINE_QUEUENAME']
-
   def testFullFlow(self):
-    """Tests a full flow through multiple chunks of the reconfirm worker."""
-    topic = 'http://example.com/topic'
-    # Funny endings to maintain alphabetical order with hashes of callback
-    # URL and topic URL.
-    callback = 'http://example.com/callback1-ad'
-    callback2 = 'http://example.com/callback2-b'
-    callback3 = 'http://example.com/callback3-d'
-    callback4 = 'http://example.com/callback4-a'
-    token = 'my token'
-    secret = 'my secret'
-    lease_seconds = -main.SUBSCRIPTION_CHECK_BUFFER_SECONDS - 1
-    now = lambda: self.now_datetime
+    """Tests a full flow through the reconfirm worker."""
+    self.now = time.time()
+    self.called = False
+    def start_map(*args, **kwargs):
+      self.assertEquals(kwargs, {
+          'name': 'Reconfirm expiring subscriptions',
+          'reader_spec': 'mapreduce.input_readers.DatastoreInputReader',
+          'queue_name': 'polling',
+          'handler_spec': 'offline_jobs.SubscriptionReconfirmMapper.run',
+          'shard_count': 4,
+          'reader_parameters': {
+            'entity_kind': 'main.Subscription',
+            'processing_rate': 100000
+          },
+          'mapreduce_parameters': {
+            'done_callback': '/work/cleanup_mapper',
+            'done_callback_queue': 'polling',
+            'threshold_timestamp':
+                int(self.now + main.SUBSCRIPTION_CHECK_BUFFER_SECONDS)
+          },
+      })
+      self.called = True
 
-    self.handle('get')
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=0, expected_count=1)
-    time_offset = task['params']['time_offset']
+    def create_handler():
+      return main.SubscriptionReconfirmHandler(
+          now=lambda: self.now,
+          start_map=start_map)
+    self.handler_class = create_handler
 
-    # There will be four Subscriptions instances, three of which will actually
-    # be affected by this check.
-    Subscription.insert(callback, topic, token, secret,
-                        lease_seconds=lease_seconds, now=now)
-    Subscription.insert(callback2, topic, token, secret,
-                        lease_seconds=lease_seconds, now=now)
-    Subscription.insert(callback3, topic, token, secret,
-                        lease_seconds=2*main.SUBSCRIPTION_CHECK_BUFFER_SECONDS,
-                        now=now)
-    Subscription.insert(callback4, topic, token, secret,
-                        lease_seconds=lease_seconds, now=now)
+    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
+    try:
+      self.handle('get')
+      task = testutil.get_tasks(main.POLLING_QUEUE, index=0, expected_count=1)
+      self.handle('post')
+    finally:
+      del os.environ['HTTP_X_APPENGINE_QUEUENAME']
 
-    all_subs = list(Subscription.all())
-    confirm_tasks = []
-
-    # Now run the post handler with the params from the first task. This will
-    # enqueue another task that takes on the second chunk of work and also
-    # will enqueue tasks to confirm subscriptions.
-    self.handle('post', *task['params'].items())
-    confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=2))
-    confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=3))
-
-    # Run another post handler, which will pick up the remaining subscription
-    # confirmation and finish the work effort. Properly handle a race
-    # condition where Subscription tasks may be inserted with an ETA before
-    # the continuation task.
-    all_tasks = testutil.get_tasks(main.POLLING_QUEUE, expected_count=4)
-    task = [a for a in all_tasks[1:] if 'time_offset' in a['params']][0]
-
-    # Run this task twice; the second time should do nothing.
-    self.handle('post', *task['params'].items())
-    self.handle('post', *task['params'].items())
-
-    # Last task will find no more work to do.
-    task = testutil.get_tasks(main.POLLING_QUEUE, index=4, expected_count=6)
-    if 'time_offset' not in task['params']:
-      logging.info("FAIL!")
-      task = testutil.get_tasks(main.POLLING_QUEUE, index=5)
-      confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=4))
-    else:
-      confirm_tasks.append(testutil.get_tasks(main.POLLING_QUEUE, index=5))
-
-    self.handle('post', *task['params'].items())
-    testutil.get_tasks(main.POLLING_QUEUE, expected_count=6)
-
-    # Verify all confirmation tasks.
-    self.assertEquals(callback3, all_subs[2].callback)
-    del all_subs[2]
-    confirm_key_names = [s.key().name() for s in all_subs]
-    found_key_names = [
-        t['params']['subscription_key_name'] for t in confirm_tasks]
-    self.assertEquals(confirm_key_names, found_key_names)
+    self.assertTrue(self.called)
 
 
 class SubscriptionCleanupHandlerTest(testutil.HandlerTestBase):
@@ -3734,6 +3687,40 @@ class SubscriptionCleanupHandlerTest(testutil.HandlerTestBase):
     self.handle('get')
     self.assertEquals(2 * [Subscription.STATE_VERIFIED],
                       [s.subscription_state for s in Subscription.all()])
+
+
+class CleanupMapperHandlerTest(testutil.HandlerTestBase):
+  """Tests for the CleanupMapperHandler."""
+
+  handler_class = main.CleanupMapperHandler
+
+  def testMissing(self):
+    """Tests cleaning up a mapreduce that's not present."""
+    self.assertEquals([], list(mapreduce.model.MapreduceState.all()))
+    os.environ['HTTP_MAPREDUCE_ID'] = '12345'
+    try:
+      self.handle('post')
+    finally:
+      del os.environ['HTTP_MAPREDUCE_ID']
+    self.assertEquals([], list(mapreduce.model.MapreduceState.all()))
+
+  def testPresent(self):
+    """Tests cleaning up a mapreduce that's present."""
+    mapreduce_id = mapreduce.control.start_map(
+        name='Reconfirm expiring subscriptions',
+        handler_spec='offline_jobs.SubscriptionReconfirmMapper.run',
+        reader_spec='mapreduce.input_readers.DatastoreInputReader',
+        reader_parameters=dict(
+            processing_rate=100000,
+            entity_kind='main.Subscription'))
+
+    self.assertEquals(1, len(list(mapreduce.model.MapreduceState.all())))
+    os.environ['HTTP_MAPREDUCE_ID'] = mapreduce_id
+    try:
+      self.handle('post')
+    finally:
+      del os.environ['HTTP_MAPREDUCE_ID']
+    self.assertEquals([], list(mapreduce.model.MapreduceState.all()))
 
 ################################################################################
 
