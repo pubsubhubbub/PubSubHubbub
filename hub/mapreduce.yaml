@@ -35,4 +35,5 @@ mapreduce:
       default: 32
     - name: processing_rate
       default: 100000
+    - name: threshold_timestamp
     params_validator: offline_jobs.SubscriptionReconfirmMapper.validate_params
