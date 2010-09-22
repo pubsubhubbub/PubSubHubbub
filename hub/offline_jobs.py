@@ -78,8 +78,10 @@ class SubscriptionReconfirmMapper(object):
 
     if self.threshold_timestamp is None:
       params = context.get().mapreduce_spec.params
+      if 'threshold_timestamp' not in params:
+        params = context.get().mapreduce_spec.mapper.params
       self.threshold_timestamp = datetime.datetime.utcfromtimestamp(
-          params['threshold_timestamp'])
+          float(params['threshold_timestamp']))
 
     if sub.expiration_time < self.threshold_timestamp:
       sub.request_insert(sub.callback, sub.topic, sub.verify_token,
