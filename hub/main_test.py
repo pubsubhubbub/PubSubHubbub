@@ -860,7 +860,8 @@ class EventToDeliverTest(unittest.TestCase):
         sub_keys: Key instances corresponding to the entries in 'sub_list'.
     """
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     work_key = event.key()
 
@@ -881,7 +882,8 @@ class EventToDeliverTest(unittest.TestCase):
   def testCreateEventForTopic(self):
     """Tests that the payload of an event is properly formed."""
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     expected_data = \
 u"""<?xml version="1.0" encoding="utf-8"?>
 <feed>
@@ -892,6 +894,7 @@ u"""<?xml version="1.0" encoding="utf-8"?>
 <entry>article3</entry>
 </feed>"""
     self.assertEquals(expected_data, event.payload)
+    self.assertEquals('application/atom+xml', event.content_type)
 
   def testCreateEventForTopic_Rss(self):
     """Tests that the RSS payload is properly formed."""
@@ -903,7 +906,8 @@ u"""<?xml version="1.0" encoding="utf-8"?>
     self.header_footer = (
         '<rss>\n<channel>\n<stuff>blah</stuff>\n<xmldata/></channel>\n</rss>')
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.RSS, self.header_footer, self.test_payloads)
+        self.topic, main.RSS, 'application/rss+xml',
+        self.header_footer, self.test_payloads)
     expected_data = \
 u"""<?xml version="1.0" encoding="utf-8"?>
 <rss>
@@ -916,11 +920,24 @@ u"""<?xml version="1.0" encoding="utf-8"?>
 </channel>
 </rss>"""
     self.assertEquals(expected_data, event.payload)
+    self.assertEquals('application/rss+xml', event.content_type)
+
+  def testCreateEventForTopic_Abitrary(self):
+    """Tests that an arbitrary payload is properly formed."""
+    self.test_payloads = []
+    self.header_footer = 'this is my data here'
+    event = EventToDeliver.create_event_for_topic(
+        self.topic, main.ARBITRARY, 'my crazy content type',
+        self.header_footer, self.test_payloads)
+    expected_data = 'this is my data here'
+    self.assertEquals(expected_data, event.payload)
+    self.assertEquals('my crazy content type', event.content_type)
 
   def testCreateEvent_badHeaderFooter(self):
     """Tests when the header/footer data in an event is invalid."""
     self.assertRaises(AssertionError, EventToDeliver.create_event_for_topic,
-        self.topic, main.ATOM, '<feed>has no end tag', self.test_payloads)
+        self.topic, main.ATOM, 'content type unused',
+        '<feed>has no end tag', self.test_payloads)
 
   def testNormal_noFailures(self):
     """Tests that event delivery with no failures will delete the event."""
@@ -1141,11 +1158,13 @@ u"""<?xml version="1.0" encoding="utf-8"?>
   def testMaxFailuresOverride(self):
     """Tests the max_failures override value."""
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     self.assertEquals(None, event.max_failures)
 
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads,
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads,
         max_failures=1)
     self.assertEquals(1, event.max_failures)
 
@@ -1637,11 +1656,15 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
-  def testParseFailure(self):
+  def testArbitraryContent(self):
     """Tests when the feed cannot be parsed as Atom or RSS."""
+    self.entry_list = []
+    self.entry_payloads = []
+    self.header_footer = 'this is all of the content'
     self.expected_exceptions.append(feed_diff.Error('whoops'))
     self.expected_exceptions.append(feed_diff.Error('whoops'))
     FeedToFetch.insert([self.topic])
+    self.headers['content-type'] = 'My Crazy Content Type'
     urlfetch_test_stub.instance.expect(
         'get', self.topic, 200, self.expected_response,
         response_headers=self.headers)
@@ -1649,12 +1672,28 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
 
     feed = FeedToFetch.get_by_key_name(get_hash_key_name(self.topic))
     self.assertTrue(feed is None)
+    self.assertEquals(0, len(list(FeedEntryRecord.all())))
 
-    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
-    testutil.get_tasks(main.FEED_QUEUE, expected_count=1)
+    work = EventToDeliver.all().get()
+    event_key = work.key()
+    self.assertEquals(self.topic, work.topic)
+    self.assertEquals('this is all of the content', work.payload)
+    work.delete()
+
+    record = FeedRecord.get_or_create(self.topic)
+    # header_footer not saved for arbitrary data
+    self.assertEquals(None, record.header_footer)
+    self.assertEquals(self.etag, record.etag)
+    self.assertEquals(self.last_modified, record.last_modified)
+    self.assertEquals('my crazy content type', record.content_type)
+
+    task = testutil.get_tasks(main.EVENT_QUEUE, index=0, expected_count=1)
+    self.assertEquals(str(event_key), task['params']['event_key'])
+
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
     testutil.get_tasks(main.FEED_RETRIES_QUEUE, expected_count=0)
 
-    # Parsing errors do not count against the fetching scorer.
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
   def testCacheHit(self):
@@ -2186,6 +2225,24 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertEquals('application/rdf+xml', event.content_type)
     self.assertEquals('rss', FeedRecord.all().get().format)
 
+  def testPullArbitrary(self):
+    """Tests pulling content of an arbitrary type."""
+    data = 'this is my random payload of data'
+    topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect(
+        'get', topic, 200, data,
+        response_headers={'Content-Type': 'my crazy content type'})
+    self.run_fetch_task()
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
+    self.assertTrue(feed is None)
+    event = EventToDeliver.all().get()
+    self.assertEquals(data, event.payload)
+    self.assertEquals('my crazy content type', event.content_type)
+    self.assertEquals('arbitrary', FeedRecord.all().get().format)
+
   def testMultipleFetch(self):
     """Tests doing multiple fetches asynchronously in parallel.
 
@@ -2308,7 +2365,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
     urlfetch_test_stub.instance.expect(
         'post', self.callback3, 299, '', request_payload=self.expected_payload)
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     self.handle('post', ('event_key', str(event.key())))
     self.assertEquals([], list(EventToDeliver.all()))
@@ -2348,7 +2406,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
             'Content-Type': 'application/atom+xml',
             'X-Hub-Signature': 'sha1=8b0a9da7204afa8ae04fc9439755c556b1e38d99'})
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     self.handle('post', ('event_key', str(event.key())))
     self.assertEquals([], list(EventToDeliver.all()))
@@ -2366,7 +2425,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
             'Content-Type': 'application/rss+xml',
             'X-Hub-Signature': 'sha1=1607313b6195af74f29158421f0a31aa25d680da'})
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.RSS, self.header_footer_rss, self.test_payloads_rss)
+        self.topic, main.RSS, 'application/rss+xml',
+        self.header_footer_rss, self.test_payloads_rss)
     event.put()
     self.handle('post', ('event_key', str(event.key())))
     self.assertEquals([], list(EventToDeliver.all()))
@@ -2382,7 +2442,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         self.callback3, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 1
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     event_key = str(event.key())
 
@@ -2426,7 +2487,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         self.callback3, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     event_key = str(event.key())
 
@@ -2478,7 +2540,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
           self.callback3, self.topic, 'token', 'secret'))
       main.EVENT_SUBSCRIBER_CHUNK_SIZE = 2
       event = EventToDeliver.create_event_for_topic(
-          self.topic, main.ATOM, self.header_footer, self.test_payloads)
+          self.topic, main.ATOM, 'application/atom+xml',
+          self.header_footer, self.test_payloads)
       event.put()
       event_key = str(event.key())
       self.handle('post', ('event_key', event_key))
@@ -2518,7 +2581,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         self.callback4, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     event_key = str(event.key())
 
@@ -2600,7 +2664,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
         self.callback2, self.topic, 'token', 'secret'))
     main.EVENT_SUBSCRIBER_CHUNK_SIZE = 3
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, self.test_payloads)
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, self.test_payloads)
     event.put()
     event_key = str(event.key())
 
@@ -2648,7 +2713,8 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
           'post', self.callback3, 204, '',
           request_payload=self.expected_payload)
       event = EventToDeliver.create_event_for_topic(
-          self.topic, main.ATOM, self.header_footer, self.test_payloads)
+          self.topic, main.ATOM, 'application/atom+xml',
+          self.header_footer, self.test_payloads)
       event.put()
       self.handle('post', ('event_key', str(event.key())))
       self.assertEquals([], list(EventToDeliver.all()))
@@ -2680,7 +2746,8 @@ class EventCleanupHandlerTest(testutil.HandlerTestBase):
   def testEventCleanupTooYoung(self):
     """Tests when there are events present, but they're too young to remove."""
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, [])
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, [])
     event.last_modified = self.expire_time + datetime.timedelta(seconds=1)
     event.put()
     self.handle('get')
@@ -2689,12 +2756,14 @@ class EventCleanupHandlerTest(testutil.HandlerTestBase):
   def testEventCleanupOldEnough(self):
     """Tests when there are events old enough to clean up."""
     event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, self.header_footer, [])
+        self.topic, main.ATOM, 'application/atom+xml',
+        self.header_footer, [])
     event.last_modified = self.expire_time
     event.put()
 
     too_young_event = EventToDeliver.create_event_for_topic(
-        self.topic + 'blah', main.ATOM, self.header_footer, [])
+        self.topic + 'blah', main.ATOM, 'application/atom+xml',
+        self.header_footer, [])
     too_young_event.put()
 
     self.handle('get')

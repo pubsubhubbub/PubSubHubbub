@@ -553,6 +553,7 @@ DELIVERY_SAMPLER = dos.MultiSampler([
 
 ATOM = 'atom'
 RSS = 'rss'
+ARBITRARY = 'arbitrary'
 
 VALID_PORTS = frozenset([
     '80', '443', '4443', '8080', '8081', '8082', '8083', '8084', '8085',
@@ -1229,7 +1230,7 @@ class FeedRecord(db.Model):
   topic = db.TextProperty(required=True)
   header_footer = db.TextProperty()  # Save this for debugging.
   last_updated = db.DateTimeProperty(auto_now=True)  # The last polling time.
-  format = db.TextProperty()  # 'atom' or 'rss'
+  format = db.TextProperty()  # 'atom', 'rss', or 'arbitrary'
 
   # Content-related headers served by the feed' host.
   content_type = db.TextProperty()
@@ -1291,10 +1292,10 @@ class FeedRecord(db.Model):
     Args:
       headers: Dictionary of response headers from the feed that should be used
         to determine how to poll the feed in the future.
-      header_footer: Contents of the feed's XML document minus the entry data;
-        if not supplied, the old value will remain.
+      header_footer: Contents of the feed's XML document minus the entry data.
+        if not supplied, the old value will remain. Only saved for feeds.
       format: The last parsing format that worked correctly for this feed.
-        Should be 'rss' or 'atom'.
+        Should be 'rss', 'atom', or 'arbitrary'.
     """
     try:
       self.content_type = headers.get('Content-Type', '').lower()
@@ -1311,10 +1312,10 @@ class FeedRecord(db.Model):
     except UnicodeDecodeError:
       logging.exception('ETag header had bad encoding')
 
-    if header_footer is not None:
-      self.header_footer = header_footer
     if format is not None:
       self.format = format
+    if header_footer is not None and self.format != ARBITRARY:
+      self.header_footer = header_footer
 
   def get_request_headers(self):
     """Returns the request headers that should be used to pull this feed.
@@ -1439,6 +1440,7 @@ class EventToDeliver(db.Model):
   def create_event_for_topic(cls,
                              topic,
                              format,
+                             content_type,
                              header_footer,
                              entry_payloads,
                              now=datetime.datetime.utcnow,
@@ -1448,9 +1450,12 @@ class EventToDeliver(db.Model):
 
     Args:
       topic: The topic that had the event.
-      format: Format of the feed, either 'atom' or 'rss'.
+      format: Format of the feed, 'atom', 'rss', or 'arbitrary'.
+      content_type: The original content type of the feed, fetched from the
+        server, if any. May be empty.
       header_footer: The header and footer of the published feed into which
-        the entry list will be spliced.
+        the entry list will be spliced. For arbitrary content this is the
+        full body of the resource.
       entry_payloads: List of strings containing entry payloads (i.e., all
         XML data for each entry, including surrounding tags) in order of newest
         to oldest.
@@ -1465,27 +1470,32 @@ class EventToDeliver(db.Model):
     Returns:
       A new EventToDeliver instance that has not been stored.
     """
-    close_index = header_footer.rfind('</')
-    assert close_index != -1, 'Could not find "</" in feed envelope'
-    end_tag = header_footer[close_index:]
-    if 'rss' in end_tag:
-      # RSS needs special handling, since it actually closes with
-      # a combination of </channel></rss> we need to traverse one
-      # level higher.
-      close_index = header_footer[:close_index].rfind('</')
-      assert close_index != -1, 'Could not find "</channel>" in feed envelope'
+    if format in (ATOM, RSS):
+      # This is feed XML.
+      close_index = header_footer.rfind('</')
+      assert close_index != -1, 'Could not find "</" in feed envelope'
       end_tag = header_footer[close_index:]
-      content_type = 'application/rss+xml'
-    elif 'feed' in end_tag:
-      content_type = 'application/atom+xml'
-    elif 'rdf' in end_tag:
-      content_type = 'application/rdf+xml'
+      if 'rss' in end_tag:
+        # RSS needs special handling, since it actually closes with
+        # a combination of </channel></rss> we need to traverse one
+        # level higher.
+        close_index = header_footer[:close_index].rfind('</')
+        assert close_index != -1, 'Could not find "</channel>" in feed envelope'
+        end_tag = header_footer[close_index:]
+        content_type = 'application/rss+xml'
+      elif 'feed' in end_tag:
+        content_type = 'application/atom+xml'
+      elif 'rdf' in end_tag:
+        content_type = 'application/rdf+xml'
 
-    payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
-                    header_footer[:close_index]]
-    payload_list.extend(entry_payloads)
-    payload_list.append(header_footer[close_index:])
-    payload = '\n'.join(payload_list)
+      payload_list = ['<?xml version="1.0" encoding="utf-8"?>',
+                      header_footer[:close_index]]
+      payload_list.extend(entry_payloads)
+      payload_list.append(header_footer[close_index:])
+      payload = '\n'.join(payload_list)
+    elif format == ARBITRARY:
+      # This is an arbitrary payload.
+      payload = header_footer
 
     if set_parent:
       parent = db.Key.from_path(
@@ -2300,8 +2310,9 @@ def find_feed_updates(topic, format, feed_content,
 
   Args:
     topic: The topic URL of the feed.
-    format: The string 'atom' or 'rss'.
+    format: The string 'atom', 'rss', or 'arbitrary'.
     feed_content: The content of the feed, which may include unicode characters.
+      For arbitrary content, this is just the content itself.
     filter_feed: Used for dependency injection.
 
   Returns:
@@ -2317,6 +2328,9 @@ def find_feed_updates(topic, format, feed_content,
     xml.sax.SAXException if there is a parse error.
     feed_diff.Error if the feed could not be diffed for any other reason.
   """
+  if format == ARBITRARY:
+    return (feed_content, [], [])
+
   header_footer, entries_map = filter_feed(feed_content, format)
 
   # Find the new entries we've never seen before, and any entries that we
@@ -2459,9 +2473,9 @@ def parse_feed(feed_record,
   # of the last successful parse in the feed_record instance to speed this up
   # for the next time through.
   if 'rss' in (feed_record.format or feed_record.content_type or ''):
-    order = (RSS, ATOM)
+    order = (RSS, ATOM, ARBITRARY)
   else:
-    order = (ATOM, RSS)
+    order = (ATOM, RSS, ARBITRARY)
 
   parse_failures = 0
   for format in order:
@@ -2504,13 +2518,18 @@ def parse_feed(feed_record,
     feed_record.update(headers, header_footer, format)
     parse_successful = True
 
-  if not entities_to_save:
+  if format != ARBITRARY and not entities_to_save:
     logging.debug('No new entries found')
     event_to_deliver = None
   else:
-    logging.info('Saving %d new/updated entries', len(entities_to_save))
+    logging.info(
+        'Saving %d new/updated entries for content '
+        'format=%r, content_type=%r, header_footer_bytes=%d',
+        len(entities_to_save), format, feed_record.content_type,
+        len(header_footer))
     event_to_deliver = EventToDeliver.create_event_for_topic(
-        feed_record.topic, format, header_footer, entry_payloads)
+        feed_record.topic, format, feed_record.content_type,
+        header_footer, entry_payloads)
     entities_to_save.insert(0, event_to_deliver)
 
   entities_to_save.insert(0, feed_record)
