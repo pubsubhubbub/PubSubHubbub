@@ -2248,9 +2248,6 @@ class PublishHandlerBase(webapp.RequestHandler):
     else:
       # Expand topic URLs by their feed ID to properly handle any aliases
       # this feed may have active subscriptions for.
-      # TODO(bslatkin): Do something more intelligent here, like collate
-      # all of these topics into a single feed fetch and push, instead of
-      # one separately for each alias the feed may have.
       urls = set()
       for topic, value in topic_map.iteritems():
         urls.update(value)
@@ -2988,6 +2985,8 @@ class RecordFeedHandler(webapp.RequestHandler):
 
     order = (ATOM, RSS)
     parse_failures = 0
+    error_traceback = 'Could not determine feed_id'
+    feed_id = None
     for feed_type in order:
       try:
         feed_id = feed_identifier.identify(response.content, feed_type)
@@ -2995,7 +2994,6 @@ class RecordFeedHandler(webapp.RequestHandler):
           break
         else:
           parse_failures += 1
-          error_traceback = 'Could not determine feed_id'
       except Exception:
         error_traceback = traceback.format_exc()
         logging.debug(
@@ -3003,12 +3001,13 @@ class RecordFeedHandler(webapp.RequestHandler):
             len(response.content), feed_type, error_traceback)
         parse_failures += 1
 
-    if parse_failures == len(order) or feed_id is None:
-      logging.warning('Could not record feed ID for topic = %s:\n%s',
-                      topic, error_traceback)
+    if parse_failures == len(order) or not feed_id:
+      logging.warning('Could not record feed ID for topic=%r, feed_id=%r:\n%s',
+                      topic, feed_id, error_traceback)
       known_feed.put()
       # Just give up, since we can't parse it. This case also covers when
-      # the character encoding for the document is unsupported.
+      # the character encoding for the document is unsupported or the document
+      # is of an arbitrary content type.
       return
 
     logging.info('For topic = %s found new feed ID %r; old feed ID was %r',

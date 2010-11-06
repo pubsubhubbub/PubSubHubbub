@@ -4050,6 +4050,15 @@ class RecordFeedHandlerTest(testutil.HandlerTestBase):
     feed = KnownFeed.get(KnownFeed.create_key(self.topic))
     self.assertTrue(feed.feed_id is None)
 
+  def testParseFindsEmptyId(self):
+    """Tests when no SAX exception is raised but the feed ID is empty."""
+    urlfetch_test_stub.instance.expect('GET', self.topic, 200, self.content)
+    self.expected_calls.append((self.content, 'atom'))
+    self.expected_results.append('')
+    self.handle('post', ('topic', self.topic))
+    feed = KnownFeed.get(KnownFeed.create_key(self.topic))
+    self.assertTrue(feed.feed_id is None)
+
   def testExistingFeedNeedsRefresh(self):
     """Tests recording details for an existing feed that needs a refresh."""
     KnownFeed.create(self.topic).put()
