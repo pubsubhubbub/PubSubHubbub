@@ -145,8 +145,13 @@ class CollateFeedHandler(webapp.RequestHandler):
 
     def txn():
       event_to_deliver = EventToDeliver.create_event_for_topic(
-          fragment.topic, fragment.format, fragment.header_footer,
-          entry_payloads, set_parent=False, max_failures=1)
+          fragment.topic,
+          fragment.format,
+          self.request.headers.get('Content-Type', 'application/atom+xml'),
+          fragment.header_footer,
+          entry_payloads,
+          set_parent=False,
+          max_failures=1)
       db.put(event_to_deliver)
       event_to_deliver.enqueue()
 

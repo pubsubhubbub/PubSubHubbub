@@ -19,6 +19,7 @@
 
 import datetime
 import logging
+import math
 import time
 
 from google.appengine.ext import db
@@ -26,7 +27,9 @@ from google.appengine.ext import db
 import main
 
 from mapreduce import context
+from mapreduce import input_readers
 from mapreduce import operation as op
+from mapreduce.lib import key_range
 
 
 def RemoveOldFeedEntryRecordPropertiesMapper(feed_entry_record):
@@ -62,6 +65,55 @@ class CleanupOldEventToDeliver(object):
       yield op.db.Delete(event)
 
 
+class HashKeyDatastoreInputReader(input_readers.DatastoreInputReader):
+  """A DatastoreInputReader that can split evenly across hash key ranges.
+
+  Assumes key names are in the format supplied by the main.get_hash_key_name
+  function.
+  """
+
+  @classmethod
+  def _split_input_from_namespace(
+      cls, app, namespace, entity_kind_name, shard_count):
+    hex_key_start = db.Key.from_path(
+        entity_kind_name, 0)
+    hex_key_end = db.Key.from_path(
+        entity_kind_name, int('f' * 40, base=16))
+    hex_range = key_range.KeyRange(
+        hex_key_start, hex_key_end, None, True, True,
+        namespace=namespace,
+        _app=app)
+
+    key_range_list = [hex_range]
+    number_of_half_splits = int(math.floor(math.log(shard_count, 2)))
+    for index in xrange(0, number_of_half_splits):
+      new_ranges = []
+      for current_range in key_range_list:
+        new_ranges.extend(current_range.split_range(1))
+      key_range_list = new_ranges
+
+    adjusted_range_list = []
+    for current_range in key_range_list:
+      adjusted_range = key_range.KeyRange(
+          key_start=db.Key.from_path(
+              current_range.key_start.kind(),
+              'hash_%040x' % (current_range.key_start.id() or 0),
+              _app=current_range._app),
+          key_end=db.Key.from_path(
+              current_range.key_end.kind(),
+              'hash_%040x' % (current_range.key_end.id() or 0),
+              _app=current_range._app),
+          direction=current_range.direction,
+          include_start=current_range.include_start,
+          include_end=current_range.include_end,
+          namespace=current_range.namespace,
+          _app=current_range._app)
+
+      adjusted_range_list.append(adjusted_range)
+
+    return adjusted_range_list
+
+
 class SubscriptionReconfirmMapper(object):
   """For reconfirming subscriptions that are nearing expiration."""
 
@@ -77,9 +129,7 @@ class SubscriptionReconfirmMapper(object):
       return
 
     if self.threshold_timestamp is None:
-      params = context.get().mapreduce_spec.params
-      if 'threshold_timestamp' not in params:
-        params = context.get().mapreduce_spec.mapper.params
+      params = context.get().mapreduce_spec.mapper.params
       self.threshold_timestamp = datetime.datetime.utcfromtimestamp(
           float(params['threshold_timestamp']))
 

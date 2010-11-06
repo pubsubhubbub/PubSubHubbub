@@ -680,18 +680,17 @@ class SubscriptionTest(unittest.TestCase):
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, index=0, expected_count=6)
 
-  def testQueuePreserved(self):
-    """Tests that insert will put the task on the polling queue."""
+  def testQueueSelected(self):
+    """Tests that auto_reconfirm will put the task on the polling queue."""
     self.assertTrue(Subscription.request_insert(
-        self.callback, self.topic, self.token, self.secret))
-    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
-    os.environ['HTTP_X_APPENGINE_QUEUENAME'] = main.POLLING_QUEUE
-    try:
-      self.assertFalse(Subscription.request_insert(
-          self.callback, self.topic, self.token, self.secret))
-    finally:
-      del os.environ['HTTP_X_APPENGINE_QUEUENAME']
+        self.callback, self.topic, self.token, self.secret,
+        auto_reconfirm=True))
+    testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=0)
+    testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
 
+    self.assertFalse(Subscription.request_insert(
+        self.callback, self.topic, self.token, self.secret,
+        auto_reconfirm=False))
     testutil.get_tasks(main.SUBSCRIPTION_QUEUE, expected_count=1)
     testutil.get_tasks(main.POLLING_QUEUE, expected_count=1)
 
@@ -3512,15 +3511,14 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.handle('post', ('subscription_key_name', self.sub_key),
                         ('verify_token', self.verify_token),
                         ('secret', self.secret),
-                        ('next_state', Subscription.STATE_VERIFIED),
-                        ('auto_reconfirm', 'True'))
+                        ('next_state', Subscription.STATE_VERIFIED))
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_NOT_VERIFIED, sub.subscription_state)
     self.assertEquals(1, sub.confirm_failures)
     self.assertEquals(self.verify_token, sub.verify_token)
     self.assertEquals(self.secret, sub.secret)
-    self.verify_retry_task(sub.eta, Subscription.STATE_VERIFIED,
-                           auto_reconfirm=True,
+    self.verify_retry_task(sub.eta,
+                           Subscription.STATE_VERIFIED,
                            verify_token=self.verify_token,
                            secret=self.secret)
 
@@ -3699,19 +3697,19 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     def start_map(*args, **kwargs):
       self.assertEquals(kwargs, {
           'name': 'Reconfirm expiring subscriptions',
-          'reader_spec': 'mapreduce.input_readers.DatastoreInputReader',
+          'reader_spec': 'offline_jobs.HashKeyDatastoreInputReader',
           'queue_name': 'polling',
           'handler_spec': 'offline_jobs.SubscriptionReconfirmMapper.run',
           'shard_count': 4,
           'reader_parameters': {
             'entity_kind': 'main.Subscription',
-            'processing_rate': 100000
+            'processing_rate': 100000,
+            'threshold_timestamp':
+                int(self.now + main.SUBSCRIPTION_CHECK_BUFFER_SECONDS),
           },
           'mapreduce_parameters': {
             'done_callback': '/work/cleanup_mapper',
             'done_callback_queue': 'polling',
-            'threshold_timestamp':
-                int(self.now + main.SUBSCRIPTION_CHECK_BUFFER_SECONDS)
           },
       })
       self.called = True

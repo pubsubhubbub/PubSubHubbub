@@ -977,7 +977,7 @@ class Subscription(db.Model):
         confirmation.
     """
     RETRIES = 3
-    if os.environ.get('HTTP_X_APPENGINE_QUEUENAME') == POLLING_QUEUE:
+    if auto_reconfirm:
       target_queue = POLLING_QUEUE
     else:
       target_queue = SUBSCRIPTION_QUEUE
@@ -2148,15 +2148,15 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
     self.start_map(
         name='Reconfirm expiring subscriptions',
         handler_spec='offline_jobs.SubscriptionReconfirmMapper.run',
-        reader_spec='mapreduce.input_readers.DatastoreInputReader',
+        reader_spec='offline_jobs.HashKeyDatastoreInputReader',
         reader_parameters=dict(
             processing_rate=100000,
-            entity_kind='main.Subscription'),
+            entity_kind='main.Subscription',
+            threshold_timestamp=int(
+                self.now() + SUBSCRIPTION_CHECK_BUFFER_SECONDS)),
         shard_count=SUBSCRIPTION_RECONFIRM_SHARD_COUNT,
         queue_name=POLLING_QUEUE,
         mapreduce_parameters=dict(
-          threshold_timestamp=int(
-              self.now() + SUBSCRIPTION_CHECK_BUFFER_SECONDS),
           done_callback='/work/cleanup_mapper',
           done_callback_queue=POLLING_QUEUE))
 
