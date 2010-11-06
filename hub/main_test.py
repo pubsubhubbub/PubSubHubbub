@@ -372,6 +372,16 @@ class KnownFeedIdentityTest(unittest.TestCase):
     }
     self.assertEquals(expected, result)
 
+  def testKnownFeedIdentityTooLarge(self):
+    """Tests when the fan-out expansion of the KnownFeedIdentity is too big."""
+    feed = KnownFeedIdentity.update(self.feed_id, self.topic)
+    KnownFeedIdentity.update(
+        self.feed_id,
+        'http://super-extra-long-topic/' + ('a' * 10000000))
+    # Doesn't explode and the update time stays the same.
+    new_feed = db.get(feed.key())
+    self.assertEquals(feed.last_update, new_feed.last_update)
+
 ################################################################################
 
 Subscription = main.Subscription

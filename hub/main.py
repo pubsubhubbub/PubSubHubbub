@@ -1784,7 +1784,7 @@ class KnownFeedIdentity(db.Model):
 
   feed_id = db.TextProperty(required=True)
   topics = db.ListProperty(db.Text)
-  last_update = db.DateTimeProperty(auto_now=True)
+  last_update = db.DateTimeProperty()
 
   @classmethod
   def create_key(cls, feed_id):
@@ -1817,9 +1817,15 @@ class KnownFeedIdentity(db.Model):
         known_feed = cls(feed_id=feed_id, key_name=get_hash_key_name(feed_id))
       if topic not in known_feed.topics:
         known_feed.topics.append(db.Text(topic))
+      known_feed.last_update = datetime.datetime.now()
       known_feed.put()
       return known_feed
-    return db.run_in_transaction(txn)
+    try:
+      return db.run_in_transaction(txn)
+    except (db.BadRequestError, apiproxy_errors.RequestTooLargeError):
+      logging.exception(
+          'Could not update feed_id=%r; expansion is already too large',
+          feed_id)
 
   @classmethod
   def remove(cls, feed_id, topic):
@@ -1847,6 +1853,7 @@ class KnownFeedIdentity(db.Model):
         known_feed.delete()
         return None
       else:
+        known_feed.last_update = datetime.datetime.now()
         known_feed.put()
         return known_feed
     return db.run_in_transaction(txn)
