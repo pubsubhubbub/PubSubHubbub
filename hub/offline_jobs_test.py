@@ -43,7 +43,7 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
     """Sets up the test harness."""
     testutil.setup_for_testing()
     self.app = 'my-app-id'
-    self.entity_kind = 'my-entity-kind'
+    self.entity_kind = 'main.Subscription'
     self.namespace = 'my-namespace'
 
   def testOneShard(self):
@@ -55,11 +55,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
     expected = [
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_0000000000000000000000000000000000000000',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_ffffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='ASC',
@@ -79,11 +79,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
     expected = [
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_0000000000000000000000000000000000000000',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_7fffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='DESC',
@@ -93,11 +93,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
           _app='my-app-id'),
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_7fffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_ffffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='ASC',
@@ -117,11 +117,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
     expected = [
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_0000000000000000000000000000000000000000',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_3fffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='DESC',
@@ -131,11 +131,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
           _app='my-app-id'),
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_3fffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_7fffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='ASC',
@@ -145,11 +145,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
           _app='my-app-id'),
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_7fffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_bfffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='DESC',
@@ -159,11 +159,11 @@ class HashKeyDatastoreInputReaderTest(unittest.TestCase):
           _app='my-app-id'),
       key_range.KeyRange(
           key_start=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_bfffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           key_end=db.Key.from_path(
-              u'my-entity-kind',
+              'Subscription',
               u'hash_ffffffffffffffffffffffffffffffffffffffff',
               _app=u'my-app-id'),
           direction='ASC',

@@ -26,7 +26,7 @@ mapreduce:
     params_validator: offline_jobs.CleanupOldEventToDeliver.validate_params
 - name: Reconfirm expiring subscriptions
   mapper:
-    input_reader: mapreduce.input_readers.DatastoreInputReader
+    input_reader: offline_jobs.HashKeyDatastoreInputReader
     handler: offline_jobs.SubscriptionReconfirmMapper.run
     params:
     - name: entity_kind

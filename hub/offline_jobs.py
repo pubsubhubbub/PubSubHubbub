@@ -29,6 +29,7 @@ import main
 from mapreduce import context
 from mapreduce import input_readers
 from mapreduce import operation as op
+from mapreduce import util
 from mapreduce.lib import key_range
 
 
@@ -75,6 +76,9 @@ class HashKeyDatastoreInputReader(input_readers.DatastoreInputReader):
   @classmethod
   def _split_input_from_namespace(
       cls, app, namespace, entity_kind_name, shard_count):
+    entity_kind = util.for_name(entity_kind_name)
+    entity_kind_name = entity_kind.kind()
+
     hex_key_start = db.Key.from_path(
         entity_kind_name, 0)
     hex_key_end = db.Key.from_path(
