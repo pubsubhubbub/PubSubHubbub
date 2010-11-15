@@ -3442,17 +3442,13 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(secret or self.secret, params['secret'])
     self.assertEquals(str(auto_reconfirm), params['auto_reconfirm'])
 
-  def verify_record_task(self, topic):
-    """Tests there is a valid KnownFeedIdentity task enqueued.
-  
-    Args:
-      topic: The topic the task should be for.
+  def verify_no_record_task(self):
+    """Tests there is not KnownFeedIdentity task enqueued.
 
     Raises:
-      AssertionError if the task isn't there.
+      AssertionError if the task is there.
     """
-    task = testutil.get_tasks(main.MAPPINGS_QUEUE, index=0, expected_count=1)
-    self.assertEquals(topic, task['params']['topic'])
+    task = testutil.get_tasks(main.MAPPINGS_QUEUE, expected_count=0)
 
   def testNoWork(self):
     """Tests when a task is enqueued for a Subscription that doesn't exist."""
@@ -3473,7 +3469,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
                         ('secret', self.secret),
                         ('next_state', Subscription.STATE_VERIFIED))
     self.verify_task(Subscription.STATE_VERIFIED)
-    self.verify_record_task(self.topic)
+    self.verify_no_record_task()
 
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
@@ -3504,7 +3500,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
                         ('secret', self.secret),
                         ('next_state', Subscription.STATE_VERIFIED))
     self.verify_task(Subscription.STATE_VERIFIED)
-    self.verify_record_task(self.topic)
+    self.verify_no_record_task()
 
     sub = Subscription.get_by_key_name(self.sub_key)
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
@@ -3631,7 +3627,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     self.assertEquals(Subscription.STATE_VERIFIED, sub.subscription_state)
     self.assertEquals(second_token, sub.verify_token)
     self.assertEquals(second_secret, sub.secret)
-    self.verify_record_task(self.topic)
+    self.verify_no_record_task()
 
   def testConfirmError(self):
     """Tests when an exception is raised while confirming a subscription.
@@ -3643,7 +3639,7 @@ class SubscriptionConfirmHandlerTest(testutil.HandlerTestBase):
     Subscription.request_insert(
         self.callback, self.topic, self.verify_token, self.secret)
     # All exceptions should just fall through.
-    def new_confirm(*args):
+    def new_confirm(*args, **kwargs):
       called[0] = True
       raise db.Error()
     try:

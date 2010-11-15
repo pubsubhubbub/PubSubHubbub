@@ -1915,7 +1915,7 @@ class KnownFeedIdentity(db.Model):
 # Subscription handlers and workers
 
 def confirm_subscription(mode, topic, callback, verify_token,
-                         secret, lease_seconds):
+                         secret, lease_seconds, record_topic=True):
   """Confirms a subscription request and updates a Subscription instance.
 
   Args:
@@ -1927,6 +1927,8 @@ def confirm_subscription(mode, topic, callback, verify_token,
     lease_seconds: Number of seconds the client would like the subscription
       to last before expiring. If more than max_lease_seconds, will be capped
       to that value. Should be an integer number.
+    record_topic: When True, also cause the topic's feed ID to be recorded
+      if this is a new subscription.
 
   Returns:
     True if the subscription was confirmed properly, False if the subscription
@@ -1971,8 +1973,9 @@ def confirm_subscription(mode, topic, callback, verify_token,
     if mode == 'subscribe':
       Subscription.insert(callback, topic, verify_token, secret,
                           lease_seconds=real_lease_seconds)
-      # Enqueue a task to record the feed and do discovery for it's ID.
-      KnownFeed.record(topic)
+      if record_topic:
+        # Enqueue a task to record the feed and do discovery for it's ID.
+        KnownFeed.record(topic)
     else:
       Subscription.remove(callback, topic)
     logging.info('Subscription action verified, '
@@ -2113,7 +2116,8 @@ class SubscriptionConfirmHandler(webapp.RequestHandler):
 
     if not hooks.execute(confirm_subscription,
         mode, sub.topic, sub.callback,
-        verify_token, secret, sub.lease_seconds):
+        verify_token, secret, sub.lease_seconds,
+        record_topic=False):
       # After repeated re-confirmation failures for a subscription, assume that
       # the callback is dead and archive it. End-user-initiated subscription
       # requests cannot possibly follow this code path, preventing attacks
