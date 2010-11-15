@@ -150,6 +150,22 @@ class AtomFeedDiffTest(TestBase):
     else:
       self.fail()
 
+  def testCData(self):
+    """Tests a feed that has a CData section."""
+    data = open(os.path.join(self.testdata, 'cdata_test.xml')).read()
+    header_footer, entries = feed_diff.filter(data, 'atom')
+    expected_list = [
+        u'tag:blog.livedoor.jp,2010:coupon_123.1635380'
+    ]
+    self.verify_entries(expected_list, entries)
+    self.assertTrue(
+        ('<generator url="http://blog.livedoor.com/" '
+         'version="1.0">livedoor Blog</generator>')
+        in header_footer)
+    entry_data = entries['tag:blog.livedoor.jp,2010:coupon_123.1635380']
+    # Here the CData section is rewritten.
+    self.assertTrue('&lt;/FONT&gt;' in entry_data)
+
 
 class AtomNamespacedFeedDiffTest(TestBase):
 

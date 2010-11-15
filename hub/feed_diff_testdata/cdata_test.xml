@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<feed version="0.3" xmlns="http://purl.org/atom/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xml:lang="ja">
+<title>お得なクーポン情報</title> 
+<link rel="alternate" type="text/html" href="http://blog.livedoor.jp/coupon_123/" />
+<link rel="service.post" type="application/x.atom+xml" href="http://cms.blog.livedoor.com/atom/blog_id=4319768" title="お得なクーポン情報" />
+<link rel="hub" href="http://pubsubhubbub.appspot.com" />
+<link rel="self" href="http://blog.livedoor.jp/coupon_123/atom.xml" />
+<modified>2010-11-16T07:09:01Z</modified> 
+<tagline><![CDATA[お得な情報を集めています。]]></tagline> 
+<id>tag:blog.livedoor.jp,2010:coupon_123</id> 
+<author>
+<name>coupon_123</name> 
+</author>
+
+<generator url="http://blog.livedoor.com/" version="1.0">livedoor Blog</generator> 
+<copyright>Copyright (c) 2010, coupon_123 </copyright>
+<entry>
+<title>りんね【マッサージ・鍼灸院】のクーポン情報！⇒⇒クーポンをお持ちの方アロマコース10％オフ</title> 
+<link rel="alternate" type="text/html" href="http://blog.livedoor.jp/coupon_123/archives/1635380.html" />
+<modified>2010-11-15T22:08:57Z</modified> 
+<issued>2010-11-16T07:08:57+09:00</issued> 
+<id>tag:blog.livedoor.jp,2010:coupon_123.1635380</id> 
+<summary type="text/plain">
+　★お得情報一覧はこちら
+
+東京都豊島区東池袋1丁目46-13ホリグチビル１Ｆ 営業：11：00～21：00&amp;nbsp; 定休：毎週日曜日定休
+
+クーポンをお持ちの方アロマコース10％オフ
+
+http://www.toshimaku-town.com/coupon/ts026964</summary> 
+
+<dc:subject></dc:subject>
+<content type="text/html" mode="escaped" xml:lang="ja" xml:base="http://blog.livedoor.jp/coupon_123/archives/1635380.html">
+<![CDATA[<a href="http://px.moba8.net/svt/ejp?a8mat=1O74YA+D5BMPE+E88+NTRMP&guid=on"><img border="0" width="192" height="53" alt="" src="http://www21.moba8.net/svt/bgt?aid=101109970795&wid=001&eno=01&mid=m00000001844004002000&mc=1"></a><img border="0" width="1" height="1" src="http://www18.moba8.net/0.jpg?a8mat=1O74YA+D5BMPE+E88+NTRMP&guid=on" alt=""><br>
+　<a href="http://rank2010.sakura.ne.jp">★お得情報一覧はこちら</a><br>
+<br>
+<FONT color=#008000>東京都豊島区東池袋1丁目46-13ホリグチビル１Ｆ</FONT> 営業：<FONT color=#993300>11：00～21：00</FONT>&nbsp; 定休：<FONT color=#993300>毎週日曜日定休</FONT><br>
+<br>
+クーポンをお持ちの方アロマコース10％オフ<br>
+<br>
+http://www.toshimaku-town.com/coupon/ts026964<br clear="all">]]> 
+</content>
+<author>
+<name>coupon_123</name> 
+</author>
+</entry>
+</feed>
