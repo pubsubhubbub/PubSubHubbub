@@ -1402,7 +1402,7 @@ class FeedEntryRecord(db.Expando):
     return cls(key=key, entry_content_hash=content_hash)
 
 
-class EventToDeliver(db.Model):
+class EventToDeliver(db.Expando):
   """Represents a publishing event to deliver to subscribers.
 
   This model is meant to be used together with Subscription entities. When a
@@ -1426,7 +1426,6 @@ class EventToDeliver(db.Model):
 
   topic = db.TextProperty(required=True)
   topic_hash = db.StringProperty(required=True)
-  payload = db.TextProperty(required=True)
   last_callback = db.TextProperty(default='')  # For paging Subscriptions
   failed_callbacks = db.ListProperty(db.Key)  # Refs to Subscription entities
   delivery_mode = db.StringProperty(default=NORMAL, choices=DELIVERY_MODES)
@@ -1503,11 +1502,14 @@ class EventToDeliver(db.Model):
     else:
       parent = None
 
+    if isinstance(payload, unicode):
+      payload = payload.encode('utf-8')
+
     return cls(
         parent=parent,
         topic=topic,
         topic_hash=sha1_hash(topic),
-        payload=payload,
+        payload=db.Blob(payload),
         last_modified=now(),
         content_type=content_type,
         max_failures=max_failures)

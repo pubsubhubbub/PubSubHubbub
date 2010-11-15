@@ -2252,6 +2252,24 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertEquals('my crazy content type', event.content_type)
     self.assertEquals('arbitrary', FeedRecord.all().get().format)
 
+  def testPullBinaryContent(self):
+    """Tests pulling binary content."""
+    data = '\xff\x12 some binary data'
+    topic = 'http://example.com/my-topic'
+    callback = 'http://example.com/my-subscriber'
+    self.assertTrue(Subscription.insert(callback, topic, 'token', 'secret'))
+    FeedToFetch.insert([topic])
+    urlfetch_test_stub.instance.expect(
+        'get', topic, 200, data,
+        response_headers={'Content-Type': 'my crazy content type'})
+    self.run_fetch_task()
+    feed = FeedToFetch.get_by_key_name(get_hash_key_name(topic))
+    self.assertTrue(feed is None)
+    event = EventToDeliver.all().get()
+    self.assertEquals(data, event.payload)
+    self.assertEquals('my crazy content type', event.content_type)
+    self.assertEquals('arbitrary', FeedRecord.all().get().format)
+
   def testMultipleFetch(self):
     """Tests doing multiple fetches asynchronously in parallel.
 
