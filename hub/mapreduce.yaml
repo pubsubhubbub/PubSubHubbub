@@ -38,18 +38,18 @@ mapreduce:
     - name: threshold_timestamp
     params_validator: offline_jobs.SubscriptionReconfirmMapper.validate_params
 - name: Count subscribers by topic and callback pattern
-    mapper:
-      input_reader: offline_jobs.HashKeyDatastoreInputReader
-      handler: offline_jobs.CountSubscribers.run
-      params:
-      - name: entity_kind
-        default: main.Subscription
-      - name: shard_count
-        default: 128
-      - name: processing_rate
-        default: 1000000
-      - name: topic_pattern
-        default: http(s)?://.*
-      - name: callback_pattern
-        default: http(?:s)?://(?:[^\\.]+\\.)*([^\\./]+\.[^\\./]+)(?:/.*)?
+  mapper:
+    input_reader: offline_jobs.HashKeyDatastoreInputReader
+    handler: offline_jobs.CountSubscribers.run
+    params:
+    - name: entity_kind
+      default: main.Subscription
+    - name: shard_count
+      default: 128
+    - name: processing_rate
+      default: 1000000
+    - name: topic_pattern
+      default: http(s)?://.*
+    - name: callback_pattern
+      default: http(?:s)?://(?:[^\\.]+\\.)*([^\\./]+\.[^\\./]+)(?:/.*)?
     params_validator: offline_jobs.CountSubscribers.validate_params
