@@ -20,6 +20,7 @@
 import datetime
 import logging
 logging.basicConfig(format='%(levelname)-8s %(filename)s] %(message)s')
+import re
 import time
 import unittest
 
@@ -245,6 +246,114 @@ class SubscriptionReconfirmMapperTest(unittest.TestCase):
     self.mapper.run(sub)
     task = testutil.get_tasks(main.POLLING_QUEUE, index=0, expected_count=1)
     self.assertEquals('polling', task['headers']['X-AppEngine-QueueName'])
+
+################################################################################
+
+class CountSubscribersTest(unittest.TestCase):
+  """Tests for the CountSubscribers job."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.setup_for_testing()
+    self.mapper = offline_jobs.CountSubscribers()
+    self.callback = 'http://foo.callback-example.com/my-callback-url'
+    self.topic = 'http://example.com/my-topic-url'
+    self.token = 'token'
+    self.secret = 'my secrat'
+    # Do not make these raw strings on purpose, since they will get
+    # passed through escaped in the mapreduce.yaml.
+    self.topic_pattern = '^http://example\\.com/.*$'
+    self.callback_pattern = (
+        'http(?:s)?://(?:[^\\.]+\\.)*([^\\./]+\.[^\\./]+)(?:/.*)?')
+
+    class FakeMapper(object):
+      params = {
+        'topic_pattern': self.topic_pattern,
+        'callback_pattern': self.callback_pattern,
+      }
+    class FakeSpec(object):
+      mapreduce_id = '1234'
+      mapper = FakeMapper()
+    self.context = context.Context(FakeSpec(), None)
+    context.Context._set(self.context)
+
+  def get_subscription(self):
+    """Returns the Subscription used for testing."""
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
+    return Subscription.get_by_key_name(
+        Subscription.create_key_name(self.callback, self.topic))
+
+  def testExpressions(self):
+    """Tests the default expressions we're going to use for callbacks."""
+    callback_re = re.compile(self.callback_pattern)
+    self.assertEquals(
+        'blah.com',
+        callback_re.match('http://foo.blah.com/stuff').group(1))
+    self.assertEquals(
+        'blah.com',
+        callback_re.match('http://blah.com/stuff').group(1))
+    self.assertEquals(
+        'blah.com',
+        callback_re.match('http://one.two.three.blah.com/stuff').group(1))
+    self.assertEquals(
+        'blah.com',
+        callback_re.match('http://no-ending.blah.com').group(1))
+    self.assertEquals(
+        'example.com',
+        callback_re.match('https://fun.with.https.example.com/').group(1))
+
+  def testValidateParams(self):
+    """Tests the validate_params function."""
+    self.assertRaises(
+        KeyError,
+        offline_jobs.CountSubscribers.validate_params,
+        {})
+    self.assertRaises(
+        AssertionError,
+        offline_jobs.CountSubscribers.validate_params,
+        {'topic_pattern': ''})
+    self.assertRaises(
+        re.error,
+        offline_jobs.CountSubscribers.validate_params,
+        {'topic_pattern': 'this is bad('})
+    self.assertRaises(
+        KeyError,
+        offline_jobs.CountSubscribers.validate_params,
+        {'topic_pattern': 'okay'})
+    self.assertRaises(
+        AssertionError,
+        offline_jobs.CountSubscribers.validate_params,
+        {'topic_pattern': 'okay', 'callback_pattern': ''})
+    self.assertRaises(
+        re.error,
+        offline_jobs.CountSubscribers.validate_params,
+        {'topic_pattern': 'okay', 'callback_pattern': 'this is bad('})
+    offline_jobs.CountSubscribers.validate_params(
+        {'topic_pattern': 'okay', 'callback_pattern': 'and okay'})
+
+  def testTopicMatch_CallbackMatch(self):
+    """Tests when the topic and callbacks match."""
+    sub = self.get_subscription()
+    gen = self.mapper.run(sub)
+    counter = gen.next()
+    self.assertEquals('callback-example.com', counter.counter_name)
+    self.assertEquals(1, counter.delta)
+    self.assertRaises(StopIteration, gen.next)
+
+  def testTopicMatch_CallbackNoMatch(self):
+    """Tests when the topic matches but the callback does not."""
+    self.callback = 'some garbage'
+    sub = self.get_subscription()
+    gen = self.mapper.run(sub)
+    self.assertRaises(StopIteration, gen.next)
+
+  def testTopicNoMatch(self):
+    """Tests when the topic does not match."""
+    self.topic = 'http://does-not-match.com'
+    sub = self.get_subscription()
+    gen = self.mapper.run(sub)
+    self.assertRaises(StopIteration, gen.next)
 
 ################################################################################
 

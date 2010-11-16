@@ -20,6 +20,7 @@
 import datetime
 import logging
 import math
+import re
 import time
 
 from google.appengine.ext import db
@@ -64,6 +65,39 @@ class CleanupOldEventToDeliver(object):
 
     if event.last_modified < self.oldest_last_modified:
       yield op.db.Delete(event)
+
+
+class CountSubscribers(object):
+  """Mapper counts subscribers to a feed pattern by domain.
+
+  Args:
+    topic_pattern: Fully-matching regular expression pattern for topics to
+      include in the count.
+    callback_pattern: Full-matching regular expression pattern for callback
+      URLs, where the first group is used as the aggregation key for counters.
+  """
+
+  @staticmethod
+  def validate_params(params):
+    topic_pattern = params['topic_pattern']
+    assert topic_pattern and re.compile(topic_pattern)
+    callback_pattern = params['callback_pattern']
+    assert callback_pattern and re.compile(callback_pattern)
+
+  def __init__(self):
+    self.topic_pattern = None
+    self.callback_pattern = None
+
+  def run(self, subscription):
+    if self.topic_pattern is None:
+      params = context.get().mapreduce_spec.mapper.params
+      self.topic_pattern = re.compile(params['topic_pattern'])
+      self.callback_pattern = re.compile(params['callback_pattern'])
+
+    if self.topic_pattern.match(subscription.topic):
+      the_match = self.callback_pattern.match(subscription.callback)
+      if the_match:
+        yield op.counters.Increment(the_match.group(1))
 
 
 class HashKeyDatastoreInputReader(input_readers.DatastoreInputReader):
