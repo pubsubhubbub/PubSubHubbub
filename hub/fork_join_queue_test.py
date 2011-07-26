@@ -293,7 +293,10 @@ class ForkJoinQueueTest(unittest.TestCase):
     work_index = TEST_QUEUE.next_index()
     tasks = []
     for i in xrange(6):
-      tasks.append(TestModel(work_index=work_index, number=i))
+      # Simplify tests by assigning the key names of the TestModel, making it
+      # so the values returned by pop_request() below are predictable.
+      key = db.Key.from_path(TestModel.kind(), i+1)
+      tasks.append(TestModel(key=key, work_index=work_index, number=i))
     db.put(tasks)
     TEST_QUEUE.add(work_index, gettime=self.gettime1)
 
@@ -397,13 +400,15 @@ class ForkJoinQueueTest(unittest.TestCase):
     """Tests adding and popping from a sharded queue with continuation."""
     from google.appengine.api import apiproxy_stub_map
     stub = apiproxy_stub_map.apiproxy.GetStub('taskqueue')
-    old_valid = stub._IsValidQueue
-    stub._IsValidQueue = lambda *a, **k: True
+    stub._queues[None]._all_queues_valid = True
     try:
       work_index = SHARDED_QUEUE.next_index()
       tasks = []
       for i in xrange(5):
-        tasks.append(TestModel(work_index=work_index, number=i))
+        # Simplify tests by assigning the key names of the TestModel, making it
+        # so the values returned by pop_request() below are predictable.
+        key = db.Key.from_path(TestModel.kind(), i+1)
+        tasks.append(TestModel(key=key, work_index=work_index, number=i))
       db.put(tasks)
       SHARDED_QUEUE.add(work_index, gettime=self.gettime1)
       queue_name = 'default-%d' % (1 + (work_index % 4))
@@ -427,7 +432,7 @@ class ForkJoinQueueTest(unittest.TestCase):
       self.assertTrue('cursor' in next_task['params'])
       self.assertTrue(next_task['name'].endswith('-1'))
     finally:
-      stub._IsValidQueue = old_valid
+      stub._queues[None]._all_queues_valid = False
 
   def testMemcacheQueue(self):
     """Tests adding and popping from an in-memory queue with continuation."""

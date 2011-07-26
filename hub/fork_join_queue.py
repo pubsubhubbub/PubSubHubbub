@@ -90,7 +90,7 @@ import time
 
 from google.net.proto import ProtocolBuffer
 from google.appengine.api import memcache
-from google.appengine.api.labs import taskqueue
+from google.appengine.api import taskqueue
 from google.appengine.ext import db
 
 # TODO: Consider using multiple work indexes to alleviate the memcache
@@ -388,7 +388,8 @@ class ForkJoinQueue(object):
             params={'cursor': cursor}
           ).add(self.get_queue_name(index))
           break
-        except (taskqueue.TaskAlreadyExistsError, taskqueue.TombstonedTaskError):
+        except (taskqueue.TaskAlreadyExistsError,
+                taskqueue.TombstonedTaskError):
           # This means the continuation chain already started and this root
           # task failed for some reason; no problem.
           break

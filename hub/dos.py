@@ -274,8 +274,8 @@ def offset_or_add(offsets,
 
   failed_keys = set(k for k, v in second_results.iteritems() if v is None)
   if failed_keys:
-    logging.critical('Failed memcache offset_or_add for prefix=%r, keys=%r',
-                     prefix, failed_keys)
+    logging.warning('Failed memcache offset_or_add for prefix=%r, keys=%r',
+                    prefix, failed_keys)
 
   results.update(second_results)
   return results

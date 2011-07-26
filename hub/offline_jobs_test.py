@@ -37,145 +37,6 @@ import offline_jobs
 
 ################################################################################
 
-class HashKeyDatastoreInputReaderTest(unittest.TestCase):
-  """Tests for the HashKeyDatastoreInputReader."""
-
-  def setUp(self):
-    """Sets up the test harness."""
-    testutil.setup_for_testing()
-    self.app = 'my-app-id'
-    self.entity_kind = 'main.Subscription'
-    self.namespace = 'my-namespace'
-
-  def testOneShard(self):
-    """Tests just one shard."""
-    result = (
-        offline_jobs.HashKeyDatastoreInputReader._split_input_from_namespace(
-          self.app, self.namespace, self.entity_kind, 1))
-
-    expected = [
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_0000000000000000000000000000000000000000',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_ffffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='ASC',
-          include_start=True,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id')
-    ]
-    self.assertEquals(expected, result)
-
-  def testTwoShards(self):
-    """Tests two shares: one for number prefixes, one for letter prefixes."""
-    result = (
-        offline_jobs.HashKeyDatastoreInputReader._split_input_from_namespace(
-          self.app, self.namespace, self.entity_kind, 2))
-
-    expected = [
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_0000000000000000000000000000000000000000',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_7fffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='DESC',
-          include_start=True,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id'),
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_7fffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_ffffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='ASC',
-          include_start=False,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id'),
-    ]
-    self.assertEquals(expected, result)
-
-  def testManyShards(self):
-    """Tests having many shards with multiple levels of splits."""
-    result = (
-        offline_jobs.HashKeyDatastoreInputReader._split_input_from_namespace(
-          self.app, self.namespace, self.entity_kind, 4))
-
-    expected = [
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_0000000000000000000000000000000000000000',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_3fffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='DESC',
-          include_start=True,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id'),
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_3fffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_7fffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='ASC',
-          include_start=False,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id'),
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_7fffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_bfffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='DESC',
-          include_start=False,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id'),
-      key_range.KeyRange(
-          key_start=db.Key.from_path(
-              'Subscription',
-              u'hash_bfffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          key_end=db.Key.from_path(
-              'Subscription',
-              u'hash_ffffffffffffffffffffffffffffffffffffffff',
-              _app=u'my-app-id'),
-          direction='ASC',
-          include_start=False,
-          include_end=True,
-          namespace='my-namespace',
-          _app='my-app-id'),
-    ]
-    self.assertEquals(expected, result)
-
-
 Subscription = main.Subscription
 
 
@@ -341,6 +202,17 @@ class CountSubscribersTest(unittest.TestCase):
     self.assertEquals(1, counter.delta)
     self.assertRaises(StopIteration, gen.next)
 
+  def testTopicMatch_CallbackMatch_Inactive(self):
+    """Tests when the subscription matches but is inactive."""
+    sub = self.get_subscription()
+    sub.subscription_state = Subscription.STATE_NOT_VERIFIED
+    sub.put()
+    gen = self.mapper.run(sub)
+    counter = gen.next()
+    self.assertEquals('matched but inactive', counter.counter_name)
+    self.assertEquals(1, counter.delta)
+    self.assertRaises(StopIteration, gen.next)
+
   def testTopicMatch_CallbackNoMatch(self):
     """Tests when the topic matches but the callback does not."""
     self.callback = 'some garbage'
@@ -354,6 +226,60 @@ class CountSubscribersTest(unittest.TestCase):
     sub = self.get_subscription()
     gen = self.mapper.run(sub)
     self.assertRaises(StopIteration, gen.next)
+
+################################################################################
+
+class SaveSubscriptionCountsTest(unittest.TestCase):
+  """Tests for the MapReduce that saves subscription counts."""
+
+  def setUp(self):
+    """Sets up the test harness."""
+    testutil.setup_for_testing()
+    self.callback = 'http://foo.callback-example.com/my-callback-url'
+    self.topic = 'http://example.com/my-topic-url'
+    self.token = 'token'
+    self.secret = 'my secrat'
+
+  def testMap(self):
+    """Tests the mapper function."""
+    self.assertTrue(Subscription.insert(
+        self.callback, self.topic, self.token, self.secret))
+    sub = Subscription.get_by_key_name(
+        Subscription.create_key_name(self.callback, self.topic))
+
+    # Active subscription.
+    it = offline_jobs.count_subscriptions_for_topic(sub)
+    self.assertEquals(('95ff66c343530c88a750cbc7fd1e0bbd8cc7bce2', '1'),
+                      it.next())
+    self.assertRaises(StopIteration, it.next)
+
+    # Not active
+    Subscription.archive(self.callback, self.topic)
+    sub = db.get(sub.key())
+    it = offline_jobs.count_subscriptions_for_topic(sub)
+    self.assertRaises(StopIteration, it.next)
+
+  def testReduce(self):
+    """Tests the reducer function."""
+    self.assertEquals(0, len(list(main.KnownFeedStats.all())))
+    it = offline_jobs.save_subscription_counts_for_topic(
+        '95ff66c343530c88a750cbc7fd1e0bbd8cc7bce2',
+        ['1'] * 321)
+    op = it.next()
+    self.assertEquals(
+        db.Key.from_path(
+            'KnownFeed', '95ff66c343530c88a750cbc7fd1e0bbd8cc7bce2',
+            'KnownFeedStats', 'overall'),
+        op.entity.key())
+    self.assertEquals(321, op.entity.subscriber_count)
+    self.assertRaises(StopIteration, it.next)
+
+  def testStart(self):
+    """Tests starting the mapreduce job."""
+    job_id = offline_jobs.start_count_subscriptions()
+    self.assertTrue(job_id is not None)
+    task = testutil.get_tasks('default', expected_count=1, index=0)
+    self.assertEquals('/mapreduce/pipeline/run', task['url'])
 
 ################################################################################
 

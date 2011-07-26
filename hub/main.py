@@ -35,6 +35,9 @@
   conjunction with KnownFeed to properly canonicalize feed aliases on
   subscription and pinging.
 
+* KnownFeedStats: Statistics about a topic URL. Used to provide subscriber
+  counts to publishers on feed fetch.
+
 * FeedRecord: Metadata information about a feed, the last time it was polled,
   and any headers that may affect future polling. Also contains any debugging
   information about the last feed fetch and why it may have failed.
@@ -75,11 +78,6 @@ and will be retried at a later time.
 
 # Bigger TODOs (in priority order)
 #
-# - Add subscription counting to PushEventHandler so we can deliver a header
-#   with the number of subscribers the feed has. This will simply just keep
-#   count of the subscribers seen so far and then when the pushing is done it
-#   will save that total back on the FeedRecord instance.
-#
 # - Improve polling algorithm to keep stats on each feed.
 #
 # - Do not poll a feed if we've gotten an event from the publisher in less
@@ -105,8 +103,8 @@ from google.appengine.api import datastore_types
 from google.appengine.api import memcache
 from google.appengine.api import urlfetch
 from google.appengine.api import urlfetch_errors
+from google.appengine.api import taskqueue
 from google.appengine.api import users
-from google.appengine.api.labs import taskqueue
 from google.appengine.ext import db
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
@@ -624,6 +622,9 @@ def get_hash_key_name(value):
 
 def sha1_hmac(secret, data):
   """Returns the sha1 hmac for a chunk of data and a secret."""
+  # For Python 2.6, which can only compute hmacs on non-unicode data.
+  secret = utf8encoded(secret)
+  data = utf8encoded(data)
   return hmac.new(secret, data, hashlib.sha1).hexdigest()
 
 
@@ -1031,7 +1032,7 @@ class Subscription(db.Model):
     """
     def txn():
       if self.confirm_failures >= max_failures:
-        logging.warning('Max subscription failures exceeded, giving up.')
+        logging.debug('Max subscription failures exceeded, giving up.')
         return False
       else:
         retry_delay = retry_period * (2 ** self.confirm_failures)
@@ -1146,11 +1147,12 @@ class FeedToFetch(db.Model):
     """
     def txn():
       if self.fetching_failures >= max_failures:
-        logging.warning('Max fetching failures exceeded, giving up.')
+        logging.debug('Max fetching failures exceeded, giving up.')
         self.totally_failed = True
       else:
         retry_delay = retry_period * (2 ** self.fetching_failures)
-        logging.warning('Fetching failed. Will retry in %s seconds', retry_delay)
+        logging.debug('Fetching failed. Will retry in %s seconds',
+                      retry_delay)
         self.eta = now() + datetime.timedelta(seconds=retry_delay)
         self.fetching_failures += 1
         self._enqueue_retry_task()
@@ -1317,8 +1319,11 @@ class FeedRecord(db.Model):
     if header_footer is not None and self.format != ARBITRARY:
       self.header_footer = header_footer
 
-  def get_request_headers(self):
+  def get_request_headers(self, subscriber_count):
     """Returns the request headers that should be used to pull this feed.
+
+    Args:
+      subscriber_count: The number of subscribers this feed has.
 
     Returns:
       Dictionary of request header values.
@@ -1331,6 +1336,10 @@ class FeedRecord(db.Model):
       headers['If-Modified-Since'] = self.last_modified
     if self.etag:
       headers['If-None-Match'] = self.etag
+    if subscriber_count:
+      headers['User-Agent'] = (
+          'Public Hub (+http://pubsubhubbub.appspot.com; %d subscribers)' %
+          subscriber_count)
     return headers
 
 
@@ -1619,15 +1628,15 @@ class EventToDeliver(db.Expando):
         self.totally_failed = True
 
       if self.delivery_mode == EventToDeliver.NORMAL:
-        logging.warning('Normal delivery done; %d broken callbacks remain',
-                        len(self.failed_callbacks))
+        logging.debug('Normal delivery done; %d broken callbacks remain',
+                      len(self.failed_callbacks))
         self.delivery_mode = EventToDeliver.RETRY
       else:
-        logging.warning('End of attempt %d; topic = %s, subscribers = %d, '
-                        'waiting until %s or totally_failed = %s',
-                        self.retry_attempts, self.topic,
-                        len(self.failed_callbacks), self.last_modified,
-                        self.totally_failed)
+        logging.debug('End of attempt %d; topic = %s, subscribers = %d, '
+                      'waiting until %s or totally_failed = %s',
+                      self.retry_attempts, self.topic,
+                      len(self.failed_callbacks), self.last_modified,
+                      self.totally_failed)
 
     def txn():
       self.put()
@@ -1736,6 +1745,57 @@ class KnownFeed(db.Model):
       if known_feed is not None:
         result.append(known_feed.topic)
     return result
+
+
+class KnownFeedStats(db.Model):
+  """Represents stats about a feed we know that exists.
+
+  Parent is the KnownFeed entity for a given topic URL.
+  """
+
+  subscriber_count = db.IntegerProperty()
+  update_time = db.DateTimeProperty(auto_now=True)
+
+  @classmethod
+  def create_key(cls, topic_url=None, topic_hash=None):
+    """Creates a key for a KnownFeedStats instance.
+
+    Args:
+      topic_url: The topic URL to create the key for.
+      topic_hash: The hash of the topic URL to create the key for. May only
+        be supplied if topic_url is None.
+
+    Returns:
+      db.Key of the KnownFeedStats instance.
+    """
+    if topic_url and topic_hash:
+      raise TypeError('Must specify topic_url or topic_hash.')
+    if topic_url:
+      topic_hash = sha1_hash(topic_url)
+
+    return db.Key.from_path(KnownFeed.kind(), topic_hash,
+                            cls.kind(), 'overall')
+
+  @classmethod
+  def get_or_create_all(cls, topic_list):
+    """Retrieves and/or creates KnownFeedStats entities for the supplied topics.
+
+    Args:
+      topic_list: List of topics to retrieve.
+
+    Returns:
+      The list of KnownFeedStats corresponding to the input topic list in
+      the same order they were supplied.
+    """
+    key_list = [cls.create_key(t) for t in topic_list]
+    found_list = db.get(key_list)
+    results = []
+    for topic, key, found in zip(topic_list, key_list, found_list):
+      if found:
+        results.append(found)
+      else:
+        results.append(cls(key=key, subscriber_count=0))
+    return results
 
 
 class PollingMarker(db.Model):
@@ -1966,9 +2026,9 @@ def confirm_subscription(mode, topic, callback, verify_token,
                               deadline=MAX_FETCH_SECONDS)
   except urlfetch_errors.Error:
     error_traceback = traceback.format_exc()
-    logging.warning('Error encountered while confirming subscription '
-                    'to %s for callback %s:\n%s',
-                    topic, callback, error_traceback)
+    logging.debug('Error encountered while confirming subscription '
+                  'to %s for callback %s:\n%s',
+                  topic, callback, error_traceback)
     return False
 
   if 200 <= response.status_code < 300 and response.content == challenge:
@@ -1989,9 +2049,9 @@ def confirm_subscription(mode, topic, callback, verify_token,
                  'topic = %s; subscription archived', callback, topic)
     return True
   else:
-    logging.warning('Could not confirm subscription; encountered '
-                    'status %d with content: %s', response.status_code,
-                    response.content)
+    logging.debug('Could not confirm subscription; encountered '
+                  'status %d with content: %s', response.status_code,
+                  response.content)
     return False
 
 
@@ -2086,8 +2146,9 @@ class SubscribeHandler(webapp.RequestHandler):
         return self.response.set_status(202)
 
     except (apiproxy_errors.Error, db.Error,
-            runtime.DeadlineExceededError, taskqueue.Error):
-      logging.exception('Could not verify subscription request')
+            runtime.DeadlineExceededError, taskqueue.Error), e:
+      logging.debug('Could not verify subscription request. %s: %s',
+                    e.__class__.__name__, e)
       self.response.headers['Retry-After'] = '120'
       return self.response.set_status(503)
 
@@ -2161,8 +2222,8 @@ class SubscriptionReconfirmHandler(webapp.RequestHandler):
     self.start_map(
         name='Reconfirm expiring subscriptions',
         handler_spec='offline_jobs.SubscriptionReconfirmMapper.run',
-        reader_spec='offline_jobs.HashKeyDatastoreInputReader',
-        reader_parameters=dict(
+        reader_spec='mapreduce.input_readers.DatastoreInputReader',
+        mapper_parameters=dict(
             processing_rate=100000,
             entity_kind='main.Subscription',
             threshold_timestamp=int(
@@ -2623,29 +2684,30 @@ class PullFeedHandler(webapp.RequestHandler):
     if not ready_feed_list:
       return
 
-    feed_record_list = FeedRecord.get_or_create_all(
-        [f.topic for f in ready_feed_list])
+    topic_list = [f.topic for f in ready_feed_list]
+    feed_record_list = FeedRecord.get_or_create_all(topic_list)
+    feed_stats_list = KnownFeedStats.get_or_create_all(topic_list)
     start_time = time.time()
     reporter = dos.Reporter()
     successful_topics = []
     failed_topics = []
 
-    def create_callback(feed_record, work, fetch_url, attempts):
+    def create_callback(feed_record, feed_stats, work, fetch_url, attempts):
       return lambda *args: callback(
-          feed_record, work, fetch_url, attempts, *args)
+          feed_record, feed_stats, work, fetch_url, attempts, *args)
 
-    def callback(feed_record, work, fetch_url, attempts,
+    def callback(feed_record, feed_stats, work, fetch_url, attempts,
                  status_code, headers, content, exception):
       should_parse = False
       fetch_success = False
       if exception:
         if isinstance(exception, urlfetch.ResponseTooLargeError):
-          logging.critical('Feed response too large for topic %r at url %r; '
-                           'skipping', work.topic, fetch_url)
+          logging.warning('Feed response too large for topic %r at url %r; '
+                          'skipping', work.topic, fetch_url)
           work.done()
         elif isinstance(exception, urlfetch.InvalidURLError):
-          logging.critical('Invalid redirection for topic %r to url %r; '
-                           'skipping', work.topic, fetch_url)
+          logging.warning('Invalid redirection for topic %r to url %r; '
+                          'skipping', work.topic, fetch_url)
           work.done()
         elif isinstance(exception, (apiproxy_errors.Error, urlfetch.Error)):
           logging.warning('Failed to fetch topic %r at url %r. %s: %s',
@@ -2663,13 +2725,17 @@ class PullFeedHandler(webapp.RequestHandler):
           logging.debug('Feed publisher for topic %r returned %d '
                         'redirect to %r', work.topic, status_code, fetch_url)
           if attempts >= MAX_REDIRECTS:
-            logging.warning('Too many redirects!')
+            logging.warning('Too many redirects for topic %r', work.topic)
             work.fetch_failed()
           else:
             # Recurse to do the refetch.
             hooks.execute(pull_feed_async,
-                work, fetch_url, feed_record.get_request_headers(), async_proxy,
-                create_callback(feed_record, work, fetch_url, attempts + 1))
+                work,
+                fetch_url,
+                feed_record.get_request_headers(feed_stats.subscriber_count),
+                async_proxy,
+                create_callback(feed_record, feed_stats, work, fetch_url,
+                                attempts + 1))
             return
         elif status_code == 304:
           logging.debug('Feed publisher for topic %r returned '
@@ -2677,9 +2743,9 @@ class PullFeedHandler(webapp.RequestHandler):
           work.done()
           fetch_success = True
         else:
-          logging.warning('Received bad response for topic = %r, '
-                          'status_code = %s, response_headers = %r',
-                          work.topic, status_code, headers)
+          logging.debug('Received bad response for topic = %r, '
+                        'status_code = %s, response_headers = %r',
+                        work.topic, status_code, headers)
           work.fetch_failed()
 
       # Fetch is done one way or another.
@@ -2700,10 +2766,14 @@ class PullFeedHandler(webapp.RequestHandler):
       # End callback
 
     # Fire off a fetch for every work item and wait for all callbacks.
-    for work, feed_record in zip(ready_feed_list, feed_record_list):
+    for work, feed_record, feed_stats in zip(
+        ready_feed_list, feed_record_list, feed_stats_list):
       hooks.execute(pull_feed_async,
-          work, work.topic, feed_record.get_request_headers(), async_proxy,
-          create_callback(feed_record, work, work.topic, 1))
+          work,
+          work.topic,
+          feed_record.get_request_headers(feed_stats.subscriber_count),
+          async_proxy,
+          create_callback(feed_record, feed_stats, work, work.topic, 1))
 
     try:
       async_proxy.wait()
@@ -2782,10 +2852,10 @@ class PushEventHandler(webapp.RequestHandler):
       end_time = time.time()
       latency = int((end_time - start_time) * 1000)
       if exception or not (200 <= result.status_code <= 299):
-        logging.warning('Could not deliver to target url %s: '
-                        'Exception = %r, status_code = %s',
-                        sub.callback, exception,
-                        getattr(result, 'status_code', 'unknown'))
+        logging.debug('Could not deliver to target url %s: '
+                      'Exception = %r, status_code = %s',
+                      sub.callback, exception,
+                      getattr(result, 'status_code', 'unknown'))
         report_delivery(reporter, sub.callback, False, latency)
       else:
         failed_callbacks.remove(sub)
@@ -2984,8 +3054,9 @@ class RecordFeedHandler(webapp.RequestHandler):
 
     try:
       response = urlfetch.fetch(topic)
-    except (apiproxy_errors.Error, urlfetch.Error):
-      logging.exception('Could not fetch topic = %s for feed ID', topic)
+    except (apiproxy_errors.Error, urlfetch.Error), e:
+      logging.warning('Could not fetch topic = %s for feed ID. %s: %s',
+                      topic, e.__class__.__name__, e)
       known_feed.put()
       return
 
@@ -3098,6 +3169,14 @@ class TopicDetailHandler(webapp.RequestHandler):
             FETCH_URL_SAMPLE_DAY_LATENCY,
             single_key=topic_url),
       }
+
+      if users.is_current_user_admin():
+        feed_stats = db.get(KnownFeedStats.create_key(topic_url=topic_url))
+        if feed_stats:
+          context.update({
+            'subscriber_count': feed_stats.subscriber_count,
+            'feed_stats_update_time': feed_stats.update_time,
+          })
 
       fetch = FeedToFetch.get_by_topic(topic_url)
       if fetch:

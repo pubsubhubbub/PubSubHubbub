@@ -1504,7 +1504,7 @@ class FindFeedUpdatesTest(unittest.TestCase):
 ################################################################################
 
 FeedRecord = main.FeedRecord
-
+KnownFeedStats = main.KnownFeedStats
 
 class PullFeedHandlerTest(testutil.HandlerTestBase):
 
@@ -1724,6 +1724,39 @@ class PullFeedHandlerTest(testutil.HandlerTestBase):
     self.run_fetch_task()
     self.assertTrue(EventToDeliver.all().get() is None)
     testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+    self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
+
+  def testStatsUserAgent(self):
+    """Tests that the user agent string includes feed stats."""
+    info = FeedRecord.get_or_create(self.topic)
+    info.update(self.headers)
+    info.put()
+
+    KnownFeedStats(
+      key=KnownFeedStats.create_key(self.topic),
+      subscriber_count=123).put()
+
+    request_headers = {
+      'User-Agent':
+          'Public Hub (+http://pubsubhubbub.appspot.com; 123 subscribers)',
+    }
+
+    FeedToFetch.insert([self.topic])
+    self.entry_list = []
+    urlfetch_test_stub.instance.expect(
+        'get', self.topic, 200, self.expected_response,
+        request_headers=request_headers,
+        response_headers=self.headers)
+    self.run_fetch_task()
+    self.assertTrue(EventToDeliver.all().get() is None)
+    testutil.get_tasks(main.EVENT_QUEUE, expected_count=0)
+
+    record = FeedRecord.get_or_create(self.topic)
+    self.assertEquals(self.header_footer, record.header_footer)
+    self.assertEquals(self.etag, record.etag)
+    self.assertEquals(self.last_modified, record.last_modified)
+    self.assertEquals('application/atom+xml', record.content_type)
 
     self.assertEquals([(1, 0)], main.FETCH_SCORER.get_scores([self.topic]))
 
@@ -2193,7 +2226,7 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertEquals(
         {'Connection': 'cache-control',
          'Cache-Control': 'no-cache no-store max-age=1'},
-        FeedRecord.all().get().get_request_headers())
+        FeedRecord.all().get().get_request_headers(0))
 
   def testPullGoodRss(self):
     """Tests when the RSS XML can parse just fine."""
@@ -3719,13 +3752,13 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
     self.now = time.time()
     self.called = False
     def start_map(*args, **kwargs):
-      self.assertEquals(kwargs, {
+      self.assertEquals({
           'name': 'Reconfirm expiring subscriptions',
-          'reader_spec': 'offline_jobs.HashKeyDatastoreInputReader',
+          'reader_spec': 'mapreduce.input_readers.DatastoreInputReader',
           'queue_name': 'polling',
           'handler_spec': 'offline_jobs.SubscriptionReconfirmMapper.run',
           'shard_count': 4,
-          'reader_parameters': {
+          'mapper_parameters': {
             'entity_kind': 'main.Subscription',
             'processing_rate': 100000,
             'threshold_timestamp':
@@ -3735,7 +3768,7 @@ class SubscriptionReconfirmHandlerTest(testutil.HandlerTestBase):
             'done_callback': '/work/cleanup_mapper',
             'done_callback_queue': 'polling',
           },
-      })
+      }, kwargs)
       self.called = True
 
     def create_handler():
@@ -3801,7 +3834,7 @@ class CleanupMapperHandlerTest(testutil.HandlerTestBase):
         name='Reconfirm expiring subscriptions',
         handler_spec='offline_jobs.SubscriptionReconfirmMapper.run',
         reader_spec='mapreduce.input_readers.DatastoreInputReader',
-        reader_parameters=dict(
+        mapper_parameters=dict(
             processing_rate=100000,
             entity_kind='main.Subscription'))
 

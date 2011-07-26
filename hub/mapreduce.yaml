@@ -1,15 +1,4 @@
 mapreduce:
-- name: Remove old properties from FeedEntryRecords
-  mapper:
-    input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: offline_jobs.RemoveOldFeedEntryRecordPropertiesMapper
-    params:
-    - name: entity_kind
-      default: main.FeedEntryRecord
-    - name: shard_count
-      default: 32
-    - name: processing_rate
-      default: 100000
 - name: Cleanup old EventToDeliver instances
   mapper:
     input_reader: mapreduce.input_readers.DatastoreInputReader
@@ -26,7 +15,7 @@ mapreduce:
     params_validator: offline_jobs.CleanupOldEventToDeliver.validate_params
 - name: Reconfirm expiring subscriptions
   mapper:
-    input_reader: offline_jobs.HashKeyDatastoreInputReader
+    input_reader: mapreduce.input_readers.DatastoreInputReader
     handler: offline_jobs.SubscriptionReconfirmMapper.run
     params:
     - name: entity_kind
@@ -39,7 +28,7 @@ mapreduce:
     params_validator: offline_jobs.SubscriptionReconfirmMapper.validate_params
 - name: Count subscribers by topic and callback pattern
   mapper:
-    input_reader: offline_jobs.HashKeyDatastoreInputReader
+    input_reader: mapreduce.input_readers.DatastoreInputReader
     handler: offline_jobs.CountSubscribers.run
     params:
     - name: entity_kind

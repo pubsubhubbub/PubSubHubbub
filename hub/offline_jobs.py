@@ -29,20 +29,9 @@ import main
 
 from mapreduce import context
 from mapreduce import input_readers
+from mapreduce import mapreduce_pipeline
 from mapreduce import operation as op
 from mapreduce import util
-from mapreduce.lib import key_range
-
-
-def RemoveOldFeedEntryRecordPropertiesMapper(feed_entry_record):
-  """Removes old properties from FeedEntryRecord instances."""
-  OLD_PROPERTIES = (
-      'entry_id_hash',
-      'entry_id')
-  for name in OLD_PROPERTIES:
-    if hasattr(feed_entry_record, name):
-      delattr(feed_entry_record, name)
-  yield op.db.Put(feed_entry_record)
 
 
 class CleanupOldEventToDeliver(object):
@@ -68,7 +57,7 @@ class CleanupOldEventToDeliver(object):
 
 
 class CountSubscribers(object):
-  """Mapper counts subscribers to a feed pattern by domain.
+  """Mapper counts active subscribers to a feed pattern by domain.
 
   Args:
     topic_pattern: Fully-matching regular expression pattern for topics to
@@ -96,60 +85,11 @@ class CountSubscribers(object):
 
     if self.topic_pattern.match(subscription.topic):
       the_match = self.callback_pattern.match(subscription.callback)
-      if the_match:
+      if (the_match and
+          subscription.subscription_state == main.Subscription.STATE_VERIFIED):
         yield op.counters.Increment(the_match.group(1))
-
-
-class HashKeyDatastoreInputReader(input_readers.DatastoreInputReader):
-  """A DatastoreInputReader that can split evenly across hash key ranges.
-
-  Assumes key names are in the format supplied by the main.get_hash_key_name
-  function.
-  """
-
-  @classmethod
-  def _split_input_from_namespace(
-      cls, app, namespace, entity_kind_name, shard_count):
-    entity_kind = util.for_name(entity_kind_name)
-    entity_kind_name = entity_kind.kind()
-
-    hex_key_start = db.Key.from_path(
-        entity_kind_name, 0)
-    hex_key_end = db.Key.from_path(
-        entity_kind_name, int('f' * 40, base=16))
-    hex_range = key_range.KeyRange(
-        hex_key_start, hex_key_end, None, True, True,
-        namespace=namespace,
-        _app=app)
-
-    key_range_list = [hex_range]
-    number_of_half_splits = int(math.floor(math.log(shard_count, 2)))
-    for index in xrange(0, number_of_half_splits):
-      new_ranges = []
-      for current_range in key_range_list:
-        new_ranges.extend(current_range.split_range(1))
-      key_range_list = new_ranges
-
-    adjusted_range_list = []
-    for current_range in key_range_list:
-      adjusted_range = key_range.KeyRange(
-          key_start=db.Key.from_path(
-              current_range.key_start.kind(),
-              'hash_%040x' % (current_range.key_start.id() or 0),
-              _app=current_range._app),
-          key_end=db.Key.from_path(
-              current_range.key_end.kind(),
-              'hash_%040x' % (current_range.key_end.id() or 0),
-              _app=current_range._app),
-          direction=current_range.direction,
-          include_start=current_range.include_start,
-          include_end=current_range.include_end,
-          namespace=current_range.namespace,
-          _app=current_range._app)
-
-      adjusted_range_list.append(adjusted_range)
-
-    return adjusted_range_list
+      elif the_match:
+        yield op.counters.Increment('matched but inactive')
 
 
 class SubscriptionReconfirmMapper(object):
@@ -174,3 +114,34 @@ class SubscriptionReconfirmMapper(object):
     if sub.expiration_time < self.threshold_timestamp:
       sub.request_insert(sub.callback, sub.topic, sub.verify_token,
                          sub.secret, auto_reconfirm=True)
+
+
+def count_subscriptions_for_topic(subscription):
+  """Counts a Subscription instance if it's still active."""
+  print subscription.subscription_state
+  if subscription.subscription_state == main.Subscription.STATE_VERIFIED:
+    yield (subscription.topic_hash, '1')
+
+
+def save_subscription_counts_for_topic(topic_hash, counts):
+  """Sums subscriptions to a topic and saves a corresponding KnownFeedStat."""
+  total_count = len(counts)
+  entity = main.KnownFeedStats(
+      key=main.KnownFeedStats.create_key(topic_hash=topic_hash),
+      subscriber_count=total_count)
+  yield op.db.Put(entity)
+
+
+def start_count_subscriptions():
+  """Kicks off the MapReduce for determining and saving subscription counts."""
+  job = mapreduce_pipeline.MapreducePipeline(
+      'Count subscriptions',
+      'offline_jobs.count_subscriptions_for_topic',
+      'offline_jobs.save_subscription_counts_for_topic',
+      'mapreduce.input_readers.DatastoreInputReader',
+      mapper_params=dict(entity_kind='main.Subscription'),
+      shards=4)
+  # TODO(bslatkin): Pass through the queue name to run the job on. This is
+  # a limitation in the mapper library.
+  job.start()
+  return job.pipeline_id

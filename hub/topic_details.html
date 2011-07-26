@@ -42,6 +42,16 @@
     <td>Last Modified:</td>
     <td>{{last_modified|escape}}</td>
   </tr>
+  {% if subscriber_count %}
+  <tr>
+    <td>Active subscribers:</td>
+    <td>{{subscriber_count}}</td>
+  </tr>
+  <tr>
+    <td>Last count (UTC):</td>
+    <td>{{feed_stats_update_time|date:"Y-m-d\TH:i:s\Z"}}</td>
+  </tr>
+  {% endif %}
   <tr>
     <td>Fetch from domain:</td>
     <td>

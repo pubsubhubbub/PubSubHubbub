@@ -27,10 +27,23 @@ handlers:
   upload: favicon\.ico
   secure: optional
 
+# Admin tools
 - url: /remote_api
   script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
   login: admin
   secure: optional
+
+- url: /admin(/.*)?
+  script: $PYTHON_LIB/google/appengine/ext/admin
+  login: admin
+
+- url: /stats
+  script: main.py
+  login: admin
+
+- url: /mapreduce(/.*)?
+  script: mapreduce/main.py
+  login: admin
 
 # Optional bookmarklet creation gadget.
 - url: /bookmarklet(_jsonp\.min\.js|\.min\.js|\.html|_config\.html|_gadget\.xml)
@@ -43,16 +56,7 @@ handlers:
   script: main.py
   secure: always
 
-# Global stats are admin only.
-- url: /stats
-  script: main.py
-  login: admin
-
-# Mapreduce for running offline jobs.
-- url: /mapreduce(/.*)?
-  script: mapreduce/main.py
-  login: admin
-
+# Everything else
 - url: .*
   script: main.py
   secure: optional
