@@ -2224,7 +2224,8 @@ class PullFeedHandlerTestWithParsing(testutil.HandlerTestBase):
     self.assertEquals(data.replace('\n', ''), event.payload.replace('\n', ''))
     self.assertEquals('application/atom+xml', event.content_type)
     self.assertEquals(
-        {'Connection': 'cache-control',
+        {'Accept': '*/*',
+         'Connection': 'cache-control',
          'Cache-Control': 'no-cache no-store max-age=1'},
         FeedRecord.all().get().get_request_headers(0))
 
@@ -2786,49 +2787,6 @@ class PushEventHandlerTest(testutil.HandlerTestBase):
               [self.callback1, self.callback2, self.callback3]))
     finally:
       dos.DISABLE_FOR_TESTING = True
-
-
-class EventCleanupHandlerTest(testutil.HandlerTestBase):
-  """Tests for the EventCleanupHandler worker."""
-
-  def setUp(self):
-    """Sets up the test harness."""
-    self.now = datetime.datetime.utcnow()
-    self.expire_time = self.now - datetime.timedelta(
-        seconds=main.EVENT_CLEANUP_MAX_AGE_SECONDS)
-    def create_handler():
-      return main.EventCleanupHandler(now=lambda: self.now)
-    self.handler_class = create_handler
-    testutil.HandlerTestBase.setUp(self)
-    self.topic = 'http://example.com/mytopic'
-    self.header_footer = '<feed></feed>'
-
-  def testEventCleanupTooYoung(self):
-    """Tests when there are events present, but they're too young to remove."""
-    event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, 'application/atom+xml',
-        self.header_footer, [])
-    event.last_modified = self.expire_time + datetime.timedelta(seconds=1)
-    event.put()
-    self.handle('get')
-    self.assertTrue(db.get(event.key()) is not None)
-
-  def testEventCleanupOldEnough(self):
-    """Tests when there are events old enough to clean up."""
-    event = EventToDeliver.create_event_for_topic(
-        self.topic, main.ATOM, 'application/atom+xml',
-        self.header_footer, [])
-    event.last_modified = self.expire_time
-    event.put()
-
-    too_young_event = EventToDeliver.create_event_for_topic(
-        self.topic + 'blah', main.ATOM, 'application/atom+xml',
-        self.header_footer, [])
-    too_young_event.put()
-
-    self.handle('get')
-    self.assertTrue(db.get(event.key()) is None)
-    self.assertTrue(db.get(too_young_event.key()) is not None)
 
 ################################################################################
 
