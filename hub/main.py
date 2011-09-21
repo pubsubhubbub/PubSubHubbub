@@ -157,12 +157,6 @@ FEED_IDENTITY_UPDATE_PERIOD = (20 * 24 * 60 * 60) # 20 days
 # Number of polling feeds to fetch from the Datastore at a time.
 BOOSTRAP_FEED_CHUNK_SIZE = 50
 
-# Maximum age in seconds of a failed EventToDeliver before it is cleaned up.
-EVENT_CLEANUP_MAX_AGE_SECONDS = (10 * 24 * 60 * 60)  # 10 days
-
-# How many completely failed EventToDeliver instances to clean up at a time.
-EVENT_CLEANUP_CHUNK_SIZE = 50
-
 # How many old Subscription instances to clean up at a time.
 SUBSCRIPTION_CLEANUP_CHUNK_SIZE = 100
 
@@ -3541,7 +3535,6 @@ def main():
       (r'/work/record_feeds', RecordFeedHandler),
       # Periodic workers
       (r'/work/poll_bootstrap', PollBootstrapHandler),
-      (r'/work/event_cleanup', EventCleanupHandler),
       (r'/work/subscription_cleanup', SubscriptionCleanupHandler),
       (r'/work/reconfirm_subscriptions', SubscriptionReconfirmHandler),
       (r'/work/cleanup_mapper', CleanupMapperHandler),
