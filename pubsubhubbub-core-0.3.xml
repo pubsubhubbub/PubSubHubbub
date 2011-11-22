@@ -339,12 +339,6 @@
             the request was made over <xref target="RFC2818">HTTPS</xref>. This
             parameter MUST be less than 200 bytes in length.</t>
 
-            <t hangText="hub.verify_token">OPTIONAL. A subscriber-provided
-            opaque token that will be echoed back in the verification request to
-            assist the subscriber in identifying which subscription request is
-            being verified. If this is not included, no token will be included
-            in the verification request.</t>
-
           </list></t>
 
         <t>The following keywords are supported for hub.verify:</t>
@@ -467,16 +461,12 @@
             present for unsubscribe requests and MUST be ignored by subscribers
             during unsubscription.</t>
 
-            <t hangText="hub.verify_token">OPTIONAL. The subscriber-provided
-            opaque token from the corresponding subscription request, if one was
-            provided.</t>
-
           </list></t>
 
         <section title="Verification Details">
 
           <t>The subscriber MUST confirm that the <spanx style="verb">hub.topic
-          </spanx> and <spanx style="verb">hub.verify_token</spanx> correspond
+          </spanx> corresponds
           to a pending subscription or unsubscription that it wishes to carry
           out. If so, the subscriber MUST respond with an HTTP success (2xx)
           code with a response body equal to the <spanx
@@ -811,13 +801,6 @@ User-Agent: MyHub (+http://hub.example.com; 26 subscribers)
         the burden on publishers and subscribers.</t>
       </section>
 
-      <section anchor="subbestpractices" title="For Subscribers">
-        <t>The <spanx style="verb">hub.verify_token</spanx> parameter in
-        subscription requests enables subscribers to verify the identity and
-        intent of the hub making the verification request. Subscribers should
-        use the token to retrieve internal state to ensure the subscription
-        request outcome is what they intended.</t>
-      </section>
     </section>
   </middle>
 

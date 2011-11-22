@@ -1,9 +1,8 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en"><head><title>Draft: PubSubHubbub Core 0.3 -- Working Draft</title>
-<meta http-equiv="Expires" content="Tue, 09 Feb 2010 05:18:45 +0000">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="description" content="PubSubHubbub Core 0.3 -- Working Draft">
-<meta name="generator" content="xml2rfc v1.33 (http://xml.resource.org/)">
+<meta name="generator" content="xml2rfc v1.36 (http://xml.resource.org/)">
 <style type='text/css'><!--
         body {
                 font-family: verdana, charcoal, helvetica, arial, sans-serif;
@@ -211,8 +210,6 @@ Aggregated Content Distribution<br />
 Best Practices<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#hubbestpractices">8.1.</a>&nbsp;
 For Hubs<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#subbestpractices">8.2.</a>&nbsp;
-For Subscribers<br />
 <a href="#rfc.references1">9.</a>&nbsp;
 References<br />
 <a href="#anchor11">Appendix&nbsp;A.</a>&nbsp;
@@ -497,13 +494,6 @@ Subscriber Sends Subscription Request</h3>
             the request was made over <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818]. This
             parameter MUST be less than 200 bytes in length.
 </dd>
-<dt>hub.verify_token</dt>
-<dd>OPTIONAL. A subscriber-provided
-            opaque token that will be echoed back in the verification request to
-            assist the subscriber in identifying which subscription request is
-            being verified. If this is not included, no token will be included
-            in the verification request.
-</dd>
 </dl></blockquote>
 
 <p>The following keywords are supported for hub.verify:
@@ -634,11 +624,6 @@ Hub Verifies Intent of the Subscriber</h3>
             present for unsubscribe requests and MUST be ignored by subscribers
             during unsubscription.
 </dd>
-<dt>hub.verify_token</dt>
-<dd>OPTIONAL. The subscriber-provided
-            opaque token from the corresponding subscription request, if one was
-            provided.
-</dd>
 </dl></blockquote>
 
 <a name="anchor8"></a><br /><hr />
@@ -647,7 +632,7 @@ Hub Verifies Intent of the Subscriber</h3>
 Verification Details</h3>
 
 <p>The subscriber MUST confirm that the <tt>hub.topic
-          </tt> and <tt>hub.verify_token</tt> correspond
+          </tt> corresponds
           to a pending subscription or unsubscription that it wishes to carry
           out. If so, the subscriber MUST respond with an HTTP success (2xx)
           code with a response body equal to the <tt>hub.challenge</tt> parameter. If the subscriber does
@@ -960,17 +945,6 @@ For Hubs</h3>
         an important issue that hubs should address instead of putting
         the burden on publishers and subscribers.
 </p>
-<a name="subbestpractices"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.8.2"></a><h3>8.2.&nbsp;
-For Subscribers</h3>
-
-<p>The <tt>hub.verify_token</tt> parameter in
-        subscription requests enables subscribers to verify the identity and
-        intent of the hub making the verification request. Subscribers should
-        use the token to retrieve internal state to ensure the subscription
-        request outcome is what they intended.
-</p>
 <a name="rfc.references1"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <h3>9.&nbsp;References</h3>
@@ -1039,13 +1013,4 @@ Specification Feedback</h3>
 <tr><td class="author" align="right">Email:&nbsp;</td>
 <td class="author-text"><a href="mailto:mart@degeneration.co.uk">mart@degeneration.co.uk</a></td></tr>
 </table>
-<script type="text/javascript">
-var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
-document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
-</script>
-<script type="text/javascript">
-try {
-var pageTracker = _gat._getTracker("UA-7156573-1");
-pageTracker._trackPageview();
-} catch(err) {}</script>
 </body></html>
