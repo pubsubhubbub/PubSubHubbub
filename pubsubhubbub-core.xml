@@ -553,12 +553,15 @@
     </section>
 
     <section anchor="publishing" title="Publishing">
-      <t>A publisher pings the hub with the topic URL(s) which have been updated
-      and the hub schedules those topics to be fetched and delivered. Because
-      it's just a ping to notify the hub of the topic URL (without a payload),
-      no authentication from the publisher is required.</t>
+      <t>The publisher MUST inform the hub it previously designated when a topic 
+      has been updated. The hub and the publisher CAN agree on any mechanism, as 
+      long as the hub is eventually able send the updated payload to the 
+      subscribers. The following sub-sections (<xref 
+      target="newcontentnotification"></xref> and <xref target="contentfetch">
+      </xref>) illustrate a default mechanism that SHOULD be implemented when by 
+      Hub and the Publisher.</t>
 
-      <section title="New Content Notification">
+      <section anchor="newcontentnotification" title="New Content Notification">
         <t>When new content is added to a feed, a notification is sent to
         the hub by the publisher. The hub MUST accept a POST request to
         the hub URL containing the notification. This request MUST have a
