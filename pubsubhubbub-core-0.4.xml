@@ -12,7 +12,7 @@
   $ xml2rfc pubsubhubbub-core-0.1.xml pubsubhubbub-core-0.1.html
 
 -->
-<rfc category="info" docName="pubsubhubbub-core-0.3.xml" ipr="full3978">
+<rfc category="info" docName="pubsubhubbub-core-0.4.xml" ipr="full3978">
   <?rfc toc="yes" ?>
 
   <?rfc tocdepth="2" ?>
@@ -157,7 +157,6 @@
           its own initiative or as a result of a publisher's ping) and finds a
           delta, it enqueues a notification to all registered subscribers.</t>
         </list></t>
-    </section>
     </section>
 
     <section anchor="discovery" title="Discovery">
@@ -363,7 +362,7 @@
           
           <t>If (and when), the subscription has been accepted,
           the hub MUST indicate it to the subscriber by performing a notification
-          of the current state of the resource to the subscriber (see <xref="contentdistribution"></xref>). 
+          of the current state of the resource to the subscriber (see <xref target="contentdistribution" />). 
           (this is optional in synchronous mode). The subscriber will use this has 
           an indication that its subscription has been confirmed.</t>
           
@@ -489,8 +488,6 @@
         uses <xref target="RFC2818">HTTPS</xref> callbacks.</t>
 
       </section>
-
-    </section>
   </middle>
 
   <back>
@@ -620,23 +617,6 @@
         <seriesInfo name="RFC" value="3986" />
       </reference>
 
-      <reference anchor='RFC4287'>
-        <front>
-          <title abbrev='Atom Format'>The Atom Syndication Format</title>
-
-          <author initials='M.' surname='Nottingham' fullname='Mark Nottingham' role='editor'>
-            <organization />
-          </author>
-
-          <author initials='R.' surname='Sayre' fullname='Robert Sayre' role='editor'>
-            <organization />
-          </author>
-        </front>
-
-        <seriesInfo name='RFC' value='4287' />
-        <format type='HTML' octets='150786' target='http://xml.resource.org/public/rfc/html/rfc4287.html' />
-      </reference>
-
       <reference anchor='W3C.REC-html401-19991224'
                  target='http://www.w3.org/TR/1999/REC-html401-19991224'>
         <front>
@@ -675,16 +655,6 @@
         </front>
         <seriesInfo name="XSF XEP" value="0060"/>
         <format type="HTML" target="http://www.xmpp.org/extensions/xep-0060.html"/>
-      </reference>
-
-      <reference anchor="RSS20">
-        <front>
-          <title>RSS 2.0</title>
-          <author initials="D." surname="Winer" fullname="Dave Winer">
-            <organization />
-          </author>
-        </front>
-        <format type="HTML" target="http://www.rssboard.org/rss-specification"/>
       </reference>
 
     </references>
