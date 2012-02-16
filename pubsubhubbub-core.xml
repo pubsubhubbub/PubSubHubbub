@@ -135,12 +135,18 @@
           be updated and the hub looks up all subscriptions for affected topics,
           sending out notifications to subscribers.</t>
 
-          <t hangText="Notification:">A payload which can either be the 
-          topic's full content of the difference (or "delta") computed by the
-          hub between the previous content of the resource and its current context.  
-          The notification can be the result of a publisher telling the hub of an 
-          update, or the hub proactively polling a topic, perhaps for a subscriber 
-          subscribing to a topic that's not pubsub-aware.</t>
+          <t hangText="Notification:">A payload describing how a topic's
+          contents have changed. This difference (or "delta") is computed by the
+          hub and sent to all subscribers. The format of the notification will
+          be an Atom or RSS feed served by the publisher with only those entries
+          present which are new or have changed. The notification can be the
+          result of a publisher telling the hub of an update, or the hub
+          proactively polling a topic feed, perhaps for a subscriber subscribing
+          to a topic that's not pubsub-aware. Note also that a notification to a
+          subscriber can be a payload consisting of updates for multiple topics.
+          Hubs MAY choose to send multi-topic notifications as an optimization
+          for heavy subscribers, but subscribers MUST understand them. See <xref
+          target="contentdistribution" /> for format details.</t>
         </list></t>
     </section>
 
@@ -694,8 +700,89 @@ User-Agent: MyHub (+http://hub.example.com; 26 subscribers)
         MUST still return a 2xx success response to acknowledge receipt, but
         locally ignore the message as invalid. Using this technique along with
         HTTPS for subscription requests enables simple subscribers to receive
-        authenticated notifications from hubs without the need for
+        authenticated content delivery from hubs without the need for
         subscribers to run an HTTPS server.</t>
+
+      </section>
+
+      <section anchor="aggregatedistribution"
+               title="Aggregated Content Distribution">
+
+        <t>For Atom feeds only. Pending further review.</t>
+
+        <t>When a subscriber indicates the same callback URL is used for
+        multiple subscriptions, hubs MAY choose to combine content delivery
+        requests into a single payload containing an aggregated set of feeds.
+        This bulk delivery results in fewer requests and more efficient
+        distribution. If the subscriber indicated a <spanx
+        style="verb">hub.secret</spanx> value for these overlapping
+        subscriptions, the secret MUST also be the same for all subscriptions.
+        This allows the hub to generate a single <spanx
+        style="verb">X-Hub-Signature</spanx> header to sign the entire payload.
+        Hubs MUST return an error response (4xx, 5xx) for subscription
+        requests with overlapping callback URLs and different secret values.
+        </t>
+
+        <t>With an aggregated set of feeds, the hub SHOULD reproduce all of the
+        elements from the source feed <spanx style="emph">inside</spanx> the
+        corresponding <spanx style="verb">atom:entry</spanx> in the content
+        distribution request by using an <spanx style="verb">atom:source</spanx>
+        element. However, the <spanx style="verb">atom:id</spanx> value MUST be
+        reproduced exactly within the source element. If the source entry does
+        not have an <spanx style="verb">atom:source</spanx> element, the hub
+        MUST create an <spanx style="verb">atom:source</spanx> element
+        containing the <spanx style="verb">atom:id</spanx> element. The hub
+        SHOULD also include the <spanx style="verb">atom:title</spanx> element
+        and an <spanx style="verb">atom:link</spanx> element with <spanx
+        style="verb">rel="self"</spanx> values that are functionally
+        equivalent to the corresponding elements in the original topic feed.</t>
+
+        <t>Example aggregated feed:</t>
+
+      <figure>
+        <artwork><![CDATA[<?xml version="1.0"?>
+<atom:feed>
+  <title>Aggregated feed</title>
+  <updated>2008-08-11T02:17:44Z</updated>
+  <id>http://myhub.example.com/aggregated?1232427842-39823</id>
+
+  <entry>
+    <source>
+      <id>http://www.example.com/foo</id>
+      <link rel="self" href="http://publisher.example.com/foo.xml" />
+      <author>
+        <name>Mr. Bar</name>
+      </author>
+    </source>
+    <title>Testing Foo</title>
+    <link href="http://publisher.example.com/foo24.xml" />
+    <id>http://publisher.example.com/foo24.xml</id>
+    <updated>2008-08-11T02:15:01Z</updated>
+    <content>
+      This is some content from the user named foo.
+    </content>
+  </entry>
+
+  <entry>
+    <source>
+      <id>http://www.example.com/bar</id>
+      <link rel="self" href="http://publisher.example.com/bar.xml" />
+      <author>
+        <name>Mr. Bar</name>
+      </author>
+    </source>
+    <title>Testing Bar</title>
+    <link href="http://publisher.example.com/bar18.xml" />
+    <id>http://publisher.example.com/bar18.xml</id>
+    <updated>2008-08-11T02:17:44Z</updated>
+    <content>
+      Some data from the user named bar.
+    </content>
+  </entry>
+
+</atom:feed>
+]]></artwork>
+      </figure>
 
       </section>
     </section>
