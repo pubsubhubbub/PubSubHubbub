@@ -134,7 +134,7 @@
           sending out notifications to subscribers.</t>
 
           <t hangText="Notification:">A payload describing how a topic's
-          contents have changed, or the full cupdated content. 
+          contents have changed, or the full updated content. 
           Depending on the topic's content type, the difference (or "delta") may be 
           computed by the hub and sent to all subscribers.</t>
         </list></t>
@@ -479,7 +479,7 @@
         MUST still return a 2xx success response to acknowledge receipt, but
         locally ignore the message as invalid. Using this technique along with
         <xref target="RFC2818">HTTPS</xref> for subscription requests enables 
-        simple subscribers to receive authenticated content delivery from hubs 
+        simple subscribers to receive authenticated notifications from hubs 
         without the need for subscribers to run an HTTPS server.</t>
         
         <t>Please note however that this signature only ensures that the payload
