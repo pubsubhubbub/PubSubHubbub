@@ -587,7 +587,7 @@
         <format type='TXT' octets='15170' target='ftp://ftp.isi.edu/in-notes/rfc2818.txt' />
       </reference>
 
-      <reference anchor='5988'>
+      <reference anchor='RFC5988'>
         <front>
         <title>Web Linking</title>
         <author initials='M.' surname='Nottingham' fullname='M. Nottingham'>

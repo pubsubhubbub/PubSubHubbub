@@ -264,7 +264,7 @@ Definitions</h3>
 </dd>
 <dt>Notification:</dt>
 <dd>A payload describing how a topic's
-          contents have changed, or the full cupdated content. 
+          contents have changed, or the full updated content. 
           Depending on the topic's content type, the difference (or "delta") may be 
           computed by the hub and sent to all subscribers.
 </dd>
@@ -299,16 +299,15 @@ High-level protocol flow</h3>
 <a name="rfc.section.4"></a><h3>4.&nbsp;
 Discovery</h3>
 
-<p>A potential subscriber initiates discovery by retrieving the topic to
-      which it wants to subscribe. The HTTP response from the publisher MUST
-      include at least one <tt>X-Hub-Url</tt> 
-      HTTP header, as well as exactly one <tt>X-Hub-Self-Url</tt> 
-      HTTP header. The <tt>X-Hub-Url</tt> MUST 
-      indicate the exact url of the PubSubHubbub hub designated by the publisher.
+<p>A potential subscriber initiates discovery by retrieving (GET or HEAD request) 
+      the topic to which it wants to subscribe. The HTTP response from the publisher MUST
+      include at least one <a class='info' href='#RFC5988'>Link Header<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988] with 
+      <tt>rel=hub</tt> (a hub link header) as well as exactly one <a class='info' href='#RFC5988'>Link Header<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988]
+      with <tt>rel=self</tt> (the self link header). 
+      The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
       If more than one url is specified, it is expected that the publisher pings each
       of these urls, so the subscriber may subscribe to one or more of these.
-      The <tt>X-Hub-Self-Url</tt> will point to the
-      permanent URL for the resource being polled.
+      The former will point to the permanent URL for the resource being polled.
 </p>
 <p>Example:
 </p>
@@ -407,7 +406,7 @@ Subscription Parameter Details</h3>
 
 <p>The topic and callback URLs MAY use <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] 
           or <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] schemes. The topic URL MUST 
-          be the one advertised by the publisher in the <tt>X-Hub-Self-Url</tt> 
+          be the one advertised by the publisher in a Hub Link Header
           Header during the discovery phase. (See <a class='info' href='#discovery'>Section&nbsp;4<span> (</span><span class='info'>Discovery</span><span>)</span></a>).
           Hubs MAY refuse subscriptions if the topic url does not correspond to the one
           advertised by the publisher. The topic URL can otherwise be free-form 
@@ -528,7 +527,7 @@ Subscription Validation</h3>
           (this is optional in synchronous mode). The subscriber will use this has 
           an indication that its subscription has been confirmed.
 </p>
-<p>Additionally, this notification MUST include a <tt>X-Hub-Self-Url</tt>
+<p>Additionally, this notification MUST include a Self Link Header
           HTTP header which indicates to the subscriber to what feed he has been subscribed.
           This feed url MAY be different from the feed for which the subscriber has initially subscribed,
           as the publisher MAY have considered that this one was better suited for the subscriber.
@@ -610,8 +609,8 @@ Content Distribution</h3>
         type of the topic. The hub MAY reduce the payload to a diff if its format
         allows it.
 </p>
-<p>The POST request must include a <tt>X-Hub-Self-Url</tt> 
-        and a <tt>X-Hub-Url</tt> HTTP headers that correspond
+<p>The POST request must include the Self Link Header
+        and a Hub Link Header that correspond
         to topic's url, as well as hub.
 </p>
 <p>The successful response from the subscriber's callback URL MUST be an
@@ -647,7 +646,7 @@ Authenticated Content Distribution</h3>
         MUST still return a 2xx success response to acknowledge receipt, but
         locally ignore the message as invalid. Using this technique along with
         <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] for subscription requests enables 
-        simple subscribers to receive authenticated content delivery from hubs 
+        simple subscribers to receive authenticated notifications from hubs 
         without the need for subscribers to run an HTTPS server.
 </p>
 <p>Please note however that this signature only ensures that the payload
@@ -674,6 +673,8 @@ Authenticated Content Distribution</h3>
 <td class="author-text">Eastlake, D. and P. Jones, &ldquo;<a href="http://tools.ietf.org/html/rfc3174">US Secure Hash Algorithm 1 (SHA1)</a>,&rdquo; RFC&nbsp;3174, September&nbsp;2001 (<a href="ftp://ftp.isi.edu/in-notes/rfc3174.txt">TXT</a>).</td></tr>
 <tr><td class="author-text" valign="top"><a name="RFC3986">[RFC3986]</a></td>
 <td class="author-text">Berners-Lee, T., &ldquo;<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>,&rdquo; RFC&nbsp;3986.</td></tr>
+<tr><td class="author-text" valign="top"><a name="RFC5988">[RFC5988]</a></td>
+<td class="author-text">Nottingham, M., &ldquo;<a href="http://tools.ietf.org/html/rfc5988">Web Linking</a>,&rdquo; RFC&nbsp;5988, October&nbsp;2010 (<a href="http://tools.ietf.org/rfc/rfc5988.txt">TXT</a>).</td></tr>
 <tr><td class="author-text" valign="top"><a name="W3C.REC-html401-19991224">[W3C.REC-html401-19991224]</a></td>
 <td class="author-text">Raggett, D., Hors, A., and I. Jacobs, &ldquo;<a href="http://www.w3.org/TR/1999/REC-html401-19991224">HTML 4.01 Specification</a>,&rdquo; World Wide Web Consortium Recommendation&nbsp;REC-html401-19991224, December&nbsp;1999 (<a href="http://www.w3.org/TR/1999/REC-html401-19991224">HTML</a>).</td></tr>
 <tr><td class="author-text" valign="top"><a name="XEP-0060">[XEP-0060]</a></td>
@@ -686,12 +687,9 @@ Authenticated Content Distribution</h3>
 Specification Feedback</h3>
 
 <p>Feedback on this specification is welcomed via the
-      pubsubhubbub mailing list, pubsubhubbub@googlegroups.com.  For
-      more information, see <a href='http://groups.google.com/group/pubsubhubbub'>the
-      PubSubHubbub group on Google Groups</a>.  Also, check out the
-      <a href='http://moderator.appspot.com/#15/e=43e1a&t=426ac'>FAQ</a>
-      and <a href='http://code.google.com/p/pubsubhubbub/'>other
-      documentation</a>.
+      PubSubHubbub W3C Community Group.  For
+      more information, see <a href='http://www.w3.org/community/pubsub/'>the
+      W3C PubSubHubbub Community Group</a>. 
       
 </p>
 <a name="rfc.authors"></a><br /><hr />
