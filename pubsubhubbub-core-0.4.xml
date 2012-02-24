@@ -160,16 +160,15 @@
     </section>
 
     <section anchor="discovery" title="Discovery">
-      <t>A potential subscriber initiates discovery by retrieving the topic to
-      which it wants to subscribe. The HTTP response from the publisher MUST
-      include at least one <spanx style="verb">X-Hub-Url</spanx> 
-      HTTP header, as well as exactly one <spanx style="verb">X-Hub-Self-Url</spanx> 
-      HTTP header. The <spanx style="verb">X-Hub-Url</spanx> MUST 
-      indicate the exact url of the PubSubHubbub hub designated by the publisher.
+      <t>A potential subscriber initiates discovery by retrieving (GET or HEAD request) 
+      the topic to which it wants to subscribe. The HTTP response from the publisher MUST
+      include at least one <xref target="RFC5988">Link Header</spanx> with 
+      <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</spanx>
+      with <spanx style="verb">rel=self</spanx> (the self link header). 
+      The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
       If more than one url is specified, it is expected that the publisher pings each
       of these urls, so the subscriber may subscribe to one or more of these.
-      The <spanx style="verb">X-Hub-Self-Url</spanx> will point to the
-      permanent URL for the resource being polled.</t>
+      The former will point to the permanent URL for the resource being polled.</t>
 
       <t>Example:</t>
 
@@ -249,7 +248,7 @@
 
           <t>The topic and callback URLs MAY use <xref target="RFC2616">HTTP</xref> 
           or <xref target="RFC2818">HTTPS</xref> schemes. The topic URL MUST 
-          be the one advertised by the publisher in the <spanx style="verb">X-Hub-Self-Url</spanx> 
+          be the one advertised by the publisher in a Hub Link Header
           Header during the discovery phase. (See <xref target="discovery"></xref>).
           Hubs MAY refuse subscriptions if the topic url does not correspond to the one
           advertised by the publisher. The topic URL can otherwise be free-form 
@@ -366,7 +365,7 @@
           (this is optional in synchronous mode). The subscriber will use this has 
           an indication that its subscription has been confirmed.</t>
           
-          <t>Additionally, this notification MUST include a <spanx style="verb">X-Hub-Self-Url</spanx>
+          <t>Additionally, this notification MUST include a Self Link Header
           HTTP header which indicates to the subscriber to what feed he has been subscribed.
           This feed url MAY be different from the feed for which the subscriber has initially subscribed,
           as the publisher MAY have considered that this one was better suited for the subscriber.
@@ -441,8 +440,8 @@
         type of the topic. The hub MAY reduce the payload to a diff if its format
         allows it.</t>
         
-        <t>The POST request must include a <spanx style="verb">X-Hub-Self-Url</spanx> 
-        and a <spanx style="verb">X-Hub-Url</spanx> HTTP headers that correspond
+        <t>The POST request must include the Self Link Header
+        and a Hub Link Header that correspond
         to topic's url, as well as hub.</t>
 
         <t>The successful response from the subscriber's callback URL MUST be an
@@ -586,6 +585,21 @@
 
         <seriesInfo name='RFC' value='2818' />
         <format type='TXT' octets='15170' target='ftp://ftp.isi.edu/in-notes/rfc2818.txt' />
+      </reference>
+
+      <reference anchor='5988'>
+        <front>
+        <title>Web Linking</title>
+        <author initials='M.' surname='Nottingham' fullname='M. Nottingham'>
+        <organization /></author>
+        <date year='2010' month='October' />
+        <abstract>
+        <t>    This document specifies relation types for Web links, and defines a
+               registry for them.  It also defines the use of such links in HTTP
+               headers with the Link header field.</t></abstract></front>
+
+        <seriesInfo name='RFC' value='5988' />
+        <format type='TXT' target='http://tools.ietf.org/rfc/rfc5988.txt' />
       </reference>
 
       <reference anchor='RFC3174'>
