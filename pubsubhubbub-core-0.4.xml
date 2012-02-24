@@ -160,24 +160,35 @@
     </section>
 
     <section anchor="discovery" title="Discovery">
-      <t>A potential subscriber initiates discovery by retrieving (GET or HEAD request) 
-      the topic to which it wants to subscribe. The HTTP response from the publisher MUST
-      include at least one <xref target="RFC5988">Link Header</spanx> with 
-      <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</spanx>
-      with <spanx style="verb">rel=self</spanx> (the self link header). 
-      The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
-      If more than one url is specified, it is expected that the publisher pings each
-      of these urls, so the subscriber may subscribe to one or more of these.
-      The former will point to the permanent URL for the resource being polled.</t>
+      <t>A potential subscriber initiates discovery by retrieving (GET or HEAD
+      request) the topic to which it wants to subscribe. The HTTP response from
+      the publisher SHOULD include at least one <xref target="RFC5988">Link
+      Header</xref> with <spanx style="verb">rel=hub</spanx> (a hub link
+      header) as well as exactly one <xref target="RFC5988">Link Header</xref>
+      with <spanx style="verb">rel=self</spanx> (the self link header). The
+      former MUST indicate the exact url of a PubSubHubbub hub designated by the
+      publisher. If more than one url is specified, it is expected that the
+      publisher pings each of these urls, so the subscriber may subscribe to one
+      or more of these. The latter will point to the permanent URL for the
+      resource being polled.</t>
 
       <t>Example:</t>
 
-    <t>Hubs should provide an <xref target="RFC2818">HTTPS</xref> interface and publishers 
-    SHOULD use <xref target="RFC2616">HTTPS</xref> in their hubs' discovery URLs. 
-    However, subscribers that do not support <xref target="RFC2818">HTTPS</xref> MAY
-    try to fallback to <xref target="RFC2616">HTTP</xref>, which MAY work
-    depending on the hub's policy. If the advertised url is <xref target="RFC2616">HTTP</xref>, 
-    subscriber MAY choose to try <xref target="RFC2818">HTTPS</xref> first.</t>
+      <t>Hubs should provide an <xref target="RFC2818">HTTPS</xref> interface
+      and publishers SHOULD use <xref target="RFC2616">HTTPS</xref> in their
+      hubs' discovery URLs. However, subscribers that do not support <xref
+      target="RFC2818">HTTPS</xref> MAY try to fallback to<xref
+      target="RFC2616">HTTP</xref>, which MAY work depending on the hub's
+      policy. If the advertised url is <xref target="RFC2616">HTTP</xref>,
+      subscriber MAY choose to try <xref target="RFC2818">HTTPS</xref>
+      first.</t>
+
+      <t>In the absence of HTTP Link headers, subscribers MAY fall back to
+      other methods to discover the hub(s) and the canonical URI of the topic.
+      If the topic is a Atom or RSS feed, it MAY use embedded link elements
+      as described in Appendix B of <xref target="RFC5988">Web Linking</xref>.
+      Similarly, for HTML pages, it MAY use embedded link elements as described
+      in Appendix A of <xref target="RFC5988">Web Linking</xref>.</t>
 
     </section>
 
@@ -587,7 +598,7 @@
         <format type='TXT' octets='15170' target='ftp://ftp.isi.edu/in-notes/rfc2818.txt' />
       </reference>
 
-      <reference anchor='5988'>
+      <reference anchor='RFC5988'>
         <front>
         <title>Web Linking</title>
         <author initials='M.' surname='Nottingham' fullname='M. Nottingham'>
