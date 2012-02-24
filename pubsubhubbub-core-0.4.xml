@@ -179,6 +179,13 @@
     depending on the hub's policy. If the advertised url is <xref target="RFC2616">HTTP</xref>, 
     subscriber MAY choose to try <xref target="RFC2818">HTTPS</xref> first.</t>
 
+
+     <t>In the absence of HTTP Link headers, subscribers MAY fall back to
+     other methods to discover the hub(s) and the canonical URI of the topic.
+     If the topic is a Atom or RSS feed, it MAY use embedded link elements
+     as described in Appendix B of <xref target="RFC5988">Web Linking</xref>.
+     Similarly, for HTML pages, it MAY use embedded link elements as described
+     in Appendix A of <xref target="RFC5988">Web Linking</xref>.</t>
     </section>
 
     <section anchor="subscribing" title="Subscribing and Unsubscribing">
