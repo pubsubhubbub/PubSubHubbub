@@ -162,8 +162,8 @@
     <section anchor="discovery" title="Discovery">
       <t>A potential subscriber initiates discovery by retrieving (GET or HEAD request) 
       the topic to which it wants to subscribe. The HTTP response from the publisher MUST
-      include at least one <xref target="RFC5988">Link Header</spanx> with 
-      <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</spanx>
+      include at least one <xref target="RFC5988">Link Header</xref> with 
+      <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</xref>
       with <spanx style="verb">rel=self</spanx> (the self link header). 
       The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
       If more than one url is specified, it is expected that the publisher pings each
