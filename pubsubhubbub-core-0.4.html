@@ -318,6 +318,13 @@ Discovery</h3>
     depending on the hub's policy. If the advertised url is <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616], 
     subscriber MAY choose to try <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] first.
 </p>
+<p>In the absence of HTTP Link headers, subscribers MAY fall back to
+     other methods to discover the hub(s) and the canonical URI of the topic.
+     If the topic is a Atom or RSS feed, it MAY use embedded link elements
+     as described in Appendix B of <a class='info' href='#RFC5988'>Web Linking<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988].
+     Similarly, for HTML pages, it MAY use embedded link elements as described
+     in Appendix A of <a class='info' href='#RFC5988'>Web Linking<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988].
+</p>
 <a name="subscribing"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.5"></a><h3>5.&nbsp;
