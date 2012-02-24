@@ -675,14 +675,10 @@
 
     <section title="Specification Feedback">
       <t>Feedback on this specification is welcomed via the
-      pubsubhubbub mailing list, pubsubhubbub@googlegroups.com.  For
+      PubSubHubbub W3C Community Group.  For
       more information, see <eref
-      target="http://groups.google.com/group/pubsubhubbub">the
-      PubSubHubbub group on Google Groups</eref>.  Also, check out the
-      <eref
-      target="http://moderator.appspot.com/#15/e=43e1a&t=426ac">FAQ</eref>
-      and <eref target="http://code.google.com/p/pubsubhubbub/">other
-      documentation</eref>.
+      target="http://www.w3.org/community/pubsub/">the
+      W3C PubSubHubbub Community Group</eref>. 
       </t>
 
      </section>
