@@ -176,7 +176,9 @@
      If the topic is a Atom or RSS feed, it MAY use embedded link elements
      as described in Appendix B of <xref target="RFC5988">Web Linking</xref>.
      Similarly, for HTML pages, it MAY use embedded link elements as described
-     in Appendix A of <xref target="RFC5988">Web Linking</xref>.</t>
+     in Appendix A of <xref target="RFC5988">Web Linking</xref>. Finally, publishers
+     MAY also use the <xref target="RFC5785">Well-Known Uniform Resource Identifiers</xref>
+     .host-meta to include the &lt;Link&gt; element.</t>
     </section>
 
     <section anchor="subscribing" title="Subscribing and Unsubscribing">
