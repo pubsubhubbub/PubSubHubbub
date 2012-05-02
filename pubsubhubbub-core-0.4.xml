@@ -241,6 +241,13 @@
           the subscription state unchanged. This is required so subscribers can
           renew their subscriptions before the lease seconds period is over
           without any interruption.</t>
+          
+          <t>Subscribers MAY also include additional HTTP Query params, as well as HTTP Headers
+          if they are required by the hub, or the publisher. In the context 
+          of social web applications, it is considered good practice to include a From 
+          HTTP header (as described in section 14.22 of <xref target="RFC2616">Hypertext Transfer Protocol</xref>).
+          This header should indicate on behalf of which user the subscription is being performed.
+          </t>
 
         <section title="Subscription Parameter Details">
 
@@ -326,7 +333,7 @@
         <section title="Verification Details">
 
           <t>The subscriber MUST confirm that the <spanx style="verb">hub.topic
-          </spanx> correspond to a pending subscription or unsubscription that it 
+          </spanx> corresponds to a pending subscription or unsubscription that it 
           wishes to carry out. If so, the subscriber MUST respond with an HTTP 
           success (2xx) code with a response body equal to the <spanx
           style="verb">hub.challenge</spanx> parameter. If the subscriber does
@@ -357,18 +364,18 @@
           more details to accept or refuse a subscription. The Hub MAY also
           check with the publisher whether the subscription should be accepted.</t>
           
-          <t>If (and when), the subscription has been accepted,
-          the hub MUST indicate it to the subscriber by performing a notification
-          of the current state of the resource to the subscriber (see <xref target="contentdistribution" />). 
-          (this is optional in synchronous mode). The subscriber will use this has 
-          an indication that its subscription has been confirmed.</t>
           
-          <t>Additionally, this notification MUST include a Self Link Header
-          HTTP header which indicates to the subscriber to what feed he has been subscribed.
-          This feed url MAY be different from the feed for which the subscriber has initially subscribed,
-          as the publisher MAY have considered that this one was better suited for the subscriber.
-          (This is specifically useful in the context of private content with limited distribution.)</t>
-
+          <t>If (and when), the subscription is accepted, the hub will inform the subscriber
+          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's 
+          callback URL as given in the subscription request. This request has the following
+          query string arguments appended (format described in Section 17.13.4 of 
+          <xref target="W3C.REC-html401-19991224"/>):</t>
+          <t><list style="hanging">
+            <t hangText="hub.mode">REQUIRED. The literal string "accepted".</t>
+            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding 
+            subscription request.</t>
+          </list></t>
+          
           <t>If (and when), the subscription is denied, the hub will inform the subscriber
           by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's 
           callback URL as given in the subscription request. This request has the following
@@ -381,6 +388,12 @@
             <t hangText="hub.reason">OPTIONAL. The hub may include a reason
             for which the subscription has been denied.</t>
           </list></t>
+          
+          <t>Hubs may provide an additional HTTP Location header (as described in section 14.30 
+          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the 
+          subscriber may retry subscribing to a different hub.topic. This will allow
+          for limited distribution to specific groups, users in the context of social web 
+          applications.</t>
           
           <t>The subscription may be intentionally denied by the hub at any point (even
           if it was previously accepted). The Subscriber SHOULD then consider that
