@@ -643,6 +643,24 @@
 
         <seriesInfo name="RFC" value="3986" />
       </reference>
+      
+      <reference anchor="RFC5785">
+          <front>
+            <title>Defining Well-Known Uniform Resource Identifiers (URIs)</title>
+
+            <author fullname="M. Nottingham" initials="M.N"
+                    surname="Nottingham">
+                    <organization />
+                </author>
+            <author fullname="E. Hammer-Lahav" initials="E.H.L"
+                            surname="Hammer-Lahav">
+              <organization />
+            </author>
+          </front>
+
+          <seriesInfo name="RFC" value="5785" />
+        </reference>
+      
 
       <reference anchor='W3C.REC-html401-19991224'
                  target='http://www.w3.org/TR/1999/REC-html401-19991224'>
