@@ -146,7 +146,7 @@
 <tr><td class="header">&nbsp;</td><td class="header">Google, Inc</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">M. Atkins</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">Six Apart Ltd.</td></tr>
-<tr><td class="header">&nbsp;</td><td class="header">M. Genestoux</td></tr>
+<tr><td class="header">&nbsp;</td><td class="header">J. Genestoux</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">Notifixious Inc.</td></tr>
 <tr><td class="header">&nbsp;</td><td class="header">February 5, 2012</td></tr>
 </table></td></tr></table>
@@ -307,16 +307,7 @@ Discovery</h3>
       The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
       If more than one url is specified, it is expected that the publisher pings each
       of these urls, so the subscriber may subscribe to one or more of these.
-      The former will point to the permanent URL for the resource being polled.
-</p>
-<p>Example:
-</p>
-<p>Hubs should provide an <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] interface and publishers 
-    SHOULD use <a class='info' href='#RFC2616'>HTTPS<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] in their hubs' discovery URLs. 
-    However, subscribers that do not support <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] MAY
-    try to fallback to <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616], which MAY work
-    depending on the hub's policy. If the advertised url is <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616], 
-    subscriber MAY choose to try <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] first.
+      The latter will point to the permanent URL for the resource being polled.
 </p>
 <p>In the absence of HTTP Link headers, subscribers MAY fall back to
      other methods to discover the hub(s) and the canonical URI of the topic.
@@ -622,7 +613,7 @@ Content Distribution</h3>
 </p>
 <p>The successful response from the subscriber's callback URL MUST be an
         HTTP success (2xx) code. The hub MUST consider all other subscriber
-        response codes as failures; that means subscribers MUST not use HTTP
+        response codes as failures; that means subscribers MUST NOT use HTTP
         redirects for moving subscriptions. The response body from the
         subscriber MUST be ignored by the hub. Hubs SHOULD retry notifications
         repeatedly until successful (up to some reasonable maximum over a

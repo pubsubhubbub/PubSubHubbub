@@ -168,16 +168,7 @@
       The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
       If more than one url is specified, it is expected that the publisher pings each
       of these urls, so the subscriber may subscribe to one or more of these.
-      The former will point to the permanent URL for the resource being polled.</t>
-
-      <t>Example:</t>
-
-    <t>Hubs should provide an <xref target="RFC2818">HTTPS</xref> interface and publishers 
-    SHOULD use <xref target="RFC2616">HTTPS</xref> in their hubs' discovery URLs. 
-    However, subscribers that do not support <xref target="RFC2818">HTTPS</xref> MAY
-    try to fallback to <xref target="RFC2616">HTTP</xref>, which MAY work
-    depending on the hub's policy. If the advertised url is <xref target="RFC2616">HTTP</xref>, 
-    subscriber MAY choose to try <xref target="RFC2818">HTTPS</xref> first.</t>
+      The latter will point to the permanent URL for the resource being polled.</t>
 
 
      <t>In the absence of HTTP Link headers, subscribers MAY fall back to
@@ -453,7 +444,7 @@
 
         <t>The successful response from the subscriber's callback URL MUST be an
         HTTP success (2xx) code. The hub MUST consider all other subscriber
-        response codes as failures; that means subscribers MUST not use HTTP
+        response codes as failures; that means subscribers MUST NOT use HTTP
         redirects for moving subscriptions. The response body from the
         subscriber MUST be ignored by the hub. Hubs SHOULD retry notifications
         repeatedly until successful (up to some reasonable maximum over a
