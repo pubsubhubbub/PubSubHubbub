@@ -236,7 +236,7 @@
           understand.</t>
 
           <t>Hubs MUST allow subscribers to re-request subscriptions that are
-          already activate. Each subsequent request to a hub to subscribe or
+          already activated. Each subsequent request to a hub to subscribe or
           unsubscribe MUST override the previous subscription state for a
           specific topic URL and callback URL combination once the action is
           verified. Any failures to confirm the subscription action MUST leave
