@@ -450,12 +450,12 @@
         target="RFC2616">HTTP</xref> POST request from hub to the subscriber's
         callback URL with the payload of the notification. This request MUST
         have a <spanx style="verb">Content-Type</spanx> corresponding to the 
-        type of the topic. The hub MAY reduce the payload to a diff if its format
-        allows it.</t>
+        type of the topic. The hub MAY reduce the payload to a diff between two
+        consecutive versions if its format allows it.</t>
         
         <t>The POST request must include the Self Link Header
         and a Hub Link Header that correspond
-        to topic's url, as well as hub.</t>
+        to topic's url, as well as hub url respectively.</t>
 
         <t>The successful response from the subscriber's callback URL MUST be an
         HTTP success (2xx) code. The hub MUST consider all other subscriber
