@@ -215,11 +215,10 @@
 
             <t hangText="hub.lease_seconds">OPTIONAL. Number of seconds for
             which the subscriber would like to have the subscription active. If
-            not present or an empty value, the subscription will be permanent
-            (or active until <xref target="autorefresh">automatic
-            refreshing</xref> removes the subscription). Hubs MAY choose to
-            respect this value or not, depending on their own policies. This
-            parameter MAY be present for unsubscription requests and MUST be
+            not present or an empty value, hubs SHOULD provide a default value
+            upon <xref target="verifysub">verification of intent</xref>.Hubs MAY 
+            choose to respect this value or not, depending on their own policies. 
+            This parameter MAY be present for unsubscription requests and MUST be
             ignored by the hub in that case.</t>
 
             <t hangText="hub.secret">OPTIONAL. A subscriber-provided secret
@@ -353,11 +352,7 @@
           request but MAY change the value depending on the hub's policies. To
           sustain a temporary subscription, the subscriber MUST re-request the
           subscription on the hub before <spanx
-          style="verb">hub.lease_seconds</spanx> seconds has elapsed. For
-          permanent subscriptions with no <spanx
-          style="verb">hub.lease_seconds</spanx> value specified, the behavior
-          is different as described in the section on <xref
-          target="autorefresh">automatic subscription refreshing</xref>.</t>
+          style="verb">hub.lease_seconds</spanx> seconds has elapsed.</t>
 
         </section>
         
@@ -421,17 +416,6 @@
         this means that if an auto-refresh response from the subscriber
         constantly returns an error, the hub MUST give up on the subscription
         verification action altogether and remove the subscription.</t>
-
-        <t>In the case of permanent subscriptions (with no <spanx
-        style="verb">hub.lease_seconds</spanx> specified in the original
-        request), the <spanx style="verb">hub.lease_seconds</spanx> value
-        supplied by the hub in the verification request to the subscriber SHOULD
-        represent how many seconds until the hub expects it will next initiate
-        automatic subscription refreshing to ensure that the subscriber is still
-        interested in the topic. This behavior provides the best of both worlds:
-        maximum simplicity of the subscriber through infinitely-long
-        subscriptions, but still garbage collectable subscriptions for hub
-        hygiene.</t>
 
       </section>
 
