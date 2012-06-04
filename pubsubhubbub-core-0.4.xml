@@ -215,8 +215,8 @@
 
             <t hangText="hub.lease_seconds">OPTIONAL. Number of seconds for
             which the subscriber would like to have the subscription active. If
-            not present or an empty value, hubs SHOULD provide a default value
-            upon <xref target="verifysub">verification of intent</xref>.Hubs MAY 
+            not present or an empty value, hubs MUST provide a value upon
+            <xref target="verifysub">verification of intent</xref>.Hubs MAY 
             choose to respect this value or not, depending on their own policies. 
             This parameter MAY be present for unsubscription requests and MUST be
             ignored by the hub in that case.</t>
