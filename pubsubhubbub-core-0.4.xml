@@ -165,9 +165,9 @@
       include at least one <xref target="RFC5988">Link Header</xref> with 
       <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</xref>
       with <spanx style="verb">rel=self</spanx> (the self link header). 
-      The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
-      If more than one url is specified, it is expected that the publisher pings each
-      of these urls, so the subscriber may subscribe to one or more of these.
+      The former MUST indicate the exact URL of a PubSubHubbub hub designated by the publisher.
+      If more than one URL is specified, it is expected that the publisher pings each
+      of these URLs, so the subscriber may subscribe to one or more of these.
       The latter will point to the permanent URL for the resource being polled.</t>
 
 
@@ -256,7 +256,7 @@
           or <xref target="RFC2818">HTTPS</xref> schemes. The topic URL MUST 
           be the one advertised by the publisher in a Hub Link Header
           Header during the discovery phase. (See <xref target="discovery"></xref>).
-          Hubs MAY refuse subscriptions if the topic url does not correspond to the one
+          Hubs MAY refuse subscriptions if the topic URL does not correspond to the one
           advertised by the publisher. The topic URL can otherwise be free-form 
           following <xref target="RFC3986">the URI spec</xref>. Hubs MUST always 
           decode non-reserved characters for these URL parameters; see section 2.4 on 
@@ -439,7 +439,7 @@
         
         <t>The POST request must include the Self Link Header
         and a Hub Link Header that correspond
-        to topic's url, as well as hub url respectively.</t>
+        to topic's URL, as well as hub URL respectively.</t>
 
         <t>The successful response from the subscriber's callback URL MUST be an
         HTTP success (2xx) code. The hub MUST consider all other subscriber
