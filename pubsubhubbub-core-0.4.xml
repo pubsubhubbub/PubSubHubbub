@@ -243,7 +243,7 @@
           renew their subscriptions before the lease seconds period is over
           without any interruption.</t>
           
-          <t>Subscribers MAY also include additional HTTP Query params, as well as HTTP Headers
+          <t>Subscribers MAY also include additional HTTP request parameters, as well as HTTP Headers
           if they are required by the hub, or the publisher. In the context 
           of social web applications, it is considered good practice to include a From 
           HTTP header (as described in section 14.22 of <xref target="RFC2616">Hypertext Transfer Protocol</xref>).
