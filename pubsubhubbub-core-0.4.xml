@@ -255,8 +255,8 @@
 
           <t>The topic and callback URLs MAY use <xref target="RFC2616">HTTP</xref> 
           or <xref target="RFC2818">HTTPS</xref> schemes. The topic URL MUST 
-          be the one advertised by the publisher in a Hub Link Header
-          Header during the discovery phase. (See <xref target="discovery"></xref>).
+          be the one advertised by the publisher in a Self Link Header
+          during the discovery phase. (See <xref target="discovery"></xref>).
           Hubs MAY refuse subscriptions if the topic URL does not correspond to the one
           advertised by the publisher. The topic URL can otherwise be free-form 
           following <xref target="RFC3986">the URI spec</xref>. Hubs MUST always 
