@@ -362,8 +362,7 @@
           more details to accept or refuse a subscription. The Hub MAY also
           check with the publisher whether the subscription should be accepted.</t>
           
-          
-          <t>If (and when), the subscription is accepted, the hub will inform the subscriber
+          <t>If (and when), the subscription is accepted, the hub MUST inform the subscriber
           by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's 
           callback URL as given in the subscription request. This request has the following
           query string arguments appended (format described in Section 17.13.4 of 
@@ -374,7 +373,7 @@
             subscription request.</t>
           </list></t>
           
-          <t>If (and when), the subscription is denied, the hub will inform the subscriber
+          <t>If (and when), the subscription is denied, the hub MUST inform the subscriber
           by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's 
           callback URL as given in the subscription request. This request has the following
           query string arguments appended (format described in Section 17.13.4 of 
@@ -389,7 +388,7 @@
           
           <t>Hubs may provide an additional HTTP Location header (as described in section 14.30 
           of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the 
-          subscriber may retry subscribing to a different hub.topic. This will allow
+          subscriber may retry subscribing to a different hub.topic. This allows
           for limited distribution to specific groups, users in the context of social web 
           applications.</t>
           
