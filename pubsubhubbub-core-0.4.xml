@@ -204,8 +204,8 @@
 
         <t><list style="hanging">
             <t hangText="hub.callback">REQUIRED. The subscriber's callback URL 
-            where notifications should be delivered. The subscriber's
-            callback URL SHOULD be unique for each subscription.</t>
+            where notifications should be delivered. It is considered good practice
+            to use a unique callback url for each subscription.</t>
 
             <t hangText="hub.mode">REQUIRED. The literal string "subscribe" or
             "unsubscribe", depending on the goal of the request.</t>
