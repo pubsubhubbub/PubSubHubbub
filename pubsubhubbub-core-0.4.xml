@@ -392,7 +392,7 @@
           for limited distribution to specific groups, users in the context of social web 
           applications.</t>
           
-          <t>The subscription may be intentionally denied by the hub at any point (even
+          <t>The subscription MAY be denied by the hub at any point (even
           if it was previously accepted). The Subscriber SHOULD then consider that
           the subscription is not possible anymore.</t>
               
