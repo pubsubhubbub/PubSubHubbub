@@ -154,7 +154,7 @@
 
 <h3>Abstract</h3>
 
-<p>An open, simple, web-scale and decentralized pubsub protocol. 
+<p>An open, simple, web-scale and decentralized pubsub protocol.
           Anybody can play.
 </p>
 <p>As opposed to more developed (and more complex) pubsub specs like <a class='info' href='#XEP-0060'>Jabber Publish-Subscribe<span> (</span><span class='info'>Millard, P., Saint-Andre, P., and R. Meijer, &ldquo;Publish-Subscribe,&rdquo; .</span><span>)</span></a> [XEP&#8209;0060] this spec's base profile
@@ -188,10 +188,10 @@ Discovery<br />
 Subscribing and Unsubscribing<br />
 &nbsp;&nbsp;&nbsp;&nbsp;<a href="#anchor4">5.1.</a>&nbsp;
 Subscriber Sends Subscription Request<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#verifysub">5.2.</a>&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#validationsub">5.2.</a>&nbsp;
+Subscription Validation<br />
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#verifysub">5.3.</a>&nbsp;
 Hub Verifies Intent of the Subscriber<br />
-&nbsp;&nbsp;&nbsp;&nbsp;<a href="#autorefresh">5.3.</a>&nbsp;
-Automatic Subscription Refreshing<br />
 <a href="#publishing">6.</a>&nbsp;
 Publishing<br />
 <a href="#contentdistribution">7.</a>&nbsp;
@@ -233,8 +233,8 @@ Definitions</h3>
 </dd>
 <dt>Publisher:</dt>
 <dd>An owner of a topic. Notifies the hub when
-          the topic feed has been updated. As in almost all pubsub systems, the 
-          publisher is unaware of the subscribers, if any. Other pubsub systems 
+          the topic feed has been updated. As in almost all pubsub systems, the
+          publisher is unaware of the subscribers, if any. Other pubsub systems
           might call the publisher the "source".
 </dd>
 <dt>Subscriber:</dt>
@@ -264,8 +264,8 @@ Definitions</h3>
 </dd>
 <dt>Notification:</dt>
 <dd>A payload describing how a topic's
-          contents have changed, or the full updated content. 
-          Depending on the topic's content type, the difference (or "delta") may be 
+          contents have changed, or the full updated content.
+          Depending on the topic's content type, the difference (or "delta") may be
           computed by the hub and sent to all subscribers.
 </dd>
 </dl></blockquote>
@@ -299,14 +299,14 @@ High-level protocol flow</h3>
 <a name="rfc.section.4"></a><h3>4.&nbsp;
 Discovery</h3>
 
-<p>A potential subscriber initiates discovery by retrieving (GET or HEAD request) 
+<p>A potential subscriber initiates discovery by retrieving (GET or HEAD request)
       the topic to which it wants to subscribe. The HTTP response from the publisher MUST
-      include at least one <a class='info' href='#RFC5988'>Link Header<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988] with 
+      include at least one <a class='info' href='#RFC5988'>Link Header<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988] with
       <tt>rel=hub</tt> (a hub link header) as well as exactly one <a class='info' href='#RFC5988'>Link Header<span> (</span><span class='info'>Nottingham, M., &ldquo;Web Linking,&rdquo; October&nbsp;2010.</span><span>)</span></a> [RFC5988]
-      with <tt>rel=self</tt> (the self link header). 
-      The former MUST indicate the exact url of a PubSubHubbub hub designated by the publisher.
-      If more than one url is specified, it is expected that the publisher pings each
-      of these urls, so the subscriber may subscribe to one or more of these.
+      with <tt>rel=self</tt> (the self link header).
+      The former MUST indicate the exact URL of a PubSubHubbub hub designated by the publisher.
+      If more than one URL is specified, it is expected that the publisher pings each
+      of these URLs, so the subscriber may subscribe to one or more of these.
       The latter will point to the permanent URL for the resource being polled.
 </p>
 <p>In the absence of HTTP Link headers, subscribers MAY fall back to
@@ -355,9 +355,9 @@ Subscriber Sends Subscription Request</h3>
 <p></p>
 <blockquote class="text"><dl>
 <dt>hub.callback</dt>
-<dd>REQUIRED. The subscriber's callback URL 
-            where notifications should be delivered. The subscriber's
-            callback URL SHOULD be unique for each subscription.
+<dd>REQUIRED. The subscriber's callback URL
+            where notifications should be delivered. It is considered good practice
+            to use a unique callback url for each subscription.
 </dd>
 <dt>hub.mode</dt>
 <dd>REQUIRED. The literal string "subscribe" or
@@ -370,11 +370,10 @@ Subscriber Sends Subscription Request</h3>
 <dt>hub.lease_seconds</dt>
 <dd>OPTIONAL. Number of seconds for
             which the subscriber would like to have the subscription active. If
-            not present or an empty value, the subscription will be permanent
-            (or active until <a class='info' href='#autorefresh'>automatic
-            refreshing<span> (</span><span class='info'>Automatic Subscription Refreshing</span><span>)</span></a> removes the subscription). Hubs MAY choose to
-            respect this value or not, depending on their own policies. This
-            parameter MAY be present for unsubscription requests and MUST be
+            not present or an empty value, hubs MUST provide a value upon
+            <a class='info' href='#verifysub'>verification of intent<span> (</span><span class='info'>Hub Verifies Intent of the Subscriber</span><span>)</span></a>.Hubs MAY
+            choose to respect this value or not, depending on their own policies.
+            This parameter MAY be present for unsubscription requests and MUST be
             ignored by the hub in that case.
 </dd>
 <dt>hub.secret</dt>
@@ -391,7 +390,7 @@ Subscriber Sends Subscription Request</h3>
           understand.
 </p>
 <p>Hubs MUST allow subscribers to re-request subscriptions that are
-          already activate. Each subsequent request to a hub to subscribe or
+          already activated. Each subsequent request to a hub to subscribe or
           unsubscribe MUST override the previous subscription state for a
           specific topic URL and callback URL combination once the action is
           verified. Any failures to confirm the subscription action MUST leave
@@ -399,11 +398,12 @@ Subscriber Sends Subscription Request</h3>
           renew their subscriptions before the lease seconds period is over
           without any interruption.
 </p>
-<p>Subscribers MAY also include additional HTTP Query params, as well as HTTP Headers
-          if they are required by the hub, or the publisher. In the context 
-          of social web applications, it is considered good practice to include a From 
-          HTTP header (as described in section 14.22 of <a class='info' href='#RFC2616'>Hypertext Transfer Protocol<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616]).
-          This header should indicate on behalf of which user the subscription is being performed.
+<p>Subscribers MAY also include additional HTTP request parameters, as well
+          as HTTP Headers if they are required by the hub.
+          In the context of social web applications, it is considered good
+          practice to include a From HTTP header (as described in section 14.22
+          of <a class='info' href='#RFC2616'>Hypertext Transfer Protocol<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616]) to indicate
+          on behalf of which user the subscription is being performed.
           
 </p>
 <a name="anchor5"></a><br /><hr />
@@ -411,14 +411,14 @@ Subscriber Sends Subscription Request</h3>
 <a name="rfc.section.5.1.1"></a><h3>5.1.1.&nbsp;
 Subscription Parameter Details</h3>
 
-<p>The topic and callback URLs MAY use <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] 
-          or <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] schemes. The topic URL MUST 
-          be the one advertised by the publisher in a Hub Link Header
-          Header during the discovery phase. (See <a class='info' href='#discovery'>Section&nbsp;4<span> (</span><span class='info'>Discovery</span><span>)</span></a>).
-          Hubs MAY refuse subscriptions if the topic url does not correspond to the one
-          advertised by the publisher. The topic URL can otherwise be free-form 
-          following <a class='info' href='#RFC3986'>the URI spec<span> (</span><span class='info'>Berners-Lee, T., &ldquo;Uniform Resource Identifiers (URI): Generic Syntax,&rdquo; .</span><span>)</span></a> [RFC3986]. Hubs MUST always 
-          decode non-reserved characters for these URL parameters; see section 2.4 on 
+<p>The topic and callback URLs MAY use <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616]
+          or <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] schemes. The topic URL MUST
+          be the one advertised by the publisher in a Self Link Header
+          during the discovery phase. (See <a class='info' href='#discovery'>Section&nbsp;4<span> (</span><span class='info'>Discovery</span><span>)</span></a>).
+          Hubs MAY refuse subscriptions if the topic URL does not correspond to the one
+          advertised by the publisher. The topic URL can otherwise be free-form
+          following <a class='info' href='#RFC3986'>the URI spec<span> (</span><span class='info'>Berners-Lee, T., &ldquo;Uniform Resource Identifiers (URI): Generic Syntax,&rdquo; .</span><span>)</span></a> [RFC3986]. Hubs MUST always
+          decode non-reserved characters for these URL parameters; see section 2.4 on
           <em>"When to Encode or Decode"</em> in <a class='info' href='#RFC3986'>the URI spec<span> (</span><span class='info'>Berners-Lee, T., &ldquo;Uniform Resource Identifiers (URI): Generic Syntax,&rdquo; .</span><span>)</span></a> [RFC3986].
 </p>
 <p>The callback URL MAY contain arbitrary query string parameters
@@ -440,9 +440,9 @@ Subscription Parameter Details</h3>
 <a name="rfc.section.5.1.2"></a><h3>5.1.2.&nbsp;
 Subscription Response Details</h3>
 
-<p>The hub MUST respond to a subscription request with an HTTP 202 "Accepted" 
-          response to indicate that the request was received and will now 
-          be verified (<a class='info' href='#verifysub'>Section&nbsp;5.2<span> (</span><span class='info'>Hub Verifies Intent of the Subscriber</span><span>)</span></a>) and validated (<a class='info' href='#validationsub'>Section&nbsp;5.2.2<span> (</span><span class='info'>Subscription Validation</span><span>)</span></a>) by the hub. The hub SHOULD perform the 
+<p>The hub MUST respond to a subscription request with an HTTP 202 "Accepted"
+          response to indicate that the request was received and will now
+          be verified (<a class='info' href='#verifysub'>Section&nbsp;5.3<span> (</span><span class='info'>Hub Verifies Intent of the Subscriber</span><span>)</span></a>) and validated (<a class='info' href='#validationsub'>Section&nbsp;5.2<span> (</span><span class='info'>Subscription Validation</span><span>)</span></a>) by the hub. The hub SHOULD perform the
           verification of intent as soon as possible.
 </p>
 <p>If a hub finds any errors in the subscription request, an
@@ -452,9 +452,51 @@ Subscription Response Details</h3>
           callback URLs or topic URLs based on their own policies (e.g., domain
           authorization, topic URL port numbers).
 </p>
-<a name="verifysub"></a><br /><hr />
+<a name="validationsub"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.5.2"></a><h3>5.2.&nbsp;
+Subscription Validation</h3>
+
+<p>Subscriptions MAY be validated by the Hubs who may require
+          more details to accept or refuse a subscription. The Hub MAY also
+          check with the publisher whether the subscription should be accepted.
+</p>
+<p>If (and when), the subscription is accepted, the hub MUST perform the <a class='info' href='#verifysub'>verification of intent<span> (</span><span class='info'>Hub Verifies Intent of the Subscriber</span><span>)</span></a> of the subscriber. 
+</p>
+<p>If (and when), the subscription is denied, the hub MUST inform the subscriber
+          by sending an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] GET request to the subscriber's
+          callback URL as given in the subscription request. This request has the following
+          query string arguments appended (format described in Section 17.13.4 of
+          <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>):
+</p>
+<p></p>
+<blockquote class="text"><dl>
+<dt>hub.mode</dt>
+<dd>REQUIRED. The literal string "denied".
+</dd>
+<dt>hub.topic</dt>
+<dd>REQUIRED. The topic URL given in the corresponding
+            subscription request.
+</dd>
+<dt>hub.reason</dt>
+<dd>OPTIONAL. The hub may include a reason
+            for which the subscription has been denied.
+</dd>
+</dl></blockquote>
+
+<p>Hubs may provide an additional HTTP Location header (as described in section 14.30
+          of <a class='info' href='#RFC2616'>Hypertext Transfer Protocol<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616]) to indicate that the
+          subscriber may retry subscribing to a different hub.topic. This allows
+          for limited distribution to specific groups, users in the context of social web
+          applications.
+</p>
+<p>The subscription MAY be denied by the hub at any point (even
+          if it was previously accepted). The Subscriber SHOULD then consider that
+          the subscription is not possible anymore.
+</p>
+<a name="verifysub"></a><br /><hr />
+<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
+<a name="rfc.section.5.3"></a><h3>5.3.&nbsp;
 Hub Verifies Intent of the Subscriber</h3>
 
 <p>In order to prevent an attacker from creating unwanted subscriptions
@@ -495,17 +537,17 @@ Hub Verifies Intent of the Subscriber</h3>
 
 <a name="anchor7"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.5.2.1"></a><h3>5.2.1.&nbsp;
+<a name="rfc.section.5.3.1"></a><h3>5.3.1.&nbsp;
 Verification Details</h3>
 
 <p>The subscriber MUST confirm that the <tt>hub.topic
-          </tt> corresponds to a pending subscription or unsubscription that it 
-          wishes to carry out. If so, the subscriber MUST respond with an HTTP 
+          </tt> corresponds to a pending subscription or unsubscription that it
+          wishes to carry out. If so, the subscriber MUST respond with an HTTP
           success (2xx) code with a response body equal to the <tt>hub.challenge</tt> parameter. If the subscriber does
           not agree with the action, the subscriber MUST respond with a 404 "Not
           Found" response.
 </p>
-<p>The hub MUST consider other server response codes (3xx, 4xx, 5xx) 
+<p>The hub MUST consider other server response codes (3xx, 4xx, 5xx)
           to mean that the verification request has failed. If the subscriber
           returns an HTTP success (2xx) but the content body does not match the
           <tt>hub.challenge</tt> parameter, the hub MUST also
@@ -515,105 +557,16 @@ Verification Details</h3>
           equal to the period the subscriber passed in their subscription
           request but MAY change the value depending on the hub's policies. To
           sustain a temporary subscription, the subscriber MUST re-request the
-          subscription on the hub before <tt>hub.lease_seconds</tt> seconds has elapsed. For
-          permanent subscriptions with no <tt>hub.lease_seconds</tt> value specified, the behavior
-          is different as described in the section on <a class='info' href='#autorefresh'>automatic subscription refreshing<span> (</span><span class='info'>Automatic Subscription Refreshing</span><span>)</span></a>.
-</p>
-<a name="validationsub"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.5.2.2"></a><h3>5.2.2.&nbsp;
-Subscription Validation</h3>
-
-<p>Subscriptions MAY be validated by the Hubs who may require 
-          more details to accept or refuse a subscription. The Hub MAY also
-          check with the publisher whether the subscription should be accepted.
-</p>
-<p>If (and when), the subscription is accepted, the hub will inform the subscriber
-          by sending an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] GET request to the subscriber's 
-          callback URL as given in the subscription request. This request has the following
-          query string arguments appended (format described in Section 17.13.4 of 
-          <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>):
-</p>
-<p></p>
-<blockquote class="text"><dl>
-<dt>hub.mode</dt>
-<dd>REQUIRED. The literal string "accepted".
-</dd>
-<dt>hub.topic</dt>
-<dd>REQUIRED. The topic URL given in the corresponding 
-            subscription request.
-</dd>
-</dl></blockquote>
-
-<p>If (and when), the subscription is denied, the hub will inform the subscriber
-          by sending an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] GET request to the subscriber's 
-          callback URL as given in the subscription request. This request has the following
-          query string arguments appended (format described in Section 17.13.4 of 
-          <a class='info' href='#W3C.REC-html401-19991224'>[W3C.REC&#8209;html401&#8209;19991224]<span> (</span><span class='info'>Raggett, D., Hors, A., and I. Jacobs, &ldquo;HTML 4.01 Specification,&rdquo; December&nbsp;1999.</span><span>)</span></a>):
-</p>
-<p></p>
-<blockquote class="text"><dl>
-<dt>hub.mode</dt>
-<dd>REQUIRED. The literal string "denied".
-</dd>
-<dt>hub.topic</dt>
-<dd>REQUIRED. The topic URL given in the corresponding 
-            subscription request.
-</dd>
-<dt>hub.reason</dt>
-<dd>OPTIONAL. The hub may include a reason
-            for which the subscription has been denied.
-</dd>
-</dl></blockquote>
-
-<p>Hubs may provide an additional HTTP Location header (as described in section 14.30 
-          of <a class='info' href='#RFC2616'>Hypertext Transfer Protocol<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616]) to indicate that the 
-          subscriber may retry subscribing to a different hub.topic. This will allow
-          for limited distribution to specific groups, users in the context of social web 
-          applications.
-</p>
-<p>The subscription may be intentionally denied by the hub at any point (even
-          if it was previously accepted). The Subscriber SHOULD then consider that
-          the subscription is not possible anymore.
-</p>
-<a name="autorefresh"></a><br /><hr />
-<table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
-<a name="rfc.section.5.3"></a><h3>5.3.&nbsp;
-Automatic Subscription Refreshing</h3>
-
-<p>Before a subscription expires (i.e., before <tt>hub.lease_seconds</tt> elapses), Hubs MUST recheck with
-        subscribers to see if a continued subscription is desired. Hubs do this
-        by sending the subscriber a <a class='info' href='#verifysub'>verification
-        request<span> (</span><span class='info'>Hub Verifies Intent of the Subscriber</span><span>)</span></a> with <tt>hub.mode</tt> equal to
-        subscribe. This request MUST match the original verification request
-        sent to the subscriber (but with a new <tt>hub.challenge
-        </tt>).
-</p>
-<p>The response codes returned by the subscriber MUST be interpreted the
-        same way as during a subscriber-initiated verification flow. However,
-        this refresh request MUST behave like an initial subscription request;
-        this means that if an auto-refresh response from the subscriber
-        constantly returns an error, the hub MUST give up on the subscription
-        verification action altogether and remove the subscription.
-</p>
-<p>In the case of permanent subscriptions (with no <tt>hub.lease_seconds</tt> specified in the original
-        request), the <tt>hub.lease_seconds</tt> value
-        supplied by the hub in the verification request to the subscriber SHOULD
-        represent how many seconds until the hub expects it will next initiate
-        automatic subscription refreshing to ensure that the subscriber is still
-        interested in the topic. This behavior provides the best of both worlds:
-        maximum simplicity of the subscriber through infinitely-long
-        subscriptions, but still garbage collectable subscriptions for hub
-        hygiene.
+          subscription on the hub before <tt>hub.lease_seconds</tt> seconds has elapsed.
 </p>
 <a name="publishing"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
 <a name="rfc.section.6"></a><h3>6.&nbsp;
 Publishing</h3>
 
-<p>The publisher MUST inform the hub it previously designated when a topic 
-      has been updated. The hub and the publisher CAN agree on any mechanism, as 
-      long as the hub is eventually able send the updated payload to the 
+<p>The publisher MUST inform the hub it previously designated when a topic
+      has been updated. The hub and the publisher CAN agree on any mechanism, as
+      long as the hub is eventually able send the updated payload to the
       subscribers.
 </p>
 <a name="contentdistribution"></a><br /><hr />
@@ -623,13 +576,13 @@ Content Distribution</h3>
 
 <p>A content distribution request is an <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] POST request from hub to the subscriber's
         callback URL with the payload of the notification. This request MUST
-        have a <tt>Content-Type</tt> corresponding to the 
-        type of the topic. The hub MAY reduce the payload to a diff if its format
-        allows it.
+        have a <tt>Content-Type</tt> corresponding to the
+        type of the topic. The hub MAY reduce the payload to a diff between two
+        consecutive versions if its format allows it.
 </p>
 <p>The POST request must include the Self Link Header
         and a Hub Link Header that correspond
-        to topic's url, as well as hub.
+        to topic's URL, as well as hub URL respectively.
 </p>
 <p>The successful response from the subscriber's callback URL MUST be an
         HTTP success (2xx) code. The hub MUST consider all other subscriber
@@ -663,8 +616,8 @@ Authenticated Content Distribution</h3>
         same method as the hub. If the signature does not match, subscribers
         MUST still return a 2xx success response to acknowledge receipt, but
         locally ignore the message as invalid. Using this technique along with
-        <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] for subscription requests enables 
-        simple subscribers to receive authenticated notifications from hubs 
+        <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] for subscription requests enables
+        simple subscribers to receive authenticated notifications from hubs
         without the need for subscribers to run an HTTPS server.
 </p>
 <p>Please note however that this signature only ensures that the payload
@@ -709,7 +662,7 @@ Specification Feedback</h3>
 <p>Feedback on this specification is welcomed via the
       PubSubHubbub W3C Community Group.  For
       more information, see <a href='http://www.w3.org/community/pubsub/'>the
-      W3C PubSubHubbub Community Group</a>. 
+      W3C PubSubHubbub Community Group</a>.
       
 </p>
 <a name="rfc.authors"></a><br /><hr />
