@@ -299,6 +299,39 @@
 
       </section>
 
+      <section title="Subscription Validation" anchor="validationsub">
+          <t>Subscriptions MAY be validated by the Hubs who may require
+          more details to accept or refuse a subscription. The Hub MAY also
+          check with the publisher whether the subscription should be accepted.</t>
+
+          <t>If (and when), the subscription is accepted, the hub MUST perform the <xref
+        target="verifysub">verification of intent</xref> of the subscriber. </t>
+
+          <t>If (and when), the subscription is denied, the hub MUST inform the subscriber
+          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's
+          callback URL as given in the subscription request. This request has the following
+          query string arguments appended (format described in Section 17.13.4 of
+          <xref target="W3C.REC-html401-19991224"/>):</t>
+          <t><list style="hanging">
+            <t hangText="hub.mode">REQUIRED. The literal string "denied".</t>
+            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding
+            subscription request.</t>
+            <t hangText="hub.reason">OPTIONAL. The hub may include a reason
+            for which the subscription has been denied.</t>
+          </list></t>
+
+          <t>Hubs may provide an additional HTTP Location header (as described in section 14.30
+          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the
+          subscriber may retry subscribing to a different hub.topic. This allows
+          for limited distribution to specific groups, users in the context of social web
+          applications.</t>
+
+          <t>The subscription MAY be denied by the hub at any point (even
+          if it was previously accepted). The Subscriber SHOULD then consider that
+          the subscription is not possible anymore.</t>
+
+        </section>
+
       <section anchor="verifysub" title="Hub Verifies Intent of the Subscriber">
         <t>In order to prevent an attacker from creating unwanted subscriptions
         on behalf of a subscriber (or unsubscribing desired ones), a hub must
@@ -357,46 +390,7 @@
 
         </section>
 
-        <section title="Subscription Validation" anchor="validationsub">
-          <t>Subscriptions MAY be validated by the Hubs who may require
-          more details to accept or refuse a subscription. The Hub MAY also
-          check with the publisher whether the subscription should be accepted.</t>
 
-          <t>If (and when), the subscription is accepted, the hub MUST inform the subscriber
-          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's
-          callback URL as given in the subscription request. This request has the following
-          query string arguments appended (format described in Section 17.13.4 of
-          <xref target="W3C.REC-html401-19991224"/>):</t>
-          <t><list style="hanging">
-            <t hangText="hub.mode">REQUIRED. The literal string "accepted".</t>
-            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding
-            subscription request.</t>
-          </list></t>
-
-          <t>If (and when), the subscription is denied, the hub MUST inform the subscriber
-          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's
-          callback URL as given in the subscription request. This request has the following
-          query string arguments appended (format described in Section 17.13.4 of
-          <xref target="W3C.REC-html401-19991224"/>):</t>
-          <t><list style="hanging">
-            <t hangText="hub.mode">REQUIRED. The literal string "denied".</t>
-            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding
-            subscription request.</t>
-            <t hangText="hub.reason">OPTIONAL. The hub may include a reason
-            for which the subscription has been denied.</t>
-          </list></t>
-
-          <t>Hubs may provide an additional HTTP Location header (as described in section 14.30
-          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the
-          subscriber may retry subscribing to a different hub.topic. This allows
-          for limited distribution to specific groups, users in the context of social web
-          applications.</t>
-
-          <t>The subscription MAY be denied by the hub at any point (even
-          if it was previously accepted). The Subscriber SHOULD then consider that
-          the subscription is not possible anymore.</t>
-
-        </section>
       </section>
 
     </section>
