@@ -53,7 +53,7 @@
         <email>mart@degeneration.co.uk</email>
       </address>
     </author>
-    
+
     <author fullname="Julien Genestoux" initials="J." surname="Genestoux">
       <organization>Notifixious Inc.</organization>
 
@@ -65,7 +65,7 @@
     <date day="5" month="February" year="2012" />
 
     <abstract>
-      <t>An open, simple, web-scale and decentralized pubsub protocol. 
+      <t>An open, simple, web-scale and decentralized pubsub protocol.
           Anybody can play.</t>
 
       <t>As opposed to more developed (and more complex) pubsub specs like <xref
@@ -107,8 +107,8 @@
           protocol. Any hub MAY implement its own policies on who can use it.</t>
 
           <t hangText="Publisher:">An owner of a topic. Notifies the hub when
-          the topic feed has been updated. As in almost all pubsub systems, the 
-          publisher is unaware of the subscribers, if any. Other pubsub systems 
+          the topic feed has been updated. As in almost all pubsub systems, the
+          publisher is unaware of the subscribers, if any. Other pubsub systems
           might call the publisher the "source".</t>
 
           <t hangText="Subscriber:">An entity (person or program) that wants
@@ -134,8 +134,8 @@
           sending out notifications to subscribers.</t>
 
           <t hangText="Notification:">A payload describing how a topic's
-          contents have changed, or the full updated content. 
-          Depending on the topic's content type, the difference (or "delta") may be 
+          contents have changed, or the full updated content.
+          Depending on the topic's content type, the difference (or "delta") may be
           computed by the hub and sent to all subscribers.</t>
         </list></t>
     </section>
@@ -160,11 +160,11 @@
     </section>
 
     <section anchor="discovery" title="Discovery">
-      <t>A potential subscriber initiates discovery by retrieving (GET or HEAD request) 
+      <t>A potential subscriber initiates discovery by retrieving (GET or HEAD request)
       the topic to which it wants to subscribe. The HTTP response from the publisher MUST
-      include at least one <xref target="RFC5988">Link Header</xref> with 
+      include at least one <xref target="RFC5988">Link Header</xref> with
       <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</xref>
-      with <spanx style="verb">rel=self</spanx> (the self link header). 
+      with <spanx style="verb">rel=self</spanx> (the self link header).
       The former MUST indicate the exact URL of a PubSubHubbub hub designated by the publisher.
       If more than one URL is specified, it is expected that the publisher pings each
       of these URLs, so the subscriber may subscribe to one or more of these.
@@ -203,7 +203,7 @@
         following parameters in its body:</t>
 
         <t><list style="hanging">
-            <t hangText="hub.callback">REQUIRED. The subscriber's callback URL 
+            <t hangText="hub.callback">REQUIRED. The subscriber's callback URL
             where notifications should be delivered. It is considered good practice
             to use a unique callback url for each subscription.</t>
 
@@ -216,8 +216,8 @@
             <t hangText="hub.lease_seconds">OPTIONAL. Number of seconds for
             which the subscriber would like to have the subscription active. If
             not present or an empty value, hubs MUST provide a value upon
-            <xref target="verifysub">verification of intent</xref>.Hubs MAY 
-            choose to respect this value or not, depending on their own policies. 
+            <xref target="verifysub">verification of intent</xref>.Hubs MAY
+            choose to respect this value or not, depending on their own policies.
             This parameter MAY be present for unsubscription requests and MUST be
             ignored by the hub in that case.</t>
 
@@ -242,25 +242,25 @@
           the subscription state unchanged. This is required so subscribers can
           renew their subscriptions before the lease seconds period is over
           without any interruption.</t>
-          
-          <t>Subscribers MAY also include additional HTTP request parameters, as well 
-          as HTTP Headers if they are required by the hub. 
-          In the context of social web applications, it is considered good 
-          practice to include a From HTTP header (as described in section 14.22 
+
+          <t>Subscribers MAY also include additional HTTP request parameters, as well
+          as HTTP Headers if they are required by the hub.
+          In the context of social web applications, it is considered good
+          practice to include a From HTTP header (as described in section 14.22
           of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate
           on behalf of which user the subscription is being performed.
           </t>
 
         <section title="Subscription Parameter Details">
 
-          <t>The topic and callback URLs MAY use <xref target="RFC2616">HTTP</xref> 
-          or <xref target="RFC2818">HTTPS</xref> schemes. The topic URL MUST 
+          <t>The topic and callback URLs MAY use <xref target="RFC2616">HTTP</xref>
+          or <xref target="RFC2818">HTTPS</xref> schemes. The topic URL MUST
           be the one advertised by the publisher in a Self Link Header
           during the discovery phase. (See <xref target="discovery"></xref>).
           Hubs MAY refuse subscriptions if the topic URL does not correspond to the one
-          advertised by the publisher. The topic URL can otherwise be free-form 
-          following <xref target="RFC3986">the URI spec</xref>. Hubs MUST always 
-          decode non-reserved characters for these URL parameters; see section 2.4 on 
+          advertised by the publisher. The topic URL can otherwise be free-form
+          following <xref target="RFC3986">the URI spec</xref>. Hubs MUST always
+          decode non-reserved characters for these URL parameters; see section 2.4 on
           <spanx style="emph">"When to Encode or Decode"</spanx> in <xref
           target="RFC3986">the URI spec</xref>.</t>
 
@@ -282,13 +282,13 @@
         </section>
 
         <section title="Subscription Response Details">
-          
-          <t>The hub MUST respond to a subscription request with an HTTP 202 "Accepted" 
-          response to indicate that the request was received and will now 
-          be verified (<xref target="verifysub"></xref>) and validated (<xref 
-          target="validationsub"></xref>) by the hub. The hub SHOULD perform the 
+
+          <t>The hub MUST respond to a subscription request with an HTTP 202 "Accepted"
+          response to indicate that the request was received and will now
+          be verified (<xref target="verifysub"></xref>) and validated (<xref
+          target="validationsub"></xref>) by the hub. The hub SHOULD perform the
           verification of intent as soon as possible.</t>
-          
+
            <t>If a hub finds any errors in the subscription request, an
           appropriate HTTP error response code (4xx or 5xx) MUST be returned. In
           the event of an error, hubs SHOULD return a description of the error
@@ -335,19 +335,19 @@
         <section title="Verification Details">
 
           <t>The subscriber MUST confirm that the <spanx style="verb">hub.topic
-          </spanx> corresponds to a pending subscription or unsubscription that it 
-          wishes to carry out. If so, the subscriber MUST respond with an HTTP 
+          </spanx> corresponds to a pending subscription or unsubscription that it
+          wishes to carry out. If so, the subscriber MUST respond with an HTTP
           success (2xx) code with a response body equal to the <spanx
           style="verb">hub.challenge</spanx> parameter. If the subscriber does
           not agree with the action, the subscriber MUST respond with a 404 "Not
           Found" response.</t>
 
-          <t>The hub MUST consider other server response codes (3xx, 4xx, 5xx) 
+          <t>The hub MUST consider other server response codes (3xx, 4xx, 5xx)
           to mean that the verification request has failed. If the subscriber
           returns an HTTP success (2xx) but the content body does not match the
           <spanx style="verb">hub.challenge</spanx> parameter, the hub MUST also
           consider verification to have failed.</t>
-          
+
           <t>Hubs MAY make the <spanx style="verb">hub.lease_seconds</spanx>
           equal to the period the subscriber passed in their subscription
           request but MAY change the value depending on the hub's policies. To
@@ -356,75 +356,55 @@
           style="verb">hub.lease_seconds</spanx> seconds has elapsed.</t>
 
         </section>
-        
+
         <section title="Subscription Validation" anchor="validationsub">
-          <t>Subscriptions MAY be validated by the Hubs who may require 
+          <t>Subscriptions MAY be validated by the Hubs who may require
           more details to accept or refuse a subscription. The Hub MAY also
           check with the publisher whether the subscription should be accepted.</t>
-          
+
           <t>If (and when), the subscription is accepted, the hub MUST inform the subscriber
-          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's 
+          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's
           callback URL as given in the subscription request. This request has the following
-          query string arguments appended (format described in Section 17.13.4 of 
+          query string arguments appended (format described in Section 17.13.4 of
           <xref target="W3C.REC-html401-19991224"/>):</t>
           <t><list style="hanging">
             <t hangText="hub.mode">REQUIRED. The literal string "accepted".</t>
-            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding 
+            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding
             subscription request.</t>
           </list></t>
-          
+
           <t>If (and when), the subscription is denied, the hub MUST inform the subscriber
-          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's 
+          by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's
           callback URL as given in the subscription request. This request has the following
-          query string arguments appended (format described in Section 17.13.4 of 
+          query string arguments appended (format described in Section 17.13.4 of
           <xref target="W3C.REC-html401-19991224"/>):</t>
           <t><list style="hanging">
             <t hangText="hub.mode">REQUIRED. The literal string "denied".</t>
-            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding 
+            <t hangText="hub.topic">REQUIRED. The topic URL given in the corresponding
             subscription request.</t>
             <t hangText="hub.reason">OPTIONAL. The hub may include a reason
             for which the subscription has been denied.</t>
           </list></t>
-          
-          <t>Hubs may provide an additional HTTP Location header (as described in section 14.30 
-          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the 
+
+          <t>Hubs may provide an additional HTTP Location header (as described in section 14.30
+          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the
           subscriber may retry subscribing to a different hub.topic. This allows
-          for limited distribution to specific groups, users in the context of social web 
+          for limited distribution to specific groups, users in the context of social web
           applications.</t>
-          
+
           <t>The subscription MAY be denied by the hub at any point (even
           if it was previously accepted). The Subscriber SHOULD then consider that
           the subscription is not possible anymore.</t>
-              
+
         </section>
-      </section>
-
-      <section anchor="autorefresh" title="Automatic Subscription Refreshing">
-
-        <t>Before a subscription expires (i.e., before <spanx
-        style="verb">hub.lease_seconds</spanx> elapses), Hubs MUST recheck with
-        subscribers to see if a continued subscription is desired. Hubs do this
-        by sending the subscriber a <xref target="verifysub">verification
-        request</xref> with <spanx style="verb">hub.mode</spanx> equal to
-        subscribe. This request MUST match the original verification request
-        sent to the subscriber (but with a new <spanx style="verb">hub.challenge
-        </spanx>).</t>
-
-        <t>The response codes returned by the subscriber MUST be interpreted the
-        same way as during a subscriber-initiated verification flow. However,
-        this refresh request MUST behave like an initial subscription request;
-        this means that if an auto-refresh response from the subscriber
-        constantly returns an error, the hub MUST give up on the subscription
-        verification action altogether and remove the subscription.</t>
-
       </section>
 
     </section>
 
     <section anchor="publishing" title="Publishing">
-      <t>The publisher MUST inform the hub it previously designated when a topic 
-      has been updated. The hub and the publisher CAN agree on any mechanism, as 
-      long as the hub is eventually able send the updated payload to the 
+      <t>The publisher MUST inform the hub it previously designated when a topic
+      has been updated. The hub and the publisher CAN agree on any mechanism, as
+      long as the hub is eventually able send the updated payload to the
       subscribers.</t>
     </section>
 
@@ -433,10 +413,10 @@
         <t>A content distribution request is an <xref
         target="RFC2616">HTTP</xref> POST request from hub to the subscriber's
         callback URL with the payload of the notification. This request MUST
-        have a <spanx style="verb">Content-Type</spanx> corresponding to the 
+        have a <spanx style="verb">Content-Type</spanx> corresponding to the
         type of the topic. The hub MAY reduce the payload to a diff between two
         consecutive versions if its format allows it.</t>
-        
+
         <t>The POST request must include the Self Link Header
         and a Hub Link Header that correspond
         to topic's URL, as well as hub URL respectively.</t>
@@ -474,10 +454,10 @@
         same method as the hub. If the signature does not match, subscribers
         MUST still return a 2xx success response to acknowledge receipt, but
         locally ignore the message as invalid. Using this technique along with
-        <xref target="RFC2818">HTTPS</xref> for subscription requests enables 
-        simple subscribers to receive authenticated notifications from hubs 
+        <xref target="RFC2818">HTTPS</xref> for subscription requests enables
+        simple subscribers to receive authenticated notifications from hubs
         without the need for subscribers to run an HTTPS server.</t>
-        
+
         <t>Please note however that this signature only ensures that the payload
         was not forged. Since the notification also includes headers, these should
         not be considered as safe by the subscriber, unless of course the subscriber
@@ -627,7 +607,7 @@
 
         <seriesInfo name="RFC" value="3986" />
       </reference>
-      
+
       <reference anchor="RFC5785">
           <front>
             <title>Defining Well-Known Uniform Resource Identifiers (URIs)</title>
@@ -644,7 +624,7 @@
 
           <seriesInfo name="RFC" value="5785" />
         </reference>
-      
+
 
       <reference anchor='W3C.REC-html401-19991224'
                  target='http://www.w3.org/TR/1999/REC-html401-19991224'>
@@ -693,7 +673,7 @@
       PubSubHubbub W3C Community Group.  For
       more information, see <eref
       target="http://www.w3.org/community/pubsub/">the
-      W3C PubSubHubbub Community Group</eref>. 
+      W3C PubSubHubbub Community Group</eref>.
       </t>
 
      </section>
