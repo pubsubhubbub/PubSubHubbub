@@ -186,8 +186,8 @@
       immediately in sequence or have a delay.</t>
       <t><list style="symbols">
           <t>Requesting a subscription using the hub</t>
-          <t>Confirming the subscription was actually desired</t>
-          <t>Receiving an acknowledgement from the hub that the subscription was accepted (OPTIONAL).</t>
+          <t>Validating the subscription with the publisher (OPTIONAL)</t>
+          <t>Confirming the subscription was actually desired by the subscriber</t>
           <t>Periodically reconfirming the subscription is still active</t>
         </list></t>
 
