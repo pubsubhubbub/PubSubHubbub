@@ -192,7 +192,8 @@
         </list></t>
 
       <t>Unsubscribing works in the same way, except with a single parameter
-      changed to indicate the desire to unsubscribe.</t>
+      changed to indicate the desire to unsubscribe. Also, the Hub will not validate
+      unsubscription requests with the publisher.</t>
 
       <section title="Subscriber Sends Subscription Request">
         <t>Subscription is initiated by the subscriber making an <xref target="RFC2616">HTTPS</xref>
