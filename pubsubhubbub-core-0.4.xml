@@ -212,7 +212,7 @@
             "unsubscribe", depending on the goal of the request.</t>
 
             <t hangText="hub.topic">REQUIRED. The topic URL that the subscriber
-            wishes to subscribe to.</t>
+            wishes to subscribe to or unsubscribe from.</t>
 
             <t hangText="hub.lease_seconds">OPTIONAL. Number of seconds for
             which the subscriber would like to have the subscription active. If
@@ -286,9 +286,9 @@
 
           <t>The hub MUST respond to a subscription request with an HTTP 202 "Accepted"
           response to indicate that the request was received and will now
-          be verified (<xref target="verifysub"></xref>) and validated (<xref
-          target="validationsub"></xref>) by the hub. The hub SHOULD perform the
-          verification of intent as soon as possible.</t>
+          be validated (<xref target="validationsub"></xref>) and verified
+          (<xref target="verifysub"></xref>) and by the hub. The hub SHOULD perform the
+          validation and verification of intent as soon as possible.</t>
 
            <t>If a hub finds any errors in the subscription request, an
           appropriate HTTP error response code (4xx or 5xx) MUST be returned. In
