@@ -383,7 +383,7 @@
           consider verification to have failed.</t>
 
           <t>Hubs MAY make the <spanx style="verb">hub.lease_seconds</spanx>
-          equal to the period the subscriber passed in their subscription
+          equal to the value the subscriber passed in their subscription
           request but MAY change the value depending on the hub's policies. To
           sustain a temporary subscription, the subscriber MUST re-request the
           subscription on the hub before <spanx
