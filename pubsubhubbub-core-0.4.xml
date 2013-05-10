@@ -230,6 +230,14 @@
 
           </list></t>
 
+          <t>Subscribers MAY also include additional HTTP request parameters, as well
+          as HTTP Headers if they are required by the hub.
+          In the context of social web applications, it is considered good
+          practice to include a From HTTP header (as described in section 14.22
+          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate
+          on behalf of which user the subscription is being performed.
+          </t>
+
           <t>Hubs MUST ignore additional request parameters they do not
           understand.</t>
 
@@ -241,14 +249,6 @@
           the subscription state unchanged. This is required so subscribers can
           renew their subscriptions before the lease seconds period is over
           without any interruption.</t>
-
-          <t>Subscribers MAY also include additional HTTP request parameters, as well
-          as HTTP Headers if they are required by the hub.
-          In the context of social web applications, it is considered good
-          practice to include a From HTTP header (as described in section 14.22
-          of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate
-          on behalf of which user the subscription is being performed.
-          </t>
 
         <section title="Subscription Parameter Details">
 
