@@ -269,14 +269,9 @@
           appending new parameters to the end of the list using the <spanx
           style="verb">&</spanx> (ampersand) character to join. Existing
           parameters with names that overlap with those used by verification
-          requests will not be overwritten; Hubs MUST only append verification
-          parameters to the existing list, if any. For event notification, the
+          requests will not be overwritten. For event notification, the
           callback URL will be POSTed to including any query-string parameters
           in the URL portion of the request, not as POST body parameters.</t>
-
-          <t>Subscribers MAY choose to use <xref target="RFC2818">HTTPS</xref>
-          for their callback URLs if they care about the privacy of
-          notifications as they come over the wire from the Hub (see <xref target="authednotify"></xref>)</t>
 
         </section>
 
