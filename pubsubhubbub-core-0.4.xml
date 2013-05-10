@@ -279,9 +279,9 @@
 
           <t>The hub MUST respond to a subscription request with an HTTP 202 "Accepted"
           response to indicate that the request was received and will now
-          be validated (<xref target="validationsub"></xref>) and verified
-          (<xref target="verifysub"></xref>) and by the hub. The hub SHOULD perform the
-          validation and verification of intent as soon as possible.</t>
+          be verified (<xref target="verifysub"></xref>) and validated (<xref
+          target="validationsub"></xref>) by the hub. The hub SHOULD perform the
+          verification and validation of intent as soon as possible.</t>
 
            <t>If a hub finds any errors in the subscription request, an
           appropriate HTTP error response code (4xx or 5xx) MUST be returned. In
