@@ -317,7 +317,7 @@
           <t>Hubs may provide an additional HTTP Location header (as described in section 14.30
           of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the
           subscriber may retry subscribing to a different hub.topic. This allows
-          for limited distribution to specific groups, users in the context of social web
+          for limited distribution to specific groups or users in the context of social web
           applications.</t>
 
           <t>The subscription MAY be denied by the hub at any point (even
