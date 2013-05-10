@@ -390,8 +390,8 @@
     </section>
 
     <section anchor="publishing" title="Publishing">
-      <t>The publisher MUST inform the hub it previously designated when a topic
-      has been updated. The hub and the publisher CAN agree on any mechanism, as
+      <t>The publisher MUST inform the hubs it previously designated when a topic
+      has been updated. The hub and the publisher can agree on any mechanism, as
       long as the hub is eventually able send the updated payload to the
       subscribers.</t>
     </section>
