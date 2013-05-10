@@ -188,7 +188,7 @@
           <t>Requesting a subscription using the hub</t>
           <t>Validating the subscription with the publisher (OPTIONAL)</t>
           <t>Confirming the subscription was actually desired by the subscriber</t>
-          <t>Periodically reconfirming the subscription is still active</t>
+          <t>Periodically reconfirming the subscription is still active (OPTIONAL)</t>
         </list></t>
 
       <t>Unsubscribing works in the same way, except with a single parameter
