@@ -12,7 +12,7 @@
   $ xml2rfc pubsubhubbub-core-0.1.xml pubsubhubbub-core-0.1.html
 
 -->
-<rfc category="info" docName="pubsubhubbub-core-0.4.xml" ipr="full3978">
+<rfc category="info" docName="pubsubhubbub-core-0.4.xml" ipr="trust200902">
   <?rfc toc="yes" ?>
 
   <?rfc tocdepth="2" ?>
@@ -270,10 +270,10 @@
           target="RFC3986">the URI spec</xref>.</t>
 
           <t>The callback URL MAY contain arbitrary query string parameters
-          (e.g., <spanx style="verb">?foo=bar&red=fish</spanx>). Hubs MUST
+          (e.g., <spanx style="verb">?foo=bar&amp;red=fish</spanx>). Hubs MUST
           preserve the query string during subscription verification by
           appending new parameters to the end of the list using the <spanx
-          style="verb">&</spanx> (ampersand) character to join. Existing
+          style="verb">&amp;</spanx> (ampersand) character to join. Existing
           parameters with names that overlap with those used by verification
           requests will not be overwritten. For event notification, the
           callback URL will be POSTed to including any query-string parameters
