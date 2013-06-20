@@ -99,7 +99,8 @@
 
     <section title="Definitions">
       <t><list style="hanging">
-          <t hangText="Topic:">An HTTP resource URL. The
+          <t hangText="Topic:">An <xref
+        target="RFC2616">HTTP</xref> resource URL. The
           unit to which one can subscribe to changes. </t>
 
           <t hangText="Hub (&quot;the hub&quot;):">The server (<xref
@@ -161,7 +162,8 @@
 
     <section anchor="discovery" title="Discovery">
       <t>A potential subscriber initiates discovery by retrieving (GET or HEAD request)
-      the topic to which it wants to subscribe. The HTTP response from the publisher MUST
+      the topic to which it wants to subscribe. The <xref
+        target="RFC2616">HTTP</xref> response from the publisher MUST
       include at least one <xref target="RFC5988">Link Header</xref> with
       <spanx style="verb">rel=hub</spanx> (a hub link header) as well as exactly one <xref target="RFC5988">Link Header</xref>
       with <spanx style="verb">rel=self</spanx> (the self link header).
@@ -171,7 +173,8 @@
       The latter will point to the permanent URL for the resource being polled.</t>
 
 
-     <t>In the absence of HTTP Link headers, subscribers MAY fall back to
+     <t>In the absence of <xref
+        target="RFC2616">HTTP</xref> Link headers, subscribers MAY fall back to
      other methods to discover the hub(s) and the canonical URI of the topic.
      If the topic is an XML based feed, it MAY use embedded link elements
      as described in Appendix B of <xref target="RFC5988">Web Linking</xref>.
@@ -230,10 +233,13 @@
 
           </list></t>
 
-          <t>Subscribers MAY also include additional HTTP request parameters, as well
-          as HTTP Headers if they are required by the hub.
+          <t>Subscribers MAY also include additional <xref
+        target="RFC2616">HTTP</xref> request parameters, as well
+          as <xref
+        target="RFC2616">HTTP</xref> Headers if they are required by the hub.
           In the context of social web applications, it is considered good
-          practice to include a From HTTP header (as described in section 14.22
+          practice to include a From <xref
+        target="RFC2616">HTTP</xref> header (as described in section 14.22
           of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate
           on behalf of which user the subscription is being performed.
           </t>
@@ -277,14 +283,16 @@
 
         <section title="Subscription Response Details">
 
-          <t>The hub MUST respond to a subscription request with an HTTP 202 "Accepted"
+          <t>The hub MUST respond to a subscription request with an <xref
+        target="RFC2616">HTTP</xref> 202 "Accepted"
           response to indicate that the request was received and will now
           be verified (<xref target="verifysub"></xref>) and validated (<xref
           target="validationsub"></xref>) by the hub. The hub SHOULD perform the
           verification and validation of intent as soon as possible.</t>
 
            <t>If a hub finds any errors in the subscription request, an
-          appropriate HTTP error response code (4xx or 5xx) MUST be returned. In
+          appropriate <xref
+        target="RFC2616">HTTP</xref> error response code (4xx or 5xx) MUST be returned. In
           the event of an error, hubs SHOULD return a description of the error
           in the response body as plain text. Hubs MAY decide to reject some
           callback URLs or topic URLs based on their own policies (e.g., domain
@@ -314,7 +322,8 @@
             for which the subscription has been denied.</t>
           </list></t>
 
-          <t>Hubs may provide an additional HTTP Location header (as described in section 14.30
+          <t>Hubs may provide an additional <xref
+        target="RFC2616">HTTP</xref> Location header (as described in section 14.30
           of <xref target="RFC2616">Hypertext Transfer Protocol</xref>) to indicate that the
           subscriber may retry subscribing to a different hub.topic. This allows
           for limited distribution to specific groups or users in the context of social web
@@ -371,7 +380,8 @@
 
           <t>The hub MUST consider other server response codes (3xx, 4xx, 5xx)
           to mean that the verification request has failed. If the subscriber
-          returns an HTTP success (2xx) but the content body does not match the
+          returns an <xref
+        target="RFC2616">HTTP</xref> success (2xx) but the content body does not match the
           <spanx style="verb">hub.challenge</spanx> parameter, the hub MUST also
           consider verification to have failed.</t>
 
@@ -412,7 +422,8 @@
         Header</xref>.</t>
 
         <t>The successful response from the subscriber's callback URL MUST be an
-        HTTP success (2xx) code. The hub MUST consider all other subscriber
+        <xref
+        target="RFC2616">HTTP</xref> success (2xx) code. The hub MUST consider all other subscriber
         response codes as failures; that means subscribers MUST NOT use HTTP
         redirects for moving subscriptions. The response body from the
         subscriber MUST be ignored by the hub. Hubs SHOULD retry notifications
@@ -446,7 +457,8 @@
         locally ignore the message as invalid. Using this technique along with
         <xref target="RFC2818">HTTPS</xref> for subscription requests enables
         simple subscribers to receive authenticated notifications from hubs
-        without the need for subscribers to run an HTTPS server.</t>
+        without the need for subscribers to run an <xref target="RFC2818">HTTPS</xref>
+        server.</t>
 
         <t>Please note however that this signature only ensures that the payload
         was not forged. Since the notification also includes headers, these should
