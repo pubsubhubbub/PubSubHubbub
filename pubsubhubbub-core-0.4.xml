@@ -405,9 +405,11 @@
         type of the topic. The hub MAY reduce the payload to a diff between two
         consecutive versions if its format allows it.</t>
 
-        <t>The POST request must include the Self Link Header
-        and a Hub Link Header that correspond
-        to topic's URL, as well as hub URL respectively.</t>
+        <t>The request MUST include a <xref target="RFC5988">Link Header</xref>
+        with rel=hub pointing to the Hub as well as a <xref target="RFC5988">Link
+        Header</xref> with rel=self set to the topic that's being updated. The Hub
+        SHOULD combine both headers into a single <xref target="RFC5988">Link
+        Header</xref>.</t>
 
         <t>The successful response from the subscriber's callback URL MUST be an
         HTTP success (2xx) code. The hub MUST consider all other subscriber
