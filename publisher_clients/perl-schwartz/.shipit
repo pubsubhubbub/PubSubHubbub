@@ -1,6 +1,0 @@
-steps = FindVersion, ChangeVersion, CheckChangeLog, DistTest, Commit, Tag, MakeDist, UploadCPAN
-svn.tagpattern = TheSchwartz-Worker-PubSubHubbubPublish-perl-%v
-
-
-
-
