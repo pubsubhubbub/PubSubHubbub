@@ -12,6 +12,28 @@
 	  a {
 	  text-decoration: none;
 	  }
+      /* info code from SantaKlauss at http://www.madaboutstyle.com/tooltip2.html */
+      a.info {
+          /* This is the key. */
+          position: relative;
+          z-index: 24;
+          text-decoration: none;
+      }
+      a.info:hover {
+          z-index: 25;
+          color: #FFF; background-color: #900;
+      }
+      a.info span { display: none; }
+      a.info:hover span.info {
+          /* The span will display just on :hover state. */
+          display: block;
+          position: absolute;
+          font-size: smaller;
+          top: 2em; left: -5em; width: 15em;
+          padding: 2px; border: 1px solid #333;
+          color: #900; background-color: #EEE;
+          text-align: left;
+      }
 	  a.smpl {
 	  color: black;
 	  }
@@ -324,7 +346,7 @@
 		   content: "December 2010"; 
 	  } 
 	  @top-center {
-		   content: "Abbreviated Title";3
+		   content: "Abbreviated Title";
 	  } 
 	  @bottom-left {
 		   content: "Doe"; 
@@ -368,14 +390,14 @@
 <link href="#rfc.authors" rel="Chapter"/>
 
 
-  <meta name="generator" content="xml2rfc version 2.4.2 - http://tools.ietf.org/tools/xml2rfc" />
+  <meta name="generator" content="xml2rfc version 2.4.5 - http://tools.ietf.org/tools/xml2rfc" />
   <link rel="schema.dct" href="http://purl.org/dc/terms/" />
 
   <meta name="dct.creator" content="Fitzpatrick, B., Slatkin, B., Atkins, M., and J. Genestoux" />
   <meta name="dct.identifier" content="urn:ietf:id:pubsubhubbub-core-0.4.xml" />
-  <meta name="dct.issued" scheme="ISO8601" content="2013-6-20" />
-  <meta name="dct.abstract" content="An open, simple, web-scale and decentralized pubsub protocol.  Anybody can play." />
-  <meta name="description" content="An open, simple, web-scale and decentralized pubsub protocol.  Anybody can play." />
+  <meta name="dct.issued" scheme="ISO8601" content="2014-2-4" />
+  <meta name="dct.abstract" content="An open, simple, web-scale and decentralized pubsub protocol. Anybody can play." />
+  <meta name="description" content="An open, simple, web-scale and decentralized pubsub protocol. Anybody can play." />
 
 </head>
 
@@ -397,7 +419,7 @@
   <td class="right">Google, Inc</td>
 </tr>
 <tr>
-  <td class="left">Expires: December 22, 2013</td>
+  <td class="left">Expires: August 8, 2014</td>
   <td class="right">M. Atkins</td>
 </tr>
 <tr>
@@ -414,7 +436,7 @@
 </tr>
 <tr>
   <td class="left"></td>
-  <td class="right">June 20, 2013</td>
+  <td class="right">February 4, 2014</td>
 </tr>
 
     	
@@ -427,7 +449,7 @@
   <h1 id="rfc.abstract">
   <a href="#rfc.abstract">Abstract</a>
 </h1>
-<p>An open, simple, web-scale and decentralized pubsub protocol.  Anybody can play.</p>
+<p>An open, simple, web-scale and decentralized pubsub protocol. Anybody can play.</p>
 <p>As opposed to more developed (and more complex) pubsub specs like <a href="#XEP-0060">Jabber Publish-Subscribe</a> <cite title="NONE">[XEP-0060]</cite> this spec's base profile (the barrier-to-entry to speak it) is dead simple. The fancy bits required for high-volume publishers and subscribers are optional. The base profile is HTTP-based, as opposed to XMPP (see more on this below).</p>
 <p>To dramatically simplify this spec in several places where we had to choose between supporting A or B, we took it upon ourselves to say "only A", rather than making it an implementation decision.</p>
 <p>We offer this spec in hopes that it fills a need or at least advances the state of the discussion in the pubsub space. Polling sucks. We think a decentralized pubsub layer is a fundamental, missing layer in the Internet architecture today and its existence, more than just enabling the obvious lower latency feed readers, would enable many cool applications, most of which we can't even imagine. But we're looking forward to decentralized social networking.</p>
@@ -437,11 +459,11 @@
 <p>This Internet-Draft is submitted in full conformance with the provisions of BCP 78 and BCP 79.</p>
 <p>Internet-Drafts are working documents of the Internet Engineering Task Force (IETF).  Note that other groups may also distribute working documents as Internet-Drafts.  The list of current Internet-Drafts is at http://datatracker.ietf.org/drafts/current/.</p>
 <p>Internet-Drafts are draft documents valid for a maximum of six months and may be updated, replaced, or obsoleted by other documents at any time.  It is inappropriate to use Internet-Drafts as reference material or to cite them other than as "work in progress."</p>
-<p>This Internet-Draft will expire on December 22, 2013.</p>
+<p>This Internet-Draft will expire on August 8, 2014.</p>
 <h1 id="rfc.copyrightnotice">
   <a href="#rfc.copyrightnotice">Copyright Notice</a>
 </h1>
-<p>Copyright (c) 2013 IETF Trust and the persons identified as the document authors.  All rights reserved.</p>
+<p>Copyright (c) 2014 IETF Trust and the persons identified as the document authors.  All rights reserved.</p>
 <p>This document is subject to BCP 78 and the IETF Trust's Legal Provisions Relating to IETF Documents (http://trustee.ietf.org/license-info) in effect on the date of publication of this document.  Please review these documents carefully, as they describe your rights and restrictions with respect to this document.  Code Components extracted from this document must include Simplified BSD License text as described in Section 4.e of the Trust Legal Provisions and are provided without warranty as described in the Simplified BSD License.</p>
 
   
@@ -486,9 +508,9 @@
   <dt>Subscriber Callback URL:</dt>
   <dd style="margin-left: 8">The <a href="#RFC3986">URL</a> <cite title="NONE">[RFC3986]</cite> at which a subscriber wishes to receive notifications.</dd>
   <dt>Event:</dt>
-  <dd style="margin-left: 8">An event that causes updates to multiple topics.  For each event that happens (e.g. "Brad posted to the Linux Community."), multiple topics could be affected (e.g. "Brad posted." and "Linux community has new post"). Publisher events cause topics to be updated and the hub looks up all subscriptions for affected topics, sending out notifications to subscribers.</dd>
+  <dd style="margin-left: 8">An event that causes updates to multiple topics. For each event that happens (e.g. "Brad posted to the Linux Community."), multiple topics could be affected (e.g. "Brad posted." and "Linux community has new post"). Publisher events cause topics to be updated and the hub looks up all subscriptions for affected topics, sending out notifications to subscribers.</dd>
   <dt>Notification:</dt>
-  <dd style="margin-left: 8">A payload describing how a topic's contents have changed, or the full updated content.  Depending on the topic's content type, the difference (or "delta") may be computed by the hub and sent to all subscribers.</dd>
+  <dd style="margin-left: 8">A payload describing how a topic's contents have changed, or the full updated content. Depending on the topic's content type, the difference (or "delta") may be computed by the hub and sent to all subscribers.</dd>
 </dl>
 <h1 id="rfc.section.3"><a href="#rfc.section.3">3.</a> High-level protocol flow</h1>
 <p id="rfc.section.3.p.1">(This section is non-normative.)</p>
@@ -500,8 +522,8 @@
   <li>The hub caches minimal metadata (id, data, entry digest) about each topic's previous state. When the hub re-fetches a topic feed (on its own initiative or as a result of a publisher's ping) and finds a delta, it enqueues a notification to all registered subscribers.</li>
 </ul>
 <h1 id="rfc.section.4"><a href="#rfc.section.4">4.</a> <a href="#discovery" id="discovery">Discovery</a></h1>
-<p id="rfc.section.4.p.1">A potential subscriber initiates discovery by retrieving (GET or HEAD request) the topic to which it wants to subscribe. The <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> response from the publisher MUST include at least one <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite> with <samp>rel=hub</samp> (a hub link header) as well as exactly one <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite> with <samp>rel=self</samp> (the self link header).  The former MUST indicate the exact URL of a PubSubHubbub hub designated by the publisher.  If more than one URL is specified, it is expected that the publisher pings each of these URLs, so the subscriber may subscribe to one or more of these.  The latter will point to the permanent URL for the resource being polled.</p>
-<p id="rfc.section.4.p.2">In the absence of <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> Link headers, subscribers MAY fall back to other methods to discover the hub(s) and the canonical URI of the topic.  If the topic is an XML based feed, it MAY use embedded link elements as described in Appendix B of <a href="#RFC5988">Web Linking</a> <cite title="NONE">[RFC5988]</cite>.  Similarly, for HTML pages, it MAY use embedded link elements as described in Appendix A of <a href="#RFC5988">Web Linking</a> <cite title="NONE">[RFC5988]</cite>. Finally, publishers MAY also use the <a href="#RFC5785">Well-Known Uniform Resource Identifiers</a> <cite title="NONE">[RFC5785]</cite> .host-meta to include the &lt;Link&gt; element.</p>
+<p id="rfc.section.4.p.1">A potential subscriber initiates discovery by retrieving (GET or HEAD request) the topic to which it wants to subscribe. The <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> response from the publisher MUST include at least one <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite> with <samp>rel=hub</samp> (a hub link header) as well as exactly one <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite> with <samp>rel=self</samp> (the self link header). The former MUST indicate the exact URL of a PubSubHubbub hub designated by the publisher. If more than one URL is specified, it is expected that the publisher pings each of these URLs, so the subscriber may subscribe to one or more of these. The latter will point to the permanent URL for the resource being polled.</p>
+<p id="rfc.section.4.p.2">In the absence of <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> Link headers, subscribers MAY fall back to other methods to discover the hub(s) and the canonical URI of the topic. If the topic is an XML based feed, it MAY use embedded link elements as described in Appendix B of <a href="#RFC5988">Web Linking</a> <cite title="NONE">[RFC5988]</cite>. Similarly, for HTML pages, it MAY use embedded link elements as described in Appendix A of <a href="#RFC5988">Web Linking</a> <cite title="NONE">[RFC5988]</cite>. Finally, publishers MAY also use the <a href="#RFC5785">Well-Known Uniform Resource Identifiers</a> <cite title="NONE">[RFC5785]</cite> .host-meta to include the &lt;Link&gt; element with rel="hub".</p>
 <h1 id="rfc.section.5"><a href="#rfc.section.5">5.</a> <a href="#subscribing" id="subscribing">Subscribing and Unsubscribing</a></h1>
 <p id="rfc.section.5.p.1">Subscribing to a topic URL consists of four parts that may occur immediately in sequence or have a delay.</p>
 <p/>
@@ -525,15 +547,15 @@
   <dt>hub.topic</dt>
   <dd style="margin-left: 8">REQUIRED. The topic URL that the subscriber wishes to subscribe to or unsubscribe from.</dd>
   <dt>hub.lease_seconds</dt>
-  <dd style="margin-left: 8">OPTIONAL. Number of seconds for which the subscriber would like to have the subscription active. Hubs MAY choose to respect this value or not, depending on their own policies.  This parameter MAY be present for unsubscription requests and MUST be ignored by the hub in that case.</dd>
+  <dd style="margin-left: 8">OPTIONAL. Number of seconds for which the subscriber would like to have the subscription active. Hubs MAY choose to respect this value or not, depending on their own policies. This parameter MAY be present for unsubscription requests and MUST be ignored by the hub in that case.</dd>
   <dt>hub.secret</dt>
   <dd style="margin-left: 8">OPTIONAL. A subscriber-provided secret string that will be used to compute an HMAC digest for <a href="#authednotify">authorized content distribution</a> <cite title="NONE">[authednotify]</cite>. If not supplied, the HMAC digest will not be present for content distribution requests. This parameter SHOULD only be specified when the request was made over <a href="#RFC2818">HTTPS</a> <cite title="NONE">[RFC2818]</cite>. This parameter MUST be less than 200 bytes in length.</dd>
 </dl>
-<p id="rfc.section.5.1.p.3">Subscribers MAY also include additional <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> request parameters, as well as <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> Headers if they are required by the hub.  In the context of social web applications, it is considered good practice to include a From <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> header (as described in section 14.22 of <a href="#RFC2616">Hypertext Transfer Protocol</a> <cite title="NONE">[RFC2616]</cite>) to indicate on behalf of which user the subscription is being performed.  </p>
+<p id="rfc.section.5.1.p.3">Subscribers MAY also include additional <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> request parameters, as well as <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> Headers if they are required by the hub. In the context of social web applications, it is considered good practice to include a From <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> header (as described in section 14.22 of <a href="#RFC2616">Hypertext Transfer Protocol</a> <cite title="NONE">[RFC2616]</cite>) to indicate on behalf of which user the subscription is being performed. </p>
 <p id="rfc.section.5.1.p.4">Hubs MUST ignore additional request parameters they do not understand.</p>
 <p id="rfc.section.5.1.p.5">Hubs MUST allow subscribers to re-request subscriptions that are already activated. Each subsequent request to a hub to subscribe or unsubscribe MUST override the previous subscription state for a specific topic URL and callback URL combination once the action is verified. Any failures to confirm the subscription action MUST leave the subscription state unchanged. This is required so subscribers can renew their subscriptions before the lease seconds period is over without any interruption.</p>
 <h1 id="rfc.section.5.1.1"><a href="#rfc.section.5.1.1">5.1.1.</a> Subscription Parameter Details</h1>
-<p id="rfc.section.5.1.1.p.1">The topic and callback URLs MAY use <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> or <a href="#RFC2818">HTTPS</a> <cite title="NONE">[RFC2818]</cite> schemes. The topic URL MUST be the one advertised by the publisher in a Self Link Header during the discovery phase. (See <a href="#discovery">Section 4</a>).  Hubs MAY refuse subscriptions if the topic URL does not correspond to the one advertised by the publisher. The topic URL can otherwise be free-form following <a href="#RFC3986">the URI spec</a> <cite title="NONE">[RFC3986]</cite>. Hubs MUST always decode non-reserved characters for these URL parameters; see section 2.4 on <em>"When to Encode or Decode"</em> in <a href="#RFC3986">the URI spec</a> <cite title="NONE">[RFC3986]</cite>.</p>
+<p id="rfc.section.5.1.1.p.1">The topic and callback URLs MAY use <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> or <a href="#RFC2818">HTTPS</a> <cite title="NONE">[RFC2818]</cite> schemes. The topic URL MUST be the one advertised by the publisher in a Self Link Header during the discovery phase. (See <a href="#discovery">Section 4</a>). Hubs MAY refuse subscriptions if the topic URL does not correspond to the one advertised by the publisher. The topic URL can otherwise be free-form following <a href="#RFC3986">the URI spec</a> <cite title="NONE">[RFC3986]</cite>. Hubs MUST always decode non-reserved characters for these URL parameters; see section 2.4 on <em>"When to Encode or Decode"</em> in <a href="#RFC3986">the URI spec</a> <cite title="NONE">[RFC3986]</cite>.</p>
 <p id="rfc.section.5.1.1.p.2">The callback URL MAY contain arbitrary query string parameters (e.g., <samp>?foo=bar&amp;red=fish</samp>). Hubs MUST preserve the query string during subscription verification by appending new parameters to the end of the list using the <samp>&amp;</samp> (ampersand) character to join. Existing parameters with names that overlap with those used by verification requests will not be overwritten. For event notification, the callback URL will be POSTed to including any query-string parameters in the URL portion of the request, not as POST body parameters.</p>
 <h1 id="rfc.section.5.1.2"><a href="#rfc.section.5.1.2">5.1.2.</a> Subscription Response Details</h1>
 <p id="rfc.section.5.1.2.p.1">The hub MUST respond to a subscription request with an <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> 202 "Accepted" response to indicate that the request was received and will now be verified (<a href="#verifysub">Section 5.3</a>) and validated (<a href="#validationsub">Section 5.2</a>) by the hub. The hub SHOULD perform the verification and validation of intent as soon as possible.</p>
@@ -580,7 +602,7 @@
 <p id="rfc.section.7.p.2">The request MUST include a <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite> with rel=hub pointing to the Hub as well as a <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite> with rel=self set to the topic that's being updated. The Hub SHOULD combine both headers into a single <a href="#RFC5988">Link Header</a> <cite title="NONE">[RFC5988]</cite>.</p>
 <p id="rfc.section.7.p.3">The successful response from the subscriber's callback URL MUST be an <a href="#RFC2616">HTTP</a> <cite title="NONE">[RFC2616]</cite> success (2xx) code. The hub MUST consider all other subscriber response codes as failures; that means subscribers MUST NOT use HTTP redirects for moving subscriptions. The response body from the subscriber MUST be ignored by the hub. Hubs SHOULD retry notifications repeatedly until successful (up to some reasonable maximum over a reasonable time period). Subscribers SHOULD respond to notifications as quickly as possible; their success response code SHOULD only indicate receipt of the message, not acknowledgment that it was successfully processed by the subscriber.</p>
 <h1 id="rfc.section.8"><a href="#rfc.section.8">8.</a> <a href="#authednotify" id="authednotify">Authenticated Content Distribution</a></h1>
-<p id="rfc.section.8.p.1">If the subscriber supplied a value for <samp>hub.secret</samp> in their subscription request, the hub MUST generate an HMAC signature of the payload and include that signature in the request headers of the content distribution request.  The <samp>X-Hub-Signature</samp> header's value MUST be in the form <samp>sha1=signature</samp> where <samp>signature</samp> is a 40-byte, hexadecimal representation of a <a href="#RFC3174">SHA1 signature</a> <cite title="NONE">[RFC3174]</cite>. The signature MUST be computed using the <a href="#RFC2104">HMAC algorithm</a> <cite title="NONE">[RFC2104]</cite> with the request body as the data and the <samp>hub.secret</samp> as the key.</p>
+<p id="rfc.section.8.p.1">If the subscriber supplied a value for <samp>hub.secret</samp> in their subscription request, the hub MUST generate an HMAC signature of the payload and include that signature in the request headers of the content distribution request. The <samp>X-Hub-Signature</samp> header's value MUST be in the form <samp>sha1=signature</samp> where <samp>signature</samp> is a 40-byte, hexadecimal representation of a <a href="#RFC3174">SHA1 signature</a> <cite title="NONE">[RFC3174]</cite>. The signature MUST be computed using the <a href="#RFC2104">HMAC algorithm</a> <cite title="NONE">[RFC2104]</cite> with the request body as the data and the <samp>hub.secret</samp> as the key.</p>
 <p id="rfc.section.8.p.2">When subscribers receive a content distribution request with the <samp>X-Hub-Signature</samp> header specified, they SHOULD recompute the SHA1 signature with the shared secret using the same method as the hub. If the signature does not match, subscribers MUST still return a 2xx success response to acknowledge receipt, but locally ignore the message as invalid. Using this technique along with <a href="#RFC2818">HTTPS</a> <cite title="NONE">[RFC2818]</cite> for subscription requests enables simple subscribers to receive authenticated notifications from hubs without the need for subscribers to run an <a href="#RFC2818">HTTPS</a> <cite title="NONE">[RFC2818]</cite> server.</p>
 <p id="rfc.section.8.p.3">Please note however that this signature only ensures that the payload was not forged. Since the notification also includes headers, these should not be considered as safe by the subscriber, unless of course the subscriber uses <a href="#RFC2818">HTTPS</a> <cite title="NONE">[RFC2818]</cite> callbacks.</p>
 <h1 id="rfc.references"><a href="#rfc.references">9.</a> References</h1>
@@ -590,25 +612,25 @@
       <td class="reference">
         <b id="RFC2104">[RFC2104]</b>
       </td>
-      <td class="top"><a title="IBM, T.J. Watson Research Center">Krawczyk, H.</a>, <a title="University of California at San Diego, Dept of Computer Science and Engineering">Bellare, M.</a> and <a title="IBM T.J. Watson Research Center">R. Canetti</a>, "<a href="http://tools.ietf.org/html/rfc2104">HMAC: Keyed-Hashing for Message Authentication</a>", RFC 2104, </td>
+      <td class="top"><a title="IBM, T.J. Watson Research Center">Krawczyk, H.</a>, <a title="University of California at San Diego, Dept of Computer Science and Engineering">Bellare, M.</a> and <a title="IBM T.J. Watson Research Center">R. Canetti</a>, "<a href="http://tools.ietf.org/html/rfc2104">HMAC: Keyed-Hashing for Message Authentication</a>", RFC 2104, Feb 1997.</td>
     </tr>
     <tr>
       <td class="reference">
         <b id="RFC2119">[RFC2119]</b>
       </td>
-      <td class="top"><a title="Alis Technologies">Bradner, B.</a>, "<a href="http://tools.ietf.org/html/rfc2119">Key words for use in RFCs to Indicate Requirement Levels</a>", RFC 2119, </td>
+      <td class="top"><a title="Alis Technologies">Bradner, B.</a>, "<a href="http://tools.ietf.org/html/rfc2119">Key words for use in RFCs to Indicate Requirement Levels</a>", RFC 2119, Mar 1997.</td>
     </tr>
     <tr>
       <td class="reference">
         <b id="RFC2606">[RFC2606]</b>
       </td>
-      <td class="top"><a>Eastlake, D.</a> and <a>A. Panitz</a>, "<a href="http://tools.ietf.org/html/rfc2606">Reserved Top Level DNS Names</a>", RFC 2606, </td>
+      <td class="top"><a>Eastlake, D.</a> and <a>A. Panitz</a>, "<a href="http://tools.ietf.org/html/rfc2606">Reserved Top Level DNS Names</a>", RFC 2606, Jun 1999.</td>
     </tr>
     <tr>
       <td class="reference">
         <b id="RFC2616">[RFC2616]</b>
       </td>
-      <td class="top"><a title="UC Irvine">Fielding, R.</a>, <a title="Compaq/W3C">Gettys, J.</a>, <a title="Compaq">Mogul, J.</a>, <a title="W3C/MIT">Frystyk, H.</a>, <a title="Xerox">Masinter, L.</a>, <a title="Microsoft">Leach, P.</a> and <a title="W3C/MIT">T. Berners-Lee</a>, "<a href="http://tools.ietf.org/html/rfc2616">Hypertext Transfer Protocol -- HTTP/1.1</a>", RFC 2616, </td>
+      <td class="top"><a title="UC Irvine">Fielding, R.</a>, <a title="Compaq/W3C">Gettys, J.</a>, <a title="Compaq">Mogul, J.</a>, <a title="W3C/MIT">Frystyk, H.</a>, <a title="Xerox">Masinter, L.</a>, <a title="Microsoft">Leach, P.</a> and <a title="W3C/MIT">T. Berners-Lee</a>, "<a href="http://tools.ietf.org/html/rfc2616">Hypertext Transfer Protocol -- HTTP/1.1</a>", RFC 2616, Jun 1999.</td>
     </tr>
     <tr>
       <td class="reference">
@@ -626,13 +648,13 @@
       <td class="reference">
         <b id="RFC3986">[RFC3986]</b>
       </td>
-      <td class="top"><a>Berners-Lee, T.</a>, "<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>", RFC 3986, </td>
+      <td class="top"><a>Berners-Lee, T.</a>, "<a href="http://tools.ietf.org/html/rfc3986">Uniform Resource Identifiers (URI): Generic Syntax</a>", RFC 3986, Jan 2005.</td>
     </tr>
     <tr>
       <td class="reference">
         <b id="RFC5785">[RFC5785]</b>
       </td>
-      <td class="top"><a>Nottingham, M.</a> and <a>E. Hammer-Lahav</a>, "<a href="http://tools.ietf.org/html/rfc5785">Defining Well-Known Uniform Resource Identifiers (URIs)</a>", RFC 5785, </td>
+      <td class="top"><a>Nottingham, M.</a> and <a>E. Hammer-Lahav</a>, "<a href="http://tools.ietf.org/html/rfc5785">Defining Well-Known Uniform Resource Identifiers (URIs)</a>", RFC 5785, Apr 2010.</td>
     </tr>
     <tr>
       <td class="reference">
@@ -650,12 +672,12 @@
       <td class="reference">
         <b id="XEP-0060">[XEP-0060]</b>
       </td>
-      <td class="top"><a>Millard, P.</a>, <a>Saint-Andre, P.</a> and <a>R. Meijer</a>, "<a>Publish-Subscribe</a>", XSF XEP 0060, </td>
+      <td class="top"><a>Millard, P.</a>, <a>Saint-Andre, P.</a> and <a>R. Meijer</a>, "<a>Publish-Subscribe</a>", XSF XEP 0060, Jul 2010.</td>
     </tr>
   </tbody>
 </table>
 <h1 id="rfc.appendix.A"><a href="#rfc.appendix.A">Appendix A.</a> Specification Feedback</h1>
-<p id="rfc.section.A.p.1">Feedback on this specification is welcomed via the PubSubHubbub W3C Community Group.  For more information, see <a href="http://www.w3.org/community/pubsub/">the W3C PubSubHubbub Community Group</a>.  </p>
+<p id="rfc.section.A.p.1">Feedback on this specification is welcomed via the PubSubHubbub W3C Community Group.For more information, see <a href="http://www.w3.org/community/pubsub/">the W3C PubSubHubbub Community Group</a>. </p>
 <h1 id="rfc.authors">
   <a href="#rfc.authors">Authors' Addresses</a>
 </h1>
