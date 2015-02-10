@@ -14,3 +14,5 @@ Open hubs are provided by:
 
 Several other publishing platforms, like Wordpress, include their own hubs.
 
+If you're looking for a tutorial on how to get started with PubSubHubbub, [check this one](http://blog.superfeedr.com/howto-pubsubhubbub/) published by Superfeedr.
+
