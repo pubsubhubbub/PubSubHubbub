@@ -128,7 +128,7 @@
                 <t>The subscription MAY be denied by the hub at any point (even if it was previously accepted). The Subscriber SHOULD then consider that the subscription is not possible anymore.</t>
             </section>
             <section anchor="verifysub" title="Hub Verifies Intent of the Subscriber">
-                <t>In order to prevent an attacker from creating unwanted subscriptions on behalf of a subscriber (or unsubscribing desired ones), a hub must ensure that the subscriber did indeed send the subscription request.</t>
+                <t>In order to prevent an attacker from creating unwanted subscriptions on behalf of a subscriber (or unsubscribing desired ones), a hub MUST ensure that the subscriber did indeed send the subscription request.</t>
                 <t>The hub verifies a subscription request by sending an <xref target="RFC2616">HTTP</xref> GET request to the subscriber's callback URL as given in the subscription request. This request has the following query string arguments appended (format described in Section 17.13.4 of <xref target="W3C.REC-html401-19991224" />):</t>
                 <t>
                     <list style="hanging">
