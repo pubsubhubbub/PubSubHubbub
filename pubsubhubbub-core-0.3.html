@@ -345,7 +345,7 @@ Atom Details</h3>
       to know whether or not they'd missed any recent items-- like TCP SACK) MAY
       be provided as context. Some examples of Atom feed entries follow.
 </p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;?xml version="1.0"?&gt;
-&lt;atom:feed&gt;
+&lt;feed xmlns=&quot;http://www.w3.org/2005/Atom&quot;&gt;
   &lt;!-- Normally here would be source, title, author, id, etc ... --&gt;
 
   &lt;link rel="hub" href="http://myhub.example.com/endpoint" /&gt;
@@ -392,7 +392,7 @@ Atom Details</h3>
     &lt;updated&gt;2008-07-10T12:28:13Z&lt;/updated&gt;
   &lt;/entry&gt;
 
-&lt;/atom:feed&gt;
+&lt;/feed&gt;
 </pre></div>
 <a name="discovery"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
@@ -410,7 +410,7 @@ Discovery</h3>
 </p>
 <p>Example:
 </p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;?xml version="1.0"?&gt;
-&lt;atom:feed&gt;
+&lt;feed xmlns=&quot;http://www.w3.org/2005/Atom&quot;&gt;
   &lt;!-- Normally here would be source, title, author, id, etc ... --&gt;
   &lt;link rel="hub" href="https://myhub.example.com/endpoint" /&gt;
   &lt;link rel="self" href="http://publisher.example.com/topic.xml" /&gt;
@@ -421,7 +421,7 @@ Discovery</h3>
   &lt;entry&gt;
      ....
   &lt;/entry&gt;
-&lt;/atom:feed&gt;
+&lt;/feed&gt;
 </pre></div>
 <p>Hubs MUST use the same URL for both the publishing and subscribing
     interfaces, which is why only a single <tt>atom:link</tt>
@@ -892,7 +892,7 @@ Aggregated Content Distribution</h3>
 </p>
 <p>Example aggregated feed:
 </p><div style='display: table; width: 0; margin-left: 3em; margin-right: auto'><pre>&lt;?xml version="1.0"?&gt;
-&lt;atom:feed&gt;
+&lt;feed xmlns=&quot;http://www.w3.org/2005/Atom&quot;&gt;
   &lt;title&gt;Aggregated feed&lt;/title&gt;
   &lt;updated&gt;2008-08-11T02:17:44Z&lt;/updated&gt;
   &lt;id&gt;http://myhub.example.com/aggregated?1232427842-39823&lt;/id&gt;
@@ -931,7 +931,7 @@ Aggregated Content Distribution</h3>
     &lt;/content&gt;
   &lt;/entry&gt;
 
-&lt;/atom:feed&gt;
+&lt;feed&gt;
 </pre></div>
 <a name="bestpractices"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
