@@ -425,7 +425,7 @@ Discovery</h3>
 </pre></div>
 <p>Hubs MUST use the same URL for both the publishing and subscribing
     interfaces, which is why only a single <tt>atom:link</tt>
-    element is required to declare a hub. Publishers SHOULD use <a class='info' href='#RFC2616'>HTTPS<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] in their hubs' discovery URLs. However,
+    element is required to declare a hub. Publishers SHOULD use <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616] in their hubs' discovery URLs. However,
     subscribers that do not support <a class='info' href='#RFC2818'>HTTPS<span> (</span><span class='info'>Rescorla, E., &ldquo;HTTP Over TLS,&rdquo; May&nbsp;2000.</span><span>)</span></a> [RFC2818] MAY
     try to fallback to <a class='info' href='#RFC2616'>HTTP<span> (</span><span class='info'>Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter, L., Leach, P., and T. Berners-Lee, &ldquo;Hypertext Transfer Protocol -- HTTP/1.1,&rdquo; .</span><span>)</span></a> [RFC2616], which MAY work
     depending on the hub's policy.
@@ -875,7 +875,7 @@ Aggregated Content Distribution</h3>
         This allows the hub to generate a single <tt>X-Hub-Signature</tt> header to sign the entire payload.
         Hubs MUST return an error response (4xx, 5xx) for subscription
         requests with overlapping callback URLs and different secret values.
-        
+
 </p>
 <p>With an aggregated set of feeds, the hub SHOULD reproduce all of the
         elements from the source feed <em>inside</em> the
@@ -1012,7 +1012,7 @@ Specification Feedback</h3>
       <a href='http://moderator.appspot.com/#15/e=43e1a&t=426ac'>FAQ</a>
       and <a href='http://code.google.com/p/pubsubhubbub/'>other
       documentation</a>.
-      
+
 </p>
 <a name="rfc.authors"></a><br /><hr />
 <table summary="layout" cellpadding="0" cellspacing="2" class="TOCbug" align="right"><tr><td class="TOCbug"><a href="#toc">&nbsp;TOC&nbsp;</a></td></tr></table>
