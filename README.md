@@ -11,8 +11,12 @@ The current version of the spec is 0.4. Please, [read it here](http://pubsubhubb
 Open hubs are provided by:
 * [Superfeedr](http://pubsubhubbub.superfeedr.com/)
 * [Google](http://pubsubhubbub.appspot.com/)
+* Aaron Parecki: [p3k](https://switchboard.p3k.io/)
+* Christian Weiske: [phubb](http://indiewebcamp.com/phubb)
 
 Several other publishing platforms, like Wordpress, include their own hubs.
 
-If you're looking for a tutorial on how to get started with PubSubHubbub, [check this one](http://blog.superfeedr.com/howto-pubsubhubbub/) published by Superfeedr.
+If you're looking for tutorials on how to get started with PubSubHubbub, check the links below:
+* [How to PubSubHubbub](http://blog.superfeedr.com/howto-pubsubhubbub/) by Superfeedr
+* [How to publish and consume PubSubHubbub](http://indiewebcamp.com/How_to_publish_and_consume_PubSubHubbub) on indiewebcamp.com
 
