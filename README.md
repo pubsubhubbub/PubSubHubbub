@@ -12,7 +12,7 @@ Open hubs are provided by:
 * [Superfeedr](http://pubsubhubbub.superfeedr.com/)
 * [Google](http://pubsubhubbub.appspot.com/)
 * Aaron Parecki: [p3k](https://switchboard.p3k.io/)
-* Christian Weiske: [phubb](http://indiewebcamp.com/phubb)
+* Christian Weiske: [phubb](http://phubb.cweiske.de/)
 
 Several other publishing platforms, like Wordpress, include their own hubs.
 
