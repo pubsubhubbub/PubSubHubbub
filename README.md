@@ -2,7 +2,7 @@ PubSubHubbub
 ============
 
 **PubSubHubbub** is an open protocol for distributed publish/subscribe communication on the Internet. It generalizes the concept of webhooks
-and allows data produces and data consumers to work in a decoupled way.
+and allows data producers and data consumers to work in a decoupled way.
 
 PubSubHubbub provides a way to subscribe, unsubscribe and receive updates from a resource, whether it's an RSS or Atom feed or any web accessible document (JSON...).
 
