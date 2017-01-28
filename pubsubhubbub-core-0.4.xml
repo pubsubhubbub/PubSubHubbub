@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="US-ASCII"?>
 <?xml-stylesheet type='text/xsl' href='http://xml.resource.org/authoring/rfc2629.xslt' ?>
-<!-- For editting this, see: http://xml.resource.org/public/rfc/html/rfc2629.html
+<!-- For editing this, see: http://xml.resource.org/public/rfc/html/rfc2629.html
  In a nutshell,
  $ sudo apt-get install xml2rfc
  $ xml2rfc pubsubhubbub-core-0.1.xml pubsubhubbub-core-0.1.html
