@@ -2,7 +2,7 @@
 <?xml-stylesheet type='text/xsl' href='http://xml.resource.org/authoring/rfc2629.xslt' ?>
 <!DOCTYPE rfc SYSTEM "rfc2629.dtd">
 <!--
-  For editting this, see:
+  For editing this, see:
 
   http://xml.resource.org/public/rfc/html/rfc2629.html
 
@@ -58,7 +58,7 @@
 
     <abstract>
       <t>An open, simple, web-scale pubsub protocol, along with an open source
-      reference implentation targetting Google App Engine. Notably, however,
+      reference implentation targeting Google App Engine. Notably, however,
       nothing in the protocol is centralized, or Google- or App
       Engine-specific. Anybody can play.</t>
 
@@ -369,7 +369,7 @@
           understand.</t>
 
           <t>Hubs MUST allow subscribers to re-request subscriptions that are
-          already activate. Each subsequent request to a hub to subscribe or
+          already activated. Each subsequent request to a hub to subscribe or
           unsubscribe MUST override the previous subscription state for a
           specific topic URL and callback URL combination once the action is
           verified. Any failures to confirm the subscription action MUST leave
@@ -478,7 +478,7 @@
           <t>The subscriber MUST confirm that the <spanx style="verb">hub.topic
           </spanx> and <spanx style="verb">hub.verify_token</spanx> correspond
           to a pending subscription or unsubscription that it wishes to carry
-          out. If so, the subscriber MUST respond with an HTTP success (2xx)
+          out. If so, the subscriber MUST respond with an HTTP success (202)
           code with a response body equal to the <spanx
           style="verb">hub.challenge</spanx> parameter. If the subscriber does
           not agree with the action, the subscriber MUST respond with a 404 "Not
@@ -487,14 +487,14 @@
           <t>For synchronous verification, the hub MUST consider other server
           response codes (3xx, 4xx, 5xx) to mean that the verification request
           has immediately failed and no retries should occur. If the subscriber
-          returns an HTTP success (2xx) but the content body does not match the
+          returns an HTTP success (202) but the content body does not match the
           <spanx style="verb">hub.challenge</spanx> parameter, the hub MUST also
           consider verification to have failed.</t>
 
           <t>For asynchronous verification, the hub MUST consider other server
           response codes (3xx, 4xx, and 5xx) to mean that the subscription
           action was <spanx style="emph">temporarily</spanx> not verified. If
-          the subscriber returns an HTTP success (2xx) but the content body does
+          the subscriber returns an HTTP success (202) but the content body does
           not match the <spanx style="verb">hub.challenge</spanx> parameter, the
           hub MUST consider this to be a <spanx style="emph">temporary</spanx>
           failure and retry. The hub SHOULD retry verification a reasonable
@@ -553,15 +553,12 @@
     </section>
 
     <section anchor="publishing" title="Publishing">
-      <t>The publisher MUST inform the hub it previously designated when a topic 
-      has been updated. The hub and the publisher CAN agree on any mechanism, as 
-      long as the hub is eventually able send the updated payload to the 
-      subscribers. The following sub-sections (<xref 
-      target="newcontentnotification"></xref> and <xref target="contentfetch">
-      </xref>) illustrate a default mechanism that SHOULD be implemented when by 
-      Hub and the Publisher.</t>
+      <t>A publisher pings the hub with the topic URL(s) which have been updated
+      and the hub schedules those topics to be fetched and delivered. Because
+      it's just a ping to notify the hub of the topic URL (without a payload),
+      no authentication from the publisher is required.</t>
 
-      <section anchor="newcontentnotification" title="New Content Notification">
+      <section title="New Content Notification">
         <t>When new content is added to a feed, a notification is sent to
         the hub by the publisher. The hub MUST accept a POST request to
         the hub URL containing the notification. This request MUST have a
@@ -659,7 +656,7 @@ User-Agent: MyHub (+http://hub.example.com; 26 subscribers)
         that looks like the original but with old content removed.</t>
 
         <t>The successful response from the subscriber's callback URL MUST be an
-        HTTP success (2xx) code. The hub MUST consider all other subscriber
+        HTTP success (202) code. The hub MUST consider all other subscriber
         response codes as failures; that means subscribers MUST not use HTTP
         redirects for moving subscriptions. The response body from the
         subscriber MUST be ignored by the hub. Hubs SHOULD retry notifications
@@ -700,7 +697,7 @@ User-Agent: MyHub (+http://hub.example.com; 26 subscribers)
         <spanx style="verb">X-Hub-Signature</spanx> header specified, they
         SHOULD recompute the SHA1 signature with the shared secret using the
         same method as the hub. If the signature does not match, subscribers
-        MUST still return a 2xx success response to acknowledge receipt, but
+        MUST still return a 202 success response to acknowledge receipt, but
         locally ignore the message as invalid. Using this technique along with
         HTTPS for subscription requests enables simple subscribers to receive
         authenticated content delivery from hubs without the need for
