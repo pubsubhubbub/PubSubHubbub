@@ -2,7 +2,7 @@
 <?xml-stylesheet type='text/xsl' href='http://xml.resource.org/authoring/rfc2629.xslt' ?>
 <!DOCTYPE rfc SYSTEM "rfc2629.dtd">
 <!--
-  For editting this, see:
+  For editing this, see:
 
   http://xml.resource.org/public/rfc/html/rfc2629.html
 
@@ -58,7 +58,7 @@
 
     <abstract>
       <t>An open, simple, web-scale pubsub protocol, along with an open source
-      reference implentation targetting Google App Engine. Notably, however,
+      reference implentation targeting Google App Engine. Notably, however,
       nothing in the protocol is centralized, or Google- or App
       Engine-specific. Anybody can play.</t>
 
@@ -369,7 +369,7 @@
           understand.</t>
 
           <t>Hubs MUST allow subscribers to re-request subscriptions that are
-          already activate. Each subsequent request to a hub to subscribe or
+          already activated. Each subsequent request to a hub to subscribe or
           unsubscribe MUST override the previous subscription state for a
           specific topic URL and callback URL combination once the action is
           verified. Any failures to confirm the subscription action MUST leave

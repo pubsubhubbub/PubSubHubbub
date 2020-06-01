@@ -1,5 +1,0 @@
-steps = FindVersion, ChangeVersion, CheckChangeLog, DistTest, Commit, Tag, MakeDist, UploadCPAN
-svn.tagpattern = Net-PubSubHubbub-Publisher-perl-%v
-
-
-
