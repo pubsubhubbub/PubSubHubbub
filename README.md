@@ -2,7 +2,7 @@ PubSubHubbub
 ============
 
 __IMPORTANT NOTE__: The PubSubHubbub protocol has now been adopted by the W3C and published as a Recommendation. 
-It's also been renamed [WebSub](https://github.com/w3c/websub) for clarity and concision. Please consider upgrading all older PubSubHubbub implementations to WebSub.
+It's also been renamed [WebSub](https://www.w3.org/TR/websub/) for clarity and concision. Please consider upgrading all older PubSubHubbub implementations to WebSub.
 
 
 **PubSubHubbub** is an open protocol for distributed publish/subscribe communication on the Internet. It generalizes the concept of webhooks
